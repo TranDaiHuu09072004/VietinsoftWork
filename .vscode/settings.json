@@ -1,0 +1,8 @@
+{
+    "github.copilot.chat.codeGeneration.instructions": [
+        {
+            "file": "Vietinsoft_Agent_Skill.md"
+        }
+    ],
+    "roocode.rulesFile": "Vietinsoft_Agent_Skill.md"
+}

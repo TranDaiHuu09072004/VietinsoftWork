@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "mssql-vietinsoft": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@executeautomation/database-server",
+        "--sqlserver",
+        "--server", "${MSSQL_SERVER}",
+        "--port", "${MSSQL_PORT}",
+        "--database", "${MSSQL_DATABASE}",
+        "--user", "${MSSQL_USER}",
+        "--password", "${MSSQL_PASSWORD}"
+      ]
+    }
+  }
+}

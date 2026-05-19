@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:code.visualstudio.com)",
+      "PowerShell($names = 'MSSQL_SERVER','MSSQL_PORT','MSSQL_DATABASE','MSSQL_USER','MSSQL_PASSWORD'; foreach \\($n in $names\\) { $v = [Environment]::GetEnvironmentVariable\\($n, 'User'\\); if \\($v\\) { \"$n already set\" } else { \"$n not set\" } })",
+      "PowerShell(setx MSSQL_SERVER '192.168.11.51')",
+      "PowerShell(setx MSSQL_PORT '6688')",
+      "PowerShell(setx MSSQL_DATABASE 'Vietinsoft_Pay')",
+      "PowerShell(setx MSSQL_USER 'ai.sa')",
+      "PowerShell(setx MSSQL_PASSWORD 'ThoiDaiVibeCodeIA@2026')",
+      "PowerShell($ErrorActionPreference = 'Continue'; $proc = Start-Process -FilePath 'npx.cmd' -ArgumentList '-y','@executeautomation/database-server','--sqlserver','--server','192.168.11.51','--port','6688','--database','Vietinsoft_Pay','--user','ai.sa','--password','ThoiDaiVibeCodeIA@2026' -NoNewWindow -PassThru -RedirectStandardOutput 'd:\\\\VTS User\\\\Cuong.vu\\\\Agent work\\\\Vietinsoft\\\\mcp_test_out.log' -RedirectStandardError 'd:\\\\VTS User\\\\Cuong.vu\\\\Agent work\\\\Vietinsoft\\\\mcp_test_err.log'; Start-Sleep -Seconds 20; if \\(-not $proc.HasExited\\) { Stop-Process -Id $proc.Id -Force; \"Process was running \\(good sign — MCP server stays alive listening on stdio\\)\" } else { \"Process exited with code $\\($proc.ExitCode\\)\" }; \"--- STDOUT ---\"; Get-Content 'd:\\\\VTS User\\\\Cuong.vu\\\\Agent work\\\\Vietinsoft\\\\mcp_test_out.log' -ErrorAction SilentlyContinue; \"--- STDERR ---\"; Get-Content 'd:\\\\VTS User\\\\Cuong.vu\\\\Agent work\\\\Vietinsoft\\\\mcp_test_err.log' -ErrorAction SilentlyContinue)",
+      "PowerShell(try { $g = git --version; \"git: $g\" } catch { \"git: NOT INSTALLED\" }; try { $h = gh --version | Select-Object -First 1; \"gh: $h\" } catch { \"gh: NOT INSTALLED\" })",
+      "PowerShell(git config --global credential.helper)",
+      "PowerShell(git config --global user.name)",
+      "PowerShell(git config --global user.email)",
+      "PowerShell(try { $gcm = \\(Get-Command git-credential-manager -ErrorAction Stop\\).Source; \"GCM available at: $gcm\" } catch { try { $gcm = \\(Get-Command git-credential-manager-core -ErrorAction Stop\\).Source; \"GCM \\(core\\) available at: $gcm\" } catch { \"WARNING: git-credential-manager not found in PATH\" } })",
+      "PowerShell(git config --global credential.helper wincred; \"credential.helper now: $\\(git config --global credential.helper\\)\")",
+      "mcp__mssql-vietinsoft__read_query",
+      "mcp__mssql-vietinsoft__describe_table"
+    ]
+  }
+}
