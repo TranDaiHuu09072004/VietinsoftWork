@@ -1,6 +1,8 @@
 # 07 — Hệ thống Menu (Logic tạo + vận hành menu ParadiseHR)
 
 > Toàn bộ tri thức về menu: cấu trúc 5 mảnh, quy ước đặt tên, phân loại theo `AssemblyName`, quy trình tạo (thủ công + shortcut), giao diện desktop/web, HTML cache pattern, và quy trình end-to-end. Liên quan: [11_permissions.md](11_permissions.md), [01_architecture.md](01_architecture.md).
+>
+> 💡 **Cần triển khai 1 menu Web mới**? Xem skill file [12_CreateMenu.md](12_CreateMenu.md) — quy trình 9 phase đầy đủ + ví dụ Hello world Vietinsoft (Top 3 xếp hạng) + cách gọi API runtime qua `AjaxHPAParadise`.
 
 ## 1. Cấu trúc menu — 5 mảnh dữ liệu liên kết qua `MenuID`
 
@@ -162,12 +164,9 @@ Ghi nhận từ DB: trong các menu visible mặc định desktop, nhóm `Assemb
 | Cấu hình chung Web | `tblParameter` | `APPLICATION_ADDRESS`, `ThemeWeb`, `allowedPageSizes`, `isConfirmCloseTab`, `LimitAppInDock`, `MenuIDLaunPad`, `MenuVisibleOpion`, `ParadiseLogOutTimeOut`. |
 | Quyền truy cập | `tblSC_Object`, `tblSC_Right_Stored`, `tblSC_GroupRight` | Phân quyền user/group nhìn thấy và dùng màn hình Web. |
 
-Có 2 kiểu màn hình Web thấy trong DB:
+ParadiseHR hiện chỉ dùng **một kiểu duy nhất** cho menu Web: **HTML-rendered** (chi tiết Section 10). Cụ thể: `MEN_Menu.AssemblyName = 'DataSetting'`, `ClassName` trỏ tới cặp procedure wrapper + renderer (`sp_X` + `sp_X_html`), HTML/CSS/JS thực được lưu trong `tblHtmlScriptCache`, render qua control `ParadiseWebView2`. Có thể đi kèm `tblDataSetting` + `tblDataSettingLayout` để dựng layout container.
 
-1. **Web page cố định**: `MEN_Menu.IsWeb = 1`, `URL` trỏ trực tiếp tới `.aspx`, ví dụ `/EmpInfo.aspx`, `/PRL/Payslip.aspx`, `/ATT/LeaveHistory.aspx`. Với kiểu này, DB lưu menu/route/tên/quyền; layout chi tiết nằm ở file Web app, không xác minh được từ DB.
-2. **Web data-driven / grid**: `MEN_Menu.AssemblyName = 'DataSetting'`, `ClassName` nối sang `tblDataSetting.TableName` hoặc `tblDataSetting.ViewName`. Layout/cấu hình Web nằm trong `tblDataSetting`, đặc biệt `LayoutDataConfigWeb`.
-
-Ghi nhận từ DB: có 15 menu visible liên quan Web; `IsWeb = 1` có 11 menu, `isShowLayOutWeb = 1` có 4 menu.
+> ⚠️ **Kiểu Web page cố định ASPX đã LỖI THỜI và KHÔNG còn sử dụng**. Trước đây hệ thống có menu trỏ trực tiếp tới file `.aspx` (vd `/EmpInfo.aspx`, `/PRL/Payslip.aspx`, `/ATT/LeaveHistory.aspx`) — nay đã được thay thế hoàn toàn bằng menu HTML-rendered. Các MenuID còn sót trong DB đã được liệt kê tại [99_deprecated.md §5](99_deprecated.md). Khi đề xuất / thiết kế menu Web mới, **KHÔNG dùng pattern này**.
 
 ## 10. Web layout kiểu mới bằng HTML cache — ví dụ `Xếp hạng nhân viên`
 
@@ -221,6 +220,27 @@ ORDER BY TableName, LanguageID;
 ```
 
 Ghi chú: với kiểu mới này, `tblDataSetting.LayoutDataConfigWeb` có thể rỗng/null. Layout "thật" là HTML/CSS/JS nằm trong `tblHtmlScriptCache.html`, còn `tblDataSettingLayout` chỉ đóng vai trò tạo vùng chứa WebView (`ParadiseWebView2`).
+
+### Schema `tblHtmlScriptCache` — các cột bắt buộc khi insert thủ công
+
+Khi renderer tự upsert vào cache, phải fill **đủ các cột notnull** dưới đây — nếu thiếu sẽ lỗi `Cannot insert NULL`:
+
+| Cột | Kiểu | PK | NotNull | Mô tả |
+|---|---|---|---|---|
+| `TableName` | nvarchar | ✓ | (PK) | Tên proc renderer (vd `sp_HelloWorldVietinsoft_html`) |
+| `LanguageID` | varchar | ✓ | (PK) | `'VN'` / `'EN'` / ... |
+| `ScreenType` | varchar | | ✓ | Mặc định `'-1'` (chung) |
+| `html` | nvarchar | | ✓ | HTML/CSS/JS chính |
+| `HtmlParadise` | nvarchar | | ✓ | Có thể `N''` nếu không dùng phiên bản Paradise riêng |
+| `paradiseJs` | nvarchar | | ✓ | Có thể `N''` |
+| `Version` | varchar | | ✓ | Mặc định `'1'` |
+| `VersionData` | nvarchar | | ✓ | Có thể `N''` |
+
+Mẫu upsert idempotent dùng `MERGE` theo `(TableName, LanguageID)`: xem [SQL script/deploy_menu_HelloWorldVietinsoft_20260520.sql](../SQL%20script/deploy_menu_HelloWorldVietinsoft_20260520.sql).
+
+### Script ví dụ tham chiếu — `MnuHEP910 / Hello world Vietinsoft`
+
+[SQL script/deploy_menu_HelloWorldVietinsoft_20260520.sql](../SQL%20script/deploy_menu_HelloWorldVietinsoft_20260520.sql) là script triển khai trọn vẹn 1 menu Web kiểu HTML-rendered: 2 procedure (renderer + wrapper) + `MEN_Menu` + `tblSC_Object` + `tblMD_Message` VN/EN + cache + permission `LoginID = 3` + refresh. Idempotent, bọc TRY/CATCH + transaction. Có thể dùng như template cho menu HTML-rendered mới.
 
 ### Quy trình tính điểm kinh nghiệm và xếp hạng nhân viên (cùng menu Xếp hạng)
 
@@ -331,7 +351,7 @@ Menu dùng để phê duyệt các đơn xin tăng ca do nhân viên gửi lên 
 - **`IsVisible`**: `1` (Đang hoạt động)
 
 ### 3. Menu Web cũ đã lỗi thời (DEPRECATED)
-Menu duyệt tăng ca trên nền tảng Web cũ là `MnuATTAppOT` (`URL = '/ATT/ApprovalOTList.aspx'`) đã được xác nhận là **không còn sử dụng** và có `IsVisible = 0` (chi tiết tại [99_deprecated.md](99_deprecated.md)).
+Toàn bộ menu Web kiểu **ASPX-style** (URL trỏ trực tiếp tới file `.aspx`) đã được user xác nhận **không còn sử dụng** — bao gồm cả menu duyệt tăng ca `MnuATTAppOT` (`/ATT/ApprovalOTList.aspx`). Danh sách đầy đủ các MenuID còn sót trong DB và script cleanup: xem [99_deprecated.md §5](99_deprecated.md).
 
 Câu SQL xác minh trạng thái các menu phê duyệt tăng ca:
 

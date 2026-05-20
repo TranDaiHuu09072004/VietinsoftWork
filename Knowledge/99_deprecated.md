@@ -62,12 +62,30 @@ Mẫu cấu trúc file cleanup script (xem mục [Mẫu script cleanup](#mẫu-s
 
 ## 5. Menu (`MEN_Menu`) lỗi thời
 
-| MenuID | Mô tả | Lý do | File Knowledge nguồn | Date marked | Cleanup script |
-|---|---|---|---|---|---|
-| `MnuATTAppOT` | Duyệt tăng ca (`URL = /ATT/ApprovalOTList.aspx`, parent = `MnuWebATT`) — `IsVisible = 0` tại thời điểm verify | User xác nhận không còn dùng | _(chưa được ghi vào Knowledge nào)_ | 2026-05-20 | [SQL script/cleanup_menu_obsolete_20260520.sql](../SQL%20script/cleanup_menu_obsolete_20260520.sql) |
-| `MnuWebATT` | Quản lý chấm công (orphan parent — KHÔNG còn record trong `MEN_Menu`, chỉ còn label VN trong `tblMD_Message`) | User xác nhận không còn dùng; cũng đã bị xoá khỏi `MEN_Menu` từ trước | _(chưa được ghi vào Knowledge nào)_ | 2026-05-20 | [SQL script/cleanup_menu_obsolete_20260520.sql](../SQL%20script/cleanup_menu_obsolete_20260520.sql) |
+Toàn bộ menu Web **kiểu ASPX-style** (URL trỏ tới file `.aspx`) đã được user xác nhận **không còn sử dụng** (xem [mục 7](#7-khác-tri-thức--mapping--quy-tắc-lỗi-thời) cho tri thức tổng quát). Danh sách MenuID còn sót trong DB:
 
-> ⚠️ **Lưu ý orphan**: sau khi xoá `MnuWebATT`, 3 menu sau vẫn còn `ParentMenuID = 'MnuWebATT'` → trở thành orphan (parent không tồn tại): `MnuAtt1`, `MnuAtt3`, `MnuATTOTRe`. User cần quyết định riêng — re-parent về menu hợp lệ hoặc xoá. Script `cleanup_menu_obsolete_20260520.sql` CHỈ in cảnh báo, không tự xử lý.
+### 5.1 Menu ASPX trong `MEN_Menu`
+
+| MenuID | URL ASPX | ParentMenuID | IsVisible | Lý do | File Knowledge nguồn | Date marked | Cleanup script |
+|---|---|---|---|---|---|---|---|
+| `MnuAtt1` | `/ATT/LeaveHistory.aspx` | `MnuWebATT` (orphan) | 1 | Kiểu ASPX đã lỗi thời | [07_menu_system.md §9](07_menu_system.md) | 2026-05-20 | [SQL script/cleanup_menu_aspx_20260520.sql](../SQL%20script/cleanup_menu_aspx_20260520.sql) |
+| `MnuAtt3` | `/ATT/LeaveSummary1.aspx` | `MnuWebATT` (orphan) | 1 | Kiểu ASPX đã lỗi thời | [07_menu_system.md §9](07_menu_system.md) | 2026-05-20 | [SQL script/cleanup_menu_aspx_20260520.sql](../SQL%20script/cleanup_menu_aspx_20260520.sql) |
+| `MnuEmployeeInfo` | `/EmpInfo.aspx` | `MnuWebHRM` (orphan) | 1 | Kiểu ASPX đã lỗi thời | [07_menu_system.md §9](07_menu_system.md) | 2026-05-20 | [SQL script/cleanup_menu_aspx_20260520.sql](../SQL%20script/cleanup_menu_aspx_20260520.sql) |
+| `MnuPRL1` | `/PRL/Payslip.aspx` | `MnuWebPRL` (orphan) | 1 | Kiểu ASPX đã lỗi thời | [07_menu_system.md §9](07_menu_system.md) | 2026-05-20 | [SQL script/cleanup_menu_aspx_20260520.sql](../SQL%20script/cleanup_menu_aspx_20260520.sql) |
+| `MnuATTAppOT` | `/ATT/ApprovalOTList.aspx` | `MnuWebATT` (orphan) | 0 | Kiểu ASPX đã lỗi thời | [07_menu_system.md §13.3](07_menu_system.md) | 2026-05-20 | [SQL script/cleanup_menu_aspx_20260520.sql](../SQL%20script/cleanup_menu_aspx_20260520.sql) |
+| `MnuATTOTRe` | `/ATT/OTRegistration.aspx` | `MnuWebATT` (orphan) | 0 | Kiểu ASPX đã lỗi thời | [07_menu_system.md §9](07_menu_system.md) | 2026-05-20 | [SQL script/cleanup_menu_aspx_20260520.sql](../SQL%20script/cleanup_menu_aspx_20260520.sql) |
+
+### 5.2 Parent menu orphan trong `tblMD_Message` (KHÔNG còn record trong `MEN_Menu`)
+
+| MessageID | Mô tả | Tồn tại ở | Lý do | Date marked | Cleanup script |
+|---|---|---|---|---|---|
+| `MnuWebATT` | Quản lý chấm công | `tblMD_Message` (VN) | Parent của menu ASPX, đã xoá khỏi `MEN_Menu` từ trước; chỉ còn label sót | 2026-05-20 | [SQL script/cleanup_menu_aspx_20260520.sql](../SQL%20script/cleanup_menu_aspx_20260520.sql) |
+| `MnuWebHRM` | Nhân viên | `tblMD_Message` (VN) | Parent của menu ASPX, đã xoá khỏi `MEN_Menu` từ trước; chỉ còn label sót | 2026-05-20 | [SQL script/cleanup_menu_aspx_20260520.sql](../SQL%20script/cleanup_menu_aspx_20260520.sql) |
+| `MnuWebPRL` | Lương / Salary | `tblMD_Message` (VN + EN) | Parent của menu ASPX, đã xoá khỏi `MEN_Menu` từ trước; chỉ còn label sót | 2026-05-20 | [SQL script/cleanup_menu_aspx_20260520.sql](../SQL%20script/cleanup_menu_aspx_20260520.sql) |
+
+> ✅ **Đã xác minh** tại thời điểm 2026-05-20: KHÔNG có entry nào trong `tblSC_Object`, `tblSC_Right_Stored`, `tblSC_GroupRight` cho 6 menu ASPX trên — nghĩa là cleanup chỉ cần đụng `MEN_Menu` và `tblMD_Message`.
+>
+> ℹ️ Script cleanup cũ [cleanup_menu_obsolete_20260520.sql](../SQL%20script/cleanup_menu_obsolete_20260520.sql) chỉ xử lý `MnuATTAppOT` + `MnuWebATT`. Script mới [cleanup_menu_aspx_20260520.sql](../SQL%20script/cleanup_menu_aspx_20260520.sql) mở rộng phạm vi sang **toàn bộ menu ASPX-style**, idempotent (chạy được kể cả khi script cũ đã xoá một phần).
 
 ## 6. Tham số (`tblParameter`) / cấu hình lỗi thời
 
@@ -79,7 +97,7 @@ Mẫu cấu trúc file cleanup script (xem mục [Mẫu script cleanup](#mẫu-s
 
 | Mô tả tri thức sai | Lý do | File Knowledge nguồn | Date marked |
 |---|---|---|---|
-| _(chưa có)_ | | | |
+| **Kiểu menu Web "Web page cố định ASPX"** (`MEN_Menu.IsWeb = 1`, `URL` trỏ trực tiếp tới file `.aspx`) | User xác nhận: ParadiseHR hiện **chỉ dùng một kiểu duy nhất** cho menu Web là **HTML-rendered** (cặp procedure `sp_X` wrapper + `sp_X_html` renderer + cache trong `tblHtmlScriptCache`). Mọi menu kiểu ASPX cũ đã được thay thế và cần dọn dẹp khỏi DB. | [07_menu_system.md §9 + §13.3](07_menu_system.md) (đã cập nhật) | 2026-05-20 |
 
 ---
 
