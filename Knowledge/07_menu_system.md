@@ -310,6 +310,47 @@ User cần logout/login để cây menu được load lại.
 | `sp_UpdateKeysShortcutMenu` | Cập nhật phím tắt |
 | `sp_RecentlyUsedMenu_List`, `sp_RecentlyUsedMenu_update` | Lịch sử menu gần dùng |
 
+## Menu phê duyệt tăng ca
+
+Hệ thống có hai menu hoạt động chính để phê duyệt tăng ca (một cho dữ liệu chấm công và một cho đơn từ trên Portal/Web), cùng một menu cũ đã lỗi thời:
+
+### 1. Menu duyệt dữ liệu chấm công tăng ca (Desktop app)
+Menu chính hiển thị danh sách phê duyệt và xác nhận giờ công tăng ca trên phần mềm Desktop là `MnuTAD060`:
+- **`MenuID`**: `MnuTAD060`
+- **Tên hiển thị (VN)**: `Xác nhận dữ liệu tăng ca` (Tên tiếng Anh: `Overtime approval`)
+- **`ParentMenuID`**: `MnuTAD000` (Quản lý chấm công / Time Attendance)
+- **`ClassName`**: `TA_OverTime_List_Approval` (dữ liệu nguồn từ `tblDataSetting` với bảng cập nhật/chỉnh sửa là `tblOTList`)
+- **`IsVisible`**: `1` (Đang hoạt động)
+
+### 2. Menu duyệt đơn xin tăng ca (Web Portal / ESS / Desktop WebView)
+Menu dùng để phê duyệt các đơn xin tăng ca do nhân viên gửi lên từ Mobile/Web là `MnuWPT037`:
+- **`MenuID`**: `MnuWPT037`
+- **Tên hiển thị (VN)**: `Danh sách phê duyệt` (Tên tiếng Anh: `List to review`)
+- **`ParentMenuID`**: `MnuWPT000` (Portal / WorkFlow)
+- **`ClassName`**: `sp_List_To_Review` (giao diện HTML-rendered sử dụng renderer `sp_List_To_Review_html`, khi click duyệt đơn tăng ca thuộc `group = 6` sẽ gọi form `sp_overtime_assignment`)
+- **`IsVisible`**: `1` (Đang hoạt động)
+
+### 3. Menu Web cũ đã lỗi thời (DEPRECATED)
+Menu duyệt tăng ca trên nền tảng Web cũ là `MnuATTAppOT` (`URL = '/ATT/ApprovalOTList.aspx'`) đã được xác nhận là **không còn sử dụng** và có `IsVisible = 0` (chi tiết tại [99_deprecated.md](99_deprecated.md)).
+
+Câu SQL xác minh trạng thái các menu phê duyệt tăng ca:
+
+```sql
+SELECT m.MenuID,
+       msg.Content AS MenuNameVN,
+       msgEN.Content AS MenuNameEN,
+       m.ParentMenuID,
+       m.AssemblyName,
+       m.ClassName,
+       m.IsVisible,
+       m.IsWeb,
+       m.URL
+FROM MEN_Menu m
+LEFT JOIN tblMD_Message msg ON msg.MessageID = m.MenuID AND msg.Language = 'VN'
+LEFT JOIN tblMD_Message msgEN ON msgEN.MessageID = m.MenuID AND msgEN.Language = 'EN'
+WHERE m.MenuID IN ('MnuTAD060', 'MnuWPT037', 'MnuATTAppOT');
+```
+
 ## 13. Quy trình end-to-end lập trình + vận hành 1 menu — ví dụ "Sales Pipeline" (`MnuKPI007`)
 
 Ví dụ này mô tả **toàn bộ vòng đời** của menu HTML-rendered (cùng pattern với Section 10).

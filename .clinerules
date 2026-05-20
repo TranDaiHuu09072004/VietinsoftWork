@@ -32,7 +32,27 @@ Khi bắt đầu một session mới hoặc khi nhận được một yêu cầu
 - Nếu tri thức mới không khớp file nào hiện có, tạo file mới (đặt tên dạng `12_xxx.md` theo số tiếp theo) và **bổ sung file đó vào `Knowledge/INDEX.md`**.
 - Mục đích: Lưu trữ lại kiến thức để các lần làm việc sau có thể sử dụng mà không cần truy vấn lại Database.
 
+### Bước 5: Quản lý dữ liệu lỗi thời (DEPRECATED)
+- File `Knowledge/99_deprecated.md` là **danh sách bảng / cột / procedure / view / menu / tham số đã được user xác nhận LỖI THỜI, không dùng nữa**.
+- **TRƯỚC KHI** dùng bất kỳ tên item nào (bảng / cột / procedure / view / menu / parameter) trong câu trả lời, BẮT BUỘC kiểm tra `Knowledge/99_deprecated.md`:
+  - Nếu item nằm trong danh sách → KHÔNG dùng nó để trả lời, KHÔNG đề xuất nó như giải pháp.
+  - Nếu user hỏi trực tiếp về item đó → trả lời rằng item đã được đánh dấu lỗi thời (kèm lý do nếu có) và hỏi user muốn tiếp tục hay không.
+- **Khi user phản hồi rằng tri thức Agent vừa cung cấp là sai / lỗi thời** (đại loại: *"cái đó không dùng nữa"* / *"thực tế không có"* / *"đã bỏ lâu rồi"* / *"loại bỏ kiến thức này"*):
+  - Ghi item vào đúng bảng phân loại trong `Knowledge/99_deprecated.md` (table / column / procedure / view / menu / parameter / other).
+  - Mỗi entry tối thiểu phải có: tên item, loại, lý do (theo lời user), file Knowledge nguồn, ngày đánh dấu.
+  - Xoá entry sai khỏi file Knowledge gốc (nếu tri thức đó đã được ghi vào file Knowledge nào trước đây).
+- **Khi user yêu cầu XOÁ item khỏi database**:
+  - TUYỆT ĐỐI KHÔNG tự gọi `write_query` / `drop_table` / `drop_procedure` / `alter_table` để xoá.
+  - Build file SQL script trong folder `SQL script/` đặt tên dạng `cleanup_<scope>_<YYYYMMDD>.sql`.
+  - Script phải bọc trong `BEGIN TRANSACTION ... COMMIT/ROLLBACK` với `TRY/CATCH`, dùng `DROP IF EXISTS` / `IF OBJECT_ID(...) IS NOT NULL` để idempotent.
+  - Với menu phải xoá đúng thứ tự để không vỡ FK: `tblSC_Right_Stored` / `tblSC_GroupRight` → `tblSC_Object` → `tblMD_Message` → `MEN_Menu`.
+  - Đưa file script cho user tự review và chạy — KHÔNG thực thi tự động.
+  - Cập nhật cột "Cleanup script" trong bảng deprecated tương ứng trỏ tới file vừa tạo.
+  - Xem mẫu script đầy đủ ở cuối file `Knowledge/99_deprecated.md`.
+
 ### ⚠️ QUY TẮC TỐI QUAN TRỌNG (CRITICAL RULES) ⚠️
 1. **TUYỆT ĐỐI KHÔNG ĐƯỢC TỰ SUY ĐOÁN:** Không bao giờ được tự động giả định cấu trúc bảng, tên trường, hay quy tắc tính toán của nghiệp vụ.
 2. **KHÔNG ĐƯA RA KẾT LUẬN VỘI VÃ:** Mọi câu trả lời hay kết luận đều phải có **chứng cứ xác thực** (concrete evidence) được trích xuất từ file tài liệu trong folder `Knowledge` hoặc từ kết quả query trực tiếp trong hệ thống database MCP.
 3. Nếu không tìm thấy thông tin xác thực từ cả tài liệu lẫn cơ sở dữ liệu, phải báo cáo lại cho người dùng (USER) để xin thêm chỉ dẫn hoặc xác nhận.
+4. **KHÔNG BAO GIỜ tự thực thi câu lệnh DDL/DML xoá hoặc sửa cấu trúc DB** (`write_query`, `drop_table`, `alter_table`, `drop_procedure`...) — luôn build script và để user tự chạy.
+5. **LUÔN check `Knowledge/99_deprecated.md` trước khi dùng tên item nào** — không lặp lại kiến thức đã bị user phủ nhận trước đó.

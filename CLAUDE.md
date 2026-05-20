@@ -24,6 +24,10 @@
 
 5. **TỰ HỌC — SELF-LEARNING.** Sau khi khám phá tri thức mới qua DB hoặc source, BẮT BUỘC ghi lại vào **đúng file** trong [Knowledge/](Knowledge/) tương ứng (xem mục [Bước 5](#bước-5--tự-cập-nhật-knowledge-self-learning)) để session sau không phải tra lại.
 
+6. **LUÔN CHECK DANH SÁCH LỖI THỜI TRƯỚC KHI DÙNG TÊN ITEM.** Trước khi đề cập tên bảng / cột / procedure / view / menu / parameter trong câu trả lời, phải kiểm tra [Knowledge/99_deprecated.md](Knowledge/99_deprecated.md). Nếu item nằm trong danh sách → KHÔNG dùng, KHÔNG đề xuất.
+
+7. **KHÔNG TỰ THỰC THI CÂU LỆNH DDL/DML XOÁ DB.** Khi user yêu cầu xoá item khỏi DB, luôn build SQL script trong [SQL script/](SQL script/) cho user tự chạy — không gọi tool DB ghi để xoá trực tiếp.
+
 ---
 
 ## Bối cảnh dự án
@@ -97,6 +101,40 @@ Sau khi xác minh tri thức mới từ DB/source, BẮT BUỘC ghi vào file Kn
 - **KHÔNG thêm timestamp / changelog** vào từng entry (đã có git history).
 - **Nếu chủ đề mới hoàn toàn không khớp file nào**: tạo file mới trong [Knowledge/](Knowledge/) (đặt số tiếp theo, vd `12_xxx.md`) và **bổ sung file đó vào [INDEX.md](Knowledge/INDEX.md)** (bảng 1 + bảng 2/3/4 tương ứng).
 - Cuối câu trả lời: nói ngắn gọn đã cập nhật file Knowledge nào, hoặc "đã có sẵn, không cần update".
+
+### Bước 6 — Quản lý dữ liệu lỗi thời (DEPRECATED)
+
+File [Knowledge/99_deprecated.md](Knowledge/99_deprecated.md) là **danh sách các item DB đã được user xác nhận là LỖI THỜI / KHÔNG DÙNG NỮA**. Đây là nguồn tra cứu bắt buộc trước khi đề cập bất kỳ tên item nào.
+
+**Check deprecated trước khi trả lời:**
+
+- Trước khi dùng tên bảng / cột / procedure / view / menu / parameter trong câu trả lời, BẮT BUỘC kiểm tra [99_deprecated.md](Knowledge/99_deprecated.md).
+- Nếu item nằm trong danh sách → KHÔNG dùng. KHÔNG đề xuất.
+- Nếu user hỏi trực tiếp về item đó → trả lời rằng item đã được đánh dấu lỗi thời (kèm lý do nếu có) và hỏi user muốn tiếp tục hay không.
+
+**Khi user phản hồi tri thức Agent vừa cung cấp là sai / lỗi thời:**
+
+User nói đại loại *"cái đó không dùng nữa"* / *"thực tế không có"* / *"đã bỏ lâu rồi"* / *"loại bỏ kiến thức này"* → BẮT BUỘC:
+
+1. Ghi item vào đúng bảng phân loại trong [99_deprecated.md](Knowledge/99_deprecated.md) — bảng 1 (tables) / 2 (columns) / 3 (procedures) / 4 (views) / 5 (menus) / 6 (parameters) / 7 (other).
+2. Mỗi entry phải có tối thiểu: tên item, loại, lý do (theo lời user), file Knowledge nguồn (nơi đã ghi tri thức sai), ngày đánh dấu (định dạng `YYYY-MM-DD`).
+3. **Xoá entry sai khỏi file Knowledge gốc** nếu trước đây đã ghi vào.
+
+**Khi user yêu cầu XOÁ item khỏi database:**
+
+TUYỆT ĐỐI KHÔNG tự gọi `write_query` / `drop_table` / `drop_procedure` / `alter_table` để xoá. Thay vào đó:
+
+1. Build file SQL script trong [SQL script/](SQL script/) đặt tên dạng `cleanup_<scope>_<YYYYMMDD>.sql`.
+2. Script PHẢI:
+   - Bọc trong `BEGIN TRANSACTION ... COMMIT/ROLLBACK` với `TRY/CATCH`.
+   - Dùng `IF OBJECT_ID(...) IS NOT NULL` / `IF COL_LENGTH(...) IS NOT NULL` / `DROP IF EXISTS` để idempotent (chạy nhiều lần không lỗi).
+   - Với menu: xoá theo đúng thứ tự để không vỡ FK — `tblSC_Right_Stored` / `tblSC_GroupRight` → `tblSC_Object` → `tblMD_Message` → `MEN_Menu`.
+   - Có `PRINT` log từng item đã xoá.
+   - Header comment ghi rõ: ngày tạo, scope, cảnh báo backup trước.
+3. **Đưa file cho user tự review và chạy — KHÔNG thực thi tự động.**
+4. Cập nhật cột "Cleanup script" trong bảng deprecated tương ứng trỏ tới file vừa tạo.
+
+Mẫu script đầy đủ: xem cuối file [99_deprecated.md](Knowledge/99_deprecated.md).
 
 ---
 

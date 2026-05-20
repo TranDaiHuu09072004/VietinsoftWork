@@ -3,6 +3,8 @@
 > **Agent đọc file này TRƯỚC khi tra cứu.** Bảng dưới giúp tìm đúng file Knowledge chứa tri thức cần thiết, không phải đọc toàn bộ.
 >
 > Sau khi xác định được file mục tiêu, dùng `Read` mở file đó. Nếu thông tin chưa đủ → query MCP `mssql-vietinsoft` để xác minh từ DB thực tế, rồi cập nhật file Knowledge tương ứng.
+>
+> **⚠️ TRƯỚC KHI dùng bất kỳ tên bảng / procedure / view / menu / tham số nào trong câu trả lời, BẮT BUỘC kiểm tra [99_deprecated.md](99_deprecated.md) — nếu item nằm trong danh sách lỗi thời, KHÔNG dùng.**
 
 ---
 
@@ -22,6 +24,7 @@
 | [09_workflow_payroll.md](09_workflow_payroll.md) | Pipeline tính lương 10 giai đoạn — `SALCAL_MAIN`, BHXH, thuế, payslip | Hỏi về tính lương, lương cuối tháng, BHXH, thuế TNCN, bank file, payslip |
 | [10_workflow_performance.md](10_workflow_performance.md) | 5 hệ thống đánh giá: Performance Appraisal, KPI, Probation, Gamification, CRM KPI | Hỏi về đánh giá hiệu suất, KPI, đánh giá thử việc, xếp hạng |
 | [11_permissions.md](11_permissions.md) | Phân quyền — RBAC + Data scope + Inheritance | Hỏi về phân quyền, role, group, quyền user |
+| **[99_deprecated.md](99_deprecated.md)** | **Danh sách bảng / procedure / view / menu / tham số đã LỖI THỜI, KHÔNG dùng nữa** | **BẮT BUỘC check trước khi dùng bất kỳ tên item nào trong câu trả lời** |
 
 ---
 
@@ -90,6 +93,18 @@
 1. Đọc câu hỏi của user, xác định **từ khoá nghiệp vụ** chính.
 2. Tra bảng 2 (keyword → file) hoặc bảng 3 (table → file) hoặc bảng 4 (procedure → file).
 3. Mở file Knowledge tương ứng bằng `Read`.
-4. Nếu chưa đủ → query MCP `mssql-vietinsoft` để xác minh.
-5. Cập nhật phát hiện mới vào đúng file Knowledge đã đọc (Self-Learning).
-6. Nếu phát hiện chủ đề **chưa có file Knowledge nào phù hợp** → tạo file mới (đặt số tiếp theo, vd `12_xxx.md`) và cập nhật INDEX này.
+4. **Trước khi dùng tên item bất kỳ (bảng / procedure / view / menu / parameter) trong câu trả lời**: kiểm tra [99_deprecated.md](99_deprecated.md). Nếu item nằm trong danh sách lỗi thời → KHÔNG dùng.
+5. Nếu chưa đủ → query MCP `mssql-vietinsoft` để xác minh.
+6. Cập nhật phát hiện mới vào đúng file Knowledge đã đọc (Self-Learning).
+7. Nếu phát hiện chủ đề **chưa có file Knowledge nào phù hợp** → tạo file mới (đặt số tiếp theo, vd `12_xxx.md`) và cập nhật INDEX này.
+
+### Khi user xác nhận tri thức cũ là LỖI THỜI
+
+User phản hồi *"không dùng nữa / đã bỏ / kiến thức này sai / loại bỏ"* → Agent ghi vào [99_deprecated.md](99_deprecated.md) theo đúng bảng phân loại (table / column / procedure / view / menu / parameter / other) và xoá entry sai khỏi file Knowledge nguồn (nếu có).
+
+### Khi user yêu cầu XOÁ item khỏi database
+
+**KHÔNG** tự gọi `write_query` / `drop_table` / `alter_table` để xoá. Thay vào đó:
+1. Build file SQL script ở folder `SQL script/` đặt tên `cleanup_<scope>_<YYYYMMDD>.sql`.
+2. Trong script: `DROP IF EXISTS` + transaction + `TRY/CATCH` (xem mẫu trong [99_deprecated.md](99_deprecated.md)).
+3. Đưa user tự review và chạy. Cập nhật cột "Cleanup script" trong bảng deprecated trỏ tới file đã tạo.
