@@ -33,10 +33,10 @@
 --   [14] Timeline colors dùng variables thay vì hardcode hex.
 --
 --   ── Priority 4: Security + Code organization ──────────────────────────
---   [15] STRING_ESCAPE đầy đủ cho @user + @password trước khi build JSON.
---        Bảo vệ chống broken JSON nếu credential chứa `"` hoặc `\`.
---   [16] Khuyến nghị move credential ra config riêng (TODO comment — chưa làm
---        vì cần tạo bảng config + migrate; xem note phía dưới CATCH).
+--   [15] Loại bỏ minify runtime qua HTTP (`ss_RequestHttp`) để tránh phụ thuộc
+--        network/API/credential trong procedure sinh style toàn cục.
+--   [16] Tối ưu CSS nội bộ bằng pipeline deterministic: bỏ comment CSS và
+--        chuẩn hoá whitespace an toàn ngay trong T-SQL, không gọi service ngoài.
 --   [17] Tách `--paradise-font-family-base` (Inter + fallback system-ui) thành
 --        token chung → menu không cần tự import Google Fonts riêng lẻ.
 --
@@ -134,9 +134,23 @@ BEGIN
     --paradise-color-dark: rgba(52, 58, 64, 1);
     --paradise-color-light: rgba(248, 249, 250, 1);
 
+    /* ===== SUBTLE BACKGROUND TOKENS (NEW) — Used by: badges, alerts, chips, KPI cards ===== */
+    /* Quy ước: màu nền cùng tone với text semantic nhưng rất nhạt để dùng cho highlight nhỏ. */
+    --paradise-bg-primary-subtle: rgba(0, 103, 59, 0.10);
+    --paradise-bg-secondary-subtle: rgba(108, 117, 125, 0.12);
+    --paradise-bg-success-subtle: rgba(25, 135, 84, 0.12);
+    --paradise-bg-danger-subtle: rgba(220, 53, 69, 0.10);
+    --paradise-bg-warning-subtle: rgba(255, 193, 7, 0.18);
+    --paradise-bg-info-subtle: rgba(23, 162, 184, 0.12);
+    --paradise-bg-dark-subtle: rgba(52, 58, 64, 0.10);
+    --paradise-bg-light-subtle: rgba(248, 249, 250, 0.90);
+    --paradise-bg-header1-subtle: rgba(0, 103, 59, 0.10);
+    --paradise-bg-header2-subtle: rgba(0, 76, 57, 0.10);
+    --paradise-bg-important-subtle: rgba(255, 0, 0, 0.08);
+
     /* ===== MÀU NỀN & TEXT ===== */
     --paradise-bg-body: #ffffff;
-    --paradise-bg-surface: #f8f9fa;
+    --paradise-bg-surface: color(display-p3 0.97 1 0.95 / 0.5);
     --paradise-text-body: #212529;
     --paradise-text-muted: #6c757d;
 
@@ -249,6 +263,19 @@ BEGIN
     --paradise-color-info: rgba(50, 180, 200, 1);
     --paradise-color-dark: rgba(200, 205, 215, 1);
     --paradise-color-light: rgba(60, 65, 70, 1);
+
+    /* Subtle backgrounds — dark mode: cùng tone nhưng đủ nổi trên nền tối */
+    --paradise-bg-primary-subtle: rgba(0, 150, 80, 0.20);
+    --paradise-bg-secondary-subtle: rgba(140, 150, 160, 0.18);
+    --paradise-bg-success-subtle: rgba(40, 180, 100, 0.20);
+    --paradise-bg-danger-subtle: rgba(240, 80, 90, 0.18);
+    --paradise-bg-warning-subtle: rgba(255, 200, 40, 0.20);
+    --paradise-bg-info-subtle: rgba(50, 180, 200, 0.20);
+    --paradise-bg-dark-subtle: rgba(200, 205, 215, 0.16);
+    --paradise-bg-light-subtle: rgba(60, 65, 70, 0.85);
+    --paradise-bg-header1-subtle: rgba(0, 150, 80, 0.20);
+    --paradise-bg-header2-subtle: rgba(0, 110, 70, 0.20);
+    --paradise-bg-important-subtle: rgba(255, 90, 90, 0.16);
 
     /* Button colors — adjust cho dark */
     --paradise-color-btnreload: rgba(40, 180, 100, 1);
@@ -594,7 +621,7 @@ input[type="checkbox"] {
 }
 
 /* ====================================================================
-   SECTION 8 — TYPOGRAPHY UTILITIES
+   SECTION 8 — TYPOGRAPHY & BACKGROUND UTILITIES
    ==================================================================== */
 .paradise-text-primary   { color: var(--paradise-color-primary); }
 .paradise-text-secondary { color: var(--paradise-color-secondary); }
@@ -604,6 +631,18 @@ input[type="checkbox"] {
 .paradise-text-info      { color: var(--paradise-color-info); }
 .paradise-text-dark      { color: var(--paradise-text-body); }
 .paradise-text-muted     { color: var(--paradise-text-muted); }
+
+.paradise-bg-primary-subtle   { background-color: var(--paradise-bg-primary-subtle); }
+.paradise-bg-secondary-subtle { background-color: var(--paradise-bg-secondary-subtle); }
+.paradise-bg-success-subtle   { background-color: var(--paradise-bg-success-subtle); }
+.paradise-bg-danger-subtle    { background-color: var(--paradise-bg-danger-subtle); }
+.paradise-bg-warning-subtle   { background-color: var(--paradise-bg-warning-subtle); }
+.paradise-bg-info-subtle      { background-color: var(--paradise-bg-info-subtle); }
+.paradise-bg-dark-subtle      { background-color: var(--paradise-bg-dark-subtle); }
+.paradise-bg-light-subtle     { background-color: var(--paradise-bg-light-subtle); }
+.paradise-bg-header1-subtle   { background-color: var(--paradise-bg-header1-subtle); }
+.paradise-bg-header2-subtle   { background-color: var(--paradise-bg-header2-subtle); }
+.paradise-bg-important-subtle { background-color: var(--paradise-bg-important-subtle); }
 
 /* ====================================================================
    SECTION 9 — TIMELINE / REQUEST CARDS
@@ -713,67 +752,79 @@ input[type="checkbox"] {
 ';
 
     -- ====================================================================
-    -- SECTION 11 — MINIFICATION PIPELINE (FIXED)
+    -- SECTION 11 — DETERMINISTIC CSS OPTIMIZATION (NO HTTP / NO CREDENTIAL)
     -- ====================================================================
-    -- [P1 #1] Đã xoá dòng `SET @debug = 1` đè cuối — minification thực sự chạy.
-    -- [P4 #15] STRING_ESCAPE đầy đủ cho @user, @password.
-    -- [P4 #16] TODO: nên thay tblSC_Login bằng config riêng cho production —
-    --                xem comment dưới đây để biết bảng config đề xuất.
+    -- [P4 #15] Không gọi `ss_RequestHttp`, không đọc credential từ `tblSC_Login`,
+    --          không phụ thuộc network/API để sinh CSS toàn cục.
+    -- [P4 #16] Pipeline tối ưu nội bộ:
+    --          1) Bỏ comment CSS dạng /* ... */ bằng vòng lặp CHARINDEX.
+    --          2) Chuẩn hoá CR/LF/TAB thành khoảng trắng.
+    --          3) Nén khoảng trắng lặp.
+    --          4) Bỏ khoảng trắng quanh delimiter CSS phổ biến.
+    --          5) Bỏ `;}` dư để giảm kích thước output.
+    --
+    -- Lý do chọn cách này: procedure sinh style chạy ngay trong SQL Server;
+    -- phương án hiện đại/an toàn nhất trong phạm vi T-SQL là deterministic,
+    -- side-effect-free, không outbound HTTP, không credential, dễ audit.
     -- ====================================================================
 
     DECLARE @debug int = 1;
-    IF NOT EXISTS (SELECT * FROM dbo.tblParameter WHERE Code = 'debug' AND Value = '1')
+    IF NOT EXISTS (SELECT 1 FROM dbo.tblParameter WHERE Code = 'debug' AND Value = '1')
        OR HOST_NAME() LIKE '%thanhlong%'
         SET @debug = 0;
-    -- [P1 #1] KHÔNG ghi đè @debug = 1 nữa (bug đã sửa)
 
     IF @debug != 1
     BEGIN
-        DECLARE @url nvarchar(max) = dbo.fn_GetAPPLICATION_ADDRESS_Local(),
-                @user nvarchar(max) = N'',
-                @password nvarchar(max) = N'',
-                @Status int,
-                @StatusText varchar(256),
-                @ResponseText nvarchar(max);
+        -- Remove CSS comments: /* ... */
+        DECLARE @commentStart int = CHARINDEX(N'/*', @Html);
+        DECLARE @commentEnd int;
 
-        -- [P4 #16] FUTURE: tạo bảng tblParameter (Code='MINIFY_API_USER'/'MINIFY_API_PASS')
-        --                  hoặc dùng managed identity / API token thay vì password admin.
-        SELECT TOP 1 @user = LoginName, @password = PassWord
-          FROM dbo.tblSC_Login
-         WHERE LoginName IN ('adminApi', 'admin', 'vts')
-         ORDER BY CASE LoginName
-                  WHEN 'adminApi' THEN 1
-                  WHEN 'admin' THEN 2
-                  WHEN 'vts' THEN 3
-                  END;
+        WHILE @commentStart > 0
+        BEGIN
+            SET @commentEnd = CHARINDEX(N'*/', @Html, @commentStart + 2);
 
-        SET @url += N'/api/hpa/paradiseparadise';
+            IF @commentEnd = 0
+            BEGIN
+                -- Nếu comment bị thiếu dấu đóng, bỏ phần còn lại để CSS không bị vỡ.
+                SET @Html = LEFT(@Html, @commentStart - 1);
+                BREAK;
+            END;
 
-        -- [P4 #15] Escape JSON đầy đủ cho cả 3 biến — chống broken JSON khi
-        --          credential chứa `"` hoặc `\`.
-        SET @Html     = STRING_ESCAPE(@Html, 'json');
-        SET @user     = STRING_ESCAPE(ISNULL(@user, N''), 'json');
-        SET @password = STRING_ESCAPE(ISNULL(@password, N''), 'json');
+            SET @Html = STUFF(@Html, @commentStart, @commentEnd - @commentStart + 2, N' ');
+            SET @commentStart = CHARINDEX(N'/*', @Html);
+        END;
 
-        DECLARE @data nvarchar(max) =
-            N'{"user":"' + @user
-          + N'","password":"' + @password
-          + N'","name":"MinifyFile","param":["' + @Html + N'",".css"]}';
+        -- Normalize whitespace characters.
+        SET @Html = REPLACE(@Html, CHAR(13), N' ');
+        SET @Html = REPLACE(@Html, CHAR(10), N' ');
+        SET @Html = REPLACE(@Html, CHAR(9),  N' ');
 
-        EXEC ss_RequestHttp
-            @Url = @url,
-            @NoSelect = 1,
-            @Status = @Status output,
-            @StatusText = @StatusText output,
-            @ResponseText = @ResponseText output,
-            @Method = 'Post',
-            @data = @data;
+        -- Collapse repeated spaces. 10 vòng là đủ cho CSS hiện tại; WHILE bảo vệ
+        -- trường hợp formatter sinh nhiều khoảng trắng liên tiếp hơn.
+        WHILE CHARINDEX(N'  ', @Html) > 0
+            SET @Html = REPLACE(@Html, N'  ', N' ');
 
-        SET @Html = JSON_VALUE(@ResponseText, '$.data');
-        IF @Html IS NULL
-            SELECT @Html = [data]
-              FROM OPENJSON(@ResponseText)
-              WITH ([data] nvarchar(max) '$.data');
+        -- Remove whitespace around common CSS delimiters.
+        SET @Html = REPLACE(@Html, N' {', N'{');
+        SET @Html = REPLACE(@Html, N'{ ', N'{');
+        SET @Html = REPLACE(@Html, N' }', N'}');
+        SET @Html = REPLACE(@Html, N'} ', N'}');
+        SET @Html = REPLACE(@Html, N' ;', N';');
+        SET @Html = REPLACE(@Html, N'; ', N';');
+        SET @Html = REPLACE(@Html, N' :', N':');
+        SET @Html = REPLACE(@Html, N': ', N':');
+        SET @Html = REPLACE(@Html, N' ,', N',');
+        SET @Html = REPLACE(@Html, N', ', N',');
+        SET @Html = REPLACE(@Html, N' > ', N'>');
+        SET @Html = REPLACE(@Html, N' >', N'>');
+        SET @Html = REPLACE(@Html, N'> ', N'>');
+        SET @Html = REPLACE(@Html, N' + ', N'+');
+        SET @Html = REPLACE(@Html, N' ~ ', N'~');
+        SET @Html = REPLACE(@Html, N'( ', N'(');
+        SET @Html = REPLACE(@Html, N' )', N')');
+        SET @Html = REPLACE(@Html, N';}', N'}');
+
+        SET @Html = LTRIM(RTRIM(@Html));
     END
 
     -- Wrap toàn bộ trong 1 <style> ngoài cùng (các </style><style> bên trong
@@ -787,12 +838,14 @@ PRINT '[OK] Created/Altered procedure dbo.sp_MainStyleCSSParadise v3.0.0';
 GO
 
 -- ============================================================================
--- TEST CALL — Verify procedure compile + output dài ~14-25KB (un-minified)
+-- TEST CALL — Verify procedure compile + optimized output.
 -- ============================================================================
 DECLARE @TestHtml nvarchar(max);
 EXEC dbo.sp_MainStyleCSSParadise @StyleHtml = @TestHtml output;
 SELECT
     DATALENGTH(@TestHtml) / 2 AS HtmlChars,
+    CASE WHEN @TestHtml LIKE N'%ss_RequestHttp%' THEN 1 ELSE 0 END AS HasHttpMinifyCall,
+    CASE WHEN @TestHtml LIKE N'%/*%' THEN 1 ELSE 0 END AS HasCssComments,
     LEFT(@TestHtml, 200)      AS Preview_First200,
     RIGHT(@TestHtml, 200)     AS Preview_Last200;
 GO

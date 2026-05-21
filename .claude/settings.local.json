@@ -21,7 +21,8 @@
       "PowerShell($path = 'C:\\\\Users\\\\cuong.vu\\\\.claude\\\\projects\\\\d--VTS-User-Cuong-vu-Agent-work-VietinsoftWork\\\\2236749a-dfab-4291-8c5f-5c3aa3398120\\\\tool-results\\\\mcp-mssql-vietinsoft-read_query-1779319874111.txt'; $content = [System.IO.File]::ReadAllText\\($path\\); Write-Output \"TOTAL LENGTH: $\\($content.Length\\)\"; Write-Output $content.Substring\\(0, [Math]::Min\\(40000, $content.Length\\)\\))",
       "PowerShell($path = 'C:\\\\Users\\\\cuong.vu\\\\.claude\\\\projects\\\\d--VTS-User-Cuong-vu-Agent-work-VietinsoftWork\\\\2236749a-dfab-4291-8c5f-5c3aa3398120\\\\tool-results\\\\mcp-mssql-vietinsoft-read_query-1779319874111.txt'; $content = [System.IO.File]::ReadAllText\\($path\\); $out = 'C:\\\\Users\\\\cuong.vu\\\\.claude\\\\projects\\\\d--VTS-User-Cuong-vu-Agent-work-VietinsoftWork\\\\2236749a-dfab-4291-8c5f-5c3aa3398120\\\\tool-results\\\\span_40k_80k.txt'; [System.IO.File]::WriteAllText\\($out, $content.Substring\\(40000, 40000\\)\\); Write-Output \"WROTE: $out\"; Write-Output \"LEN: $\\(\\(Get-Item $out\\).Length\\)\")",
       "Bash(git config *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

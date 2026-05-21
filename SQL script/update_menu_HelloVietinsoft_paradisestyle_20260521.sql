@@ -1,11 +1,24 @@
 -- ============================================================================
--- File   : SQL script/update_menu_HelloWorldVietinsoft_paradisestyle_20260521.sql
+-- File   : SQL script/update_menu_HelloVietinsoft_paradisestyle_20260521.sql
 -- Date   : 2026-05-21
 -- Author : Antigravity
--- Mục đích: Cập nhật giao diện Hello world Vietinsoft (sp_HelloWorldVietinsoft_html)
---           để tối ưu hóa màu sắc hiển thị (card background, input background/focus/radio accent)
---           đáp ứng đầy đủ chuẩn thiết kế ParadiseStyle (đặc biệt trong Dark Mode).
+-- Mục đích: Tinh chỉnh renderer sp_HelloWorldVietinsoft_html sau khi menu đã
+--           rename "Hello world Vietinsoft" -> "Hello Vietinsoft":
+--
+--   A. Đồng bộ tiêu đề trong renderer (@title + aria-label) với tên menu mới.
+--   B. Input dùng token --paradise-input-border-radius (thay vì --md trực tiếp).
+--   C. Input background dùng --paradise-bg-surface (rõ hơn trong dark mode, vì
+--      input nằm trên card -> không bị flat với --bg-body #121212).
+--   D. .hwvts-check-row thêm cursor:pointer (a11y affordance cho checkbox/radio).
+--   E. Tiêu đề menu chuyển từ <h1> -> <h2> để giữ heading hierarchy hợp lệ
+--      (shell ParadiseHR đã có <h1> ở chrome).
+--
+-- KHÔNG chạm metadata menu (MEN_Menu/tblSC_Object/tblDataSetting/quyền).
+-- Sau khi ALTER xong: build lại cache (sp_GenerateHTMLScript) + refresh menu.
 -- ============================================================================
+
+SET XACT_ABORT ON;
+GO
 
 CREATE OR ALTER PROCEDURE [dbo].[sp_HelloWorldVietinsoft_html]
 (
@@ -23,7 +36,7 @@ BEGIN
         EXEC dbo.sp_MainStyleCSSParadise @StyleHtml = @StyleHtml OUTPUT;
     END
 
-    DECLARE @title       NVARCHAR(200) = N'Hello world Vietinsoft';
+    DECLARE @title       NVARCHAR(200) = N'Hello Vietinsoft';
     DECLARE @subtitle    NVARCHAR(300);
     DECLARE @badge       NVARCHAR(100);
     DECLARE @colNo       NVARCHAR(50);
@@ -216,9 +229,9 @@ BEGIN
         .hwvts-select,
         .hwvts-textarea {
             width: 100%;
-            background-color: var(--paradise-bg-body);
+            background-color: var(--paradise-bg-surface);
             border: 1px solid var(--paradise-border-color);
-            border-radius: var(--paradise-border-radius-md);
+            border-radius: var(--paradise-input-border-radius);
             padding: var(--paradise-space-3) var(--paradise-space-4);
             color: var(--paradise-text-body);
             font-family: var(--paradise-font-family-base);
@@ -242,6 +255,7 @@ BEGIN
             align-items: center;
             color: var(--paradise-text-body);
             font-size: var(--paradise-font-body1);
+            cursor: pointer;
         }
         input[type="radio"] {
             accent-color: var(--paradise-color-checkbox);
@@ -330,7 +344,7 @@ BEGIN
         <section class="hwvts-hero" aria-labelledby="hwvtsTitle">
             <div class="hwvts-hero-content">
                 <span class="hwvts-badge">✦ ' + @badge + N'</span>
-                <h1 id="hwvtsTitle" class="hwvts-title">' + @title + N'</h1>
+                <h2 id="hwvtsTitle" class="hwvts-title">' + @title + N'</h2>
                 <p class="hwvts-subtitle">' + @subtitle + N'</p>
                 <ul class="hwvts-demo-list">
                     <li>Root CSS scoped bằng prefix <strong>hwvts-</strong>.</li>
@@ -412,7 +426,7 @@ BEGIN
                         <p class="hwvts-card-subtitle">' + @metricSub + N'</p>
                     </div>
                     <div class="hwvts-table-wrap">
-                        <table class="hwvts-table" aria-label="Hello world Vietinsoft ranking">
+                        <table class="hwvts-table" aria-label="Hello Vietinsoft ranking">
                             <thead>
                                 <tr>
                                     <th class="hwvts-no-col">' + @colNo + N'</th>
@@ -534,8 +548,8 @@ BEGIN
               @html                          AS html,
               N''                            AS HtmlParadise,
               N''                            AS paradiseJs,
-              '3.1'                          AS Version,
-              N'ParadiseStyle v3.1 showcase (fixed dark mode support)' AS VersionData
+              '3.2'                          AS Version,
+              N'ParadiseStyle v3.2 - title synced to Hello Vietinsoft + input bg-surface + check-row cursor + h2 hierarchy' AS VersionData
           ) AS src
        ON tgt.TableName = src.TableName AND tgt.LanguageID = src.LanguageID
     WHEN MATCHED THEN
@@ -551,9 +565,24 @@ BEGIN
 END
 GO
 
-PRINT '[OK] Created/Altered procedure dbo.sp_HelloWorldVietinsoft_html';
+-- Build lại cache cho cả VN và EN (loop bên trong sp_GenerateHTMLScript)
+BEGIN TRY
+    EXEC dbo.sp_GenerateHTMLScript N'sp_HelloWorldVietinsoft_html';
+
+    -- Refresh menu (KHÔNG gọi sp_UpdateMenuInUserRight để không nới quyền cho mọi user)
+    IF OBJECT_ID(N'dbo.sp_Men_Menu_AfterSave_Simple', 'P') IS NOT NULL
+        EXEC dbo.sp_Men_Menu_AfterSave_Simple @ClassName = N'sp_HelloWorldVietinsoft';
+
+    PRINT N'[OK] Đã ALTER renderer + rebuild cache (VN/EN) + refresh menu.';
+END TRY
+BEGIN CATCH
+    PRINT N'[ERROR rebuild cache] ' + ERROR_MESSAGE();
+    THROW;
+END CATCH
 GO
 
--- Rebuild HTML Cache cho cả VN và EN bằng helper
-EXEC dbo.sp_GenerateHTMLScript 'sp_HelloWorldVietinsoft_html';
-GO
+-- Verify
+SELECT TableName, LanguageID, Version, VersionData, LEN(html) AS HtmlLen
+FROM dbo.tblHtmlScriptCache
+WHERE TableName = 'sp_HelloWorldVietinsoft_html'
+ORDER BY LanguageID;

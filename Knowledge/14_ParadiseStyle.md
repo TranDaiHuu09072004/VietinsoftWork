@@ -5,6 +5,8 @@
 > Nguồn chuẩn hiện tại: [SQL script/sp_MainStyleCSSParadise_v3.sql](../SQL%20script/sp_MainStyleCSSParadise_v3.sql), procedure `dbo.sp_MainStyleCSSParadise` sinh CSS toàn cục qua output `@StyleHtml`.
 >
 > Liên quan: [07_menu_system.md](07_menu_system.md) (menu + HTML cache), [12_CreateMenu.md](12_CreateMenu.md) (tạo menu mới), [13_Migrate_Menu.md](13_Migrate_Menu.md) (migrate/update menu có sẵn), [99_deprecated.md](99_deprecated.md) (item lỗi thời).
+>
+> Quyết định kỹ thuật: `sp_MainStyleCSSParadise` không gọi `ss_RequestHttp`, không đọc credential từ `tblSC_Login` để minify CSS. Khi không phải debug, CSS được tối ưu nội bộ trong T-SQL bằng pipeline deterministic: bỏ comment CSS, chuẩn hoá whitespace, nén khoảng trắng và bỏ khoảng trắng quanh delimiter CSS phổ biến.
 
 ---
 
@@ -52,9 +54,19 @@ Bất kỳ CSS mới nào phải ưu tiên token từ ParadiseStyle:
 | Text | `var(--paradise-text-body)`, `var(--paradise-text-muted)` |
 | Brand/header | `var(--paradise-color-primary)`, `var(--paradise-color-header1)`, `var(--paradise-color-header2)` |
 | Semantic | `var(--paradise-color-success/danger/warning/info)` |
+| Nền highlight nhạt cùng tone màu chữ | `var(--paradise-bg-primary-subtle)`, `var(--paradise-bg-success-subtle)`, `var(--paradise-bg-danger-subtle)`, `var(--paradise-bg-warning-subtle)`, `var(--paradise-bg-info-subtle)` hoặc class `.paradise-bg-*-subtle` |
 | Border | `var(--paradise-border-color)` |
 | Card | `var(--paradise-card-bg/border/shadow/radius/padding)` |
 | Button | `.paradise-btn`, `.paradise-btn--reload`, `.paradise-btn--add`, `.paradise-btn--save`, `.paradise-btn--delete`, `.paradise-btn--reset`, `.paradise-btn--export` |
+
+#### Ghi chú token nền `*-bg-subtle`
+
+ParadiseStyle có nhóm token nền nhạt cùng tone với màu chữ/semantic để dùng cho badge, alert, chip, KPI card hoặc trạng thái nhỏ bên trong component:
+
+- Token: `--paradise-bg-primary-subtle`, `--paradise-bg-secondary-subtle`, `--paradise-bg-success-subtle`, `--paradise-bg-danger-subtle`, `--paradise-bg-warning-subtle`, `--paradise-bg-info-subtle`, `--paradise-bg-header1-subtle`, `--paradise-bg-important-subtle`.
+- Utility class tương ứng: `.paradise-bg-primary-subtle`, `.paradise-bg-success-subtle`, `.paradise-bg-danger-subtle`, ...
+- Chỉ dùng cho vùng highlight nhỏ; vẫn không được dùng để tạo background toàn page/menu wrapper theo Rule 1.
+- Dark mode đã có override riêng trong `sp_MainStyleCSSParadise`, nên renderer không hardcode màu nền subtle.
 
 ### Rule 4 — Không import font/CSS ngoài trong từng menu
 
@@ -108,6 +120,16 @@ Nếu bắt buộc style element, scope dưới root:
 - Button dùng `.paradise-btn` để hưởng focus/hover chuẩn.
 - Không tắt outline/focus-visible.
 - Không tạo animation mạnh; nếu có animation phải tôn trọng `prefers-reduced-motion` đã có trong global CSS.
+
+#### Ghi chú input/control bên trong card
+
+- Input/select/textarea **nằm trong card** dùng `background-color: var(--paradise-bg-surface)`, **KHÔNG** dùng `--paradise-bg-body`. Lý do: dark mode `--bg-body = #121212` còn `--card-bg = #1e1e1e` → input dùng `--bg-body` sẽ tối hơn card và thị giác flat; `--bg-surface` (`#f8f9fa` light / `#1e1e1e` dark) đồng bộ với card hoặc nổi nhẹ.
+- Input dùng `border-radius: var(--paradise-input-border-radius)` (alias chuyên cho input), không gắn trực tiếp `--paradise-border-radius-md` để khi global đổi shape input thì menu tự cập nhật.
+- Row `label` chứa `<input type="checkbox">` / `<input type="radio">` phải có `cursor: pointer` — affordance a11y, không có sẵn từ browser default cho `<label>` bọc.
+
+#### Ghi chú heading hierarchy của menu
+
+- Tiêu đề chính của menu HTML-rendered ưu tiên dùng `<h2>`, KHÔNG `<h1>`. Lý do: shell ParadiseHR (header app) đã chiếm `<h1>` của page; menu nằm bên trong shell ⇒ chỉ nên là cấp `<h2>` trở xuống để giữ heading hierarchy hợp lệ cho screen reader.
 
 #### Ghi chú button: căn giữa dọc và xử lý nguyên nhân gốc
 

@@ -473,16 +473,22 @@ CREATE CLUSTERED INDEX CIX_tmpEmpList ON #tmpEmpList(EmployeeID);
 	  AND (ws.AttStart IS NULL OR ws.AttEnd IS NULL)
 	GROUP BY te.EmployeeID, te.FullName;
 		
-	if not exists (select e.SendToEmployeeID from tblEmailList e where e.TemplateName = 'DailyAttendance_Remind' and exists (select 1 from #DailyAttendance_Notify te where te.EmployeeID = e.SendToEmployeeID and DATEDIFF(day,e.LastUpdateTime,@Now) = 0))
-		begin
-		insert into tblEmailList(TemplateName,SendStatus,Approved_Send,SendToEmployeeID,ParadiseBadge,EmailType,SendBodyEmail,CreateTime)
-		select 'DailyAttendance_Remind',0 ,1 as Approved_Send,te.EmployeeID SendToEmployeeID,1 ParadiseBadge,10 EmailType
-		, N'Ngày: '+ScheduleDates+N'
+	insert into tblEmailList(TemplateName,SendStatus,Approved_Send,SendToEmployeeID,ParadiseBadge,EmailType,SendBodyEmail,CreateTime)
+	select 'DailyAttendance_Remind',0 ,1 as Approved_Send,te.EmployeeID SendToEmployeeID,1 ParadiseBadge,10 EmailType
+	, N'Ngày: '+ScheduleDates+N'
 Dữ liệu chấm công chưa hoàn thiện.
 Vui lòng làm thủ tục bổ sung nhé ' + isnull(te.FullName,'') , @Now
-		from #DailyAttendance_Notify te
+	from #DailyAttendance_Notify te
+	where not exists (
+		select 1
+		from tblEmailList e
+		where e.TemplateName = 'DailyAttendance_Remind'
+		  and e.SendToEmployeeID = te.EmployeeID
+		  and DATEDIFF(day,e.LastUpdateTime,@Now) = 0
+	);
+	
+	if @@ROWCOUNT > 0
 		UPDATE TaskSchedule SET LastTryDay = '2026-01-01',NextRunDate = '2026-01-01' from TaskSchedule where FunctionName = 'SendPendingEmail' and IsActive = 1
-	 end
 	
 	IF OBJECT_ID('tempdb..#tblRank_PersonalRating_Detail') IS NOT NULL DROP TABLE #tblRank_PersonalRating_Detail;
 	

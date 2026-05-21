@@ -320,6 +320,23 @@ Script template đầy đủ end-to-end cho menu Hello world Vietinsoft: [SQL sc
 | Grid hiện nhưng không có data | `SPLoadData` không tồn tại / sai tên column SELECT | Test thủ công: `EXEC <SPLoadData> @LoginID=3` — kiểm tra column name khớp `ColumnName` trong metadata |
 | `EXEC sptblCommonControlType_Signed_DUC` báo lỗi `Invalid column name` khi join `sys.columns` | `TableEditor` trỏ tới bảng không tồn tại / cột metadata không tồn tại trên `TableEditor` | Đảm bảo `TableEditor` là bảng vật lý có cột tương ứng, hoặc để NULL cho row grid container |
 | Cache rebuild xong nhưng UI vẫn cũ | Chưa xoá cache cũ trước khi build | `DELETE FROM tblHtmlScriptCache WHERE TableName='<class>_html'` rồi mới `sp_GenerateHTMLScript` |
+| SelectBox/SelectEmployee/TextSearch hiển thị nhưng dropdown trống / load không có data trên barebones HTML-rendered menu | Menu KHÔNG phải DataSetting menu nên các global JS helper (`loadDataSourceCommon`, `hpaUtils`, `RemoveToneMarks_Js`, `uiManager`, biến `LoginID`/`LanguageID`) KHÔNG được framework tự load. `loadUI` của control gọi `loadDataSourceCommon(...)` → undefined → silent fail | Polyfill 5 global trong bootstrap script TRƯỚC khi gọi loadUI (xem §3.1.8) |
+
+#### 3.1.8. Polyfill các global helper khi nhúng hpaControl* vào barebones HTML-rendered menu
+
+Các menu sinh ra bằng `DataSetting`/`hpaControlGrid_Duc` được framework wrapper render kèm theo bộ global JS helper. Khi nhúng `hpaControl*` riêng lẻ vào một menu HTML-rendered đơn giản (vd menu Hello Vietinsoft sample), các helper này KHÔNG có sẵn → các call như `loadDataSourceCommon("ColX", "sp_xxx", cb)` rơi vào `undefined` → control nằm im / dropdown rỗng.
+
+**Bắt buộc polyfill các global sau** trong `<script>` bootstrap của renderer, đặt TRƯỚC khi inject `loadUI`:
+
+- `window.LoginID`, `window.LanguageID` — inject từ tham số của renderer (`CAST(@LoginID AS NVARCHAR(20))`, `@LanguageID`).
+- `window.loadDataSourceCommon(columnName, dataSourceSP, onSuccessCallback)` — gọi `AjaxHPAParadise({ name: dataSourceSP, param: ["LoginID", LoginID, "LanguageID", LanguageID] })` rồi set `window["DataSource_<columnName>"]`, `window["DataSourceIDField_<columnName>"]`, `window["DataSourceNameField_<columnName>"]` từ `json.dataSchema[0][0|1].name` (hoặc `json.valueExpr` / `json.displayExpr` nếu có), gọi callback `onSuccessCallback(data, json)`.
+- `window.hpaUtils` = `{ loadAvatar: noop, highlightText: function(text, search) { ... } }` — SelectEmployee cần `loadAvatar`, SelectBox `itemTemplate` cần `highlightText`. Cho phép noop trên `loadAvatar` nếu demo không cần avatar.
+- `window.RemoveToneMarks_Js(s)` — bỏ dấu tiếng Việt cho grid search của SelectEmployee. Dùng `String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").toLowerCase()`.
+- `window.uiManager` = `{ showAlert: function(opt){ console.warn(opt); } }` — các nhánh error/validation gọi `uiManager.showAlert`.
+
+Reference implementation tham khảo: bootstrap script ở renderer `sp_HelloWorldVietinsoft_html` (sau khi áp `update_menu_HelloVietinsoft_addconfigcontrols_20260521.sql`). Đặt tất cả `if (typeof window.X === "undefined") window.X = ...` đầu IIFE, rồi mới `waitReady` để `loadUI` chạy với context đầy đủ.
+
+⚠️ Lưu ý: `saveFunction`, `updateOrDeleteDataExample` chỉ gọi khi `AutoSave=1`. Nếu menu sample đặt `AutoSave=0` thì KHÔNG cần polyfill 2 hàm này — branch không bao giờ chạm tới.
 
 Xem thêm tri thức nền từng phase ở [07_menu_system.md §13](07_menu_system.md).
 
