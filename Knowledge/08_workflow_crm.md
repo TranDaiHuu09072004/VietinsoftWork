@@ -98,7 +98,7 @@ flowchart TD
 3. **Gán owner phụ trách**
    - Owner chính lưu ở `tblCRM_CustomerPersonInfo.OwnerID` và/hoặc bảng nhiều-nhiều `tblCRM_CustomerOwner`.
    - `tblCRM_CustomerOwner.IsPrimary = 1` đánh dấu nhân viên phụ trách chính.
-   - Danh sách lead (`sp_CRM_LeadList`) lọc theo quyền nhân viên qua `sp_getEmployeeListWithPermission`, chỉ thấy lead thuộc owner được phép hoặc lead chưa có owner.
+   - Danh sách lead (`sp_CRM_LeadList`) lọc theo quyền nhân viên qua `sp_getEmployeeListWithPermission` (chi tiết logic 3 mức quyền: [15_employee_query_apis.md](15_employee_query_apis.md)), chỉ thấy lead thuộc owner được phép hoặc lead chưa có owner.
 
 4. **Chăm sóc và cập nhật pipeline**
    - Trạng thái lead nằm ở `tblCRM_CustomerPersonInfo.StatusID` theo `tblCRM_ContactCustommerStatus`.

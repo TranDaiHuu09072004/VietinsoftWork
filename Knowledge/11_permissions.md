@@ -1,6 +1,8 @@
 # 11 — Phân quyền user (RBAC + Data scope + Inheritance)
 
 > Phân quyền sử dụng tính năng của hệ thống ParadiseHR. Liên quan: [06_db_login_account.md](06_db_login_account.md) (bảng `tblSC_Login`), [07_menu_system.md](07_menu_system.md) (đối tượng phân quyền link qua `MenuID`).
+>
+> 🔐 **Meta-role `'Full access'` / `'Manager access'` / `'Customer access'`** (không gắn menu — điều khiển logic `sp_getEmployeeListWithPermission`) và resolver `fn_Common_GetAccessID`: xem [15_employee_query_apis.md](15_employee_query_apis.md). Cấu trúc `ParentLoginID` (phân cách `&`) trong `tblSC_Login` cũng được resolve ở đó.
 
 ParadiseHR dùng mô hình **RBAC + Data scope + Inheritance**. Quyền không tập trung một chỗ — app phải tổng hợp từ nhiều layer khi user gọi chức năng.
 

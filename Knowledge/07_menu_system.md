@@ -3,6 +3,10 @@
 > Toàn bộ tri thức về menu: cấu trúc 5 mảnh, quy ước đặt tên, phân loại theo `AssemblyName`, quy trình tạo (thủ công + shortcut), giao diện desktop/web, HTML cache pattern, và quy trình end-to-end. Liên quan: [11_permissions.md](11_permissions.md), [01_architecture.md](01_architecture.md).
 >
 > 💡 **Cần triển khai 1 menu Web mới**? Xem skill file [12_CreateMenu.md](12_CreateMenu.md) — quy trình 9 phase đầy đủ + ví dụ Hello world Vietinsoft (Top 3 xếp hạng) + cách gọi API runtime qua `AjaxHPAParadise`.
+>
+> 🔁 **Cần migrate/update một menu đã có**? Xem skill file [13_Migrate_Menu.md](13_Migrate_Menu.md) — quy trình tìm menu theo tên, inventory metadata/source/API/ngôn ngữ/quyền, rồi tạo script idempotent không chèn trùng `MEN_Menu`, `tblSC_Object`, `tblSC_Right_Stored`, `tblSC_GroupRight`.
+>
+> 🎨 **Cần thiết kế/refactor giao diện menu**? Xem skill file [14_ParadiseStyle.md](14_ParadiseStyle.md) — bắt buộc dùng `sp_MainStyleCSSParadise`, token `--paradise-*`, và **không thiết lập background cho bất cứ menu nào**.
 
 ## 1. Cấu trúc menu — 5 mảnh dữ liệu liên kết qua `MenuID`
 
@@ -123,6 +127,26 @@ Logic auto-sinh ID đọc từ source:
 - **Hành vi**: `IsModal`, `showDialog`, `URL` (web menu), `ShortcutKeys` (desktop), `superForm`, `LinkMenuID`, `DefaultParam`, `OptionAuthentication`.
 - **Liên quan**: `ClassName_Audit`, `ClassName_CT` (class phụ trợ), `ProcessDataForNotifyProc`, `InstructionID`.
 
+### Pattern cờ ĐÚNG cho menu HTML-rendered (rất dễ sai)
+
+> ⚠️ Verified từ DB thực tế cho `MnuKPI007`, `MnuTM022`, `MnuWPT037` (3 menu Web HTML-rendered đang chạy): tất cả đều có `IsWeb=0`, `ViewOnWeb=0`, `isShowLayOutWeb=0`, `isShowInMobileLayOut=0`, chỉ bật `IsUseMobileDevice=1`. Bật `ViewOnWeb=1` hoặc `isShowLayOutWeb=1` sẽ làm menu **KHÔNG hiển thị**. Xem [12_CreateMenu.md §Rule 2](12_CreateMenu.md) để biết chi tiết.
+
+### Parent menu PHẢI `IsVisible = 1`
+
+Trước khi chọn `ParentMenuID` cho menu mới, **kiểm tra parent có `IsVisible = 1`**. Parent không visible thì menu con không hiển thị (ngay cả khi đầy đủ quyền). Đặc biệt **TRÁNH `MnuHEP000`** (Trợ giúp — `IsVisible = 0` ở DB thực tế).
+
+### BẮT BUỘC tạo `tblDataSetting` + `tblDataSettingLayout` (dễ bỏ sót)
+
+Mỗi menu HTML-rendered cần **3 bảng metadata** đầy đủ (verify từ `MnuKPI447`, `MnuTM022`, `MnuWPT037`):
+
+| Bảng | Số dòng | Cờ chính |
+|---|---|---|
+| `tblDataSetting` | 1 | `TableName = <ClassName>`, `IsProcedure=1`, `IsShowLayout=1`, `ColumnDataType='html&ViewHtml'`, `ColumnOrderBy='html&0'` |
+| `tblDataSettingLayout` | 2 | Row `root` (`Type='g'`) + row `lblhtml` (`Type='i'`, `ControlType='ParadiseWebView2'`, `ControlName='html'`, `NamePa='root'`) |
+| `tblHtmlScriptCache` | ≥ 1 / lang | HTML/CSS/JS từ renderer |
+
+**Triệu chứng nếu thiếu**: menu xuất hiện trong cây + có quyền + có cache HTML → click vào → **màn hình TRẮNG** (không content). Xem [12_CreateMenu.md Rule 4 + Phase D2/D3](12_CreateMenu.md).
+
 ## 8. Giao diện desktop app lưu ở đâu
 
 Các giao diện/menu của Windows Desktop không lưu trong một bảng riêng tên "desktop", mà nằm chủ yếu ở `MEN_Menu` và các bảng liên kết theo `MenuID`:
@@ -161,10 +185,16 @@ Ghi nhận từ DB: trong các menu visible mặc định desktop, nhóm `Assemb
 | Menu/route Web | `MEN_Menu` | Bảng chính định nghĩa màn hình Web. Các cờ Web: `IsWeb`, `ViewOnWeb`, `isShowLayOutWeb`; URL Web ở `URL`; class/nguồn xử lý ở `AssemblyName`, `ClassName`. |
 | Tên giao diện | `tblMD_Message` | Tên menu/màn hình đa ngôn ngữ. |
 | Thiết kế grid/form data-driven | `tblDataSetting` | Lưu cấu hình màn hình dạng `DataSetting`: `LayoutDataConfigWeb`, `WebDataGridKeys`, `UseAPIOptionForWeb`, `FormLayoutJS`, `ViewMode`, `Mode`, `Template`, `HtmlCell`, `TypeGrid`... |
+| Control/grid metadata nâng cao | `tblCommonControlType_Signed` | Lưu cấu hình control/grid theo `TableName`, `ColumnName`, `Type`, `Layout`, `DataSourceSP`, `UID`... để sinh HTML/JS control chung. |
 | Cấu hình chung Web | `tblParameter` | `APPLICATION_ADDRESS`, `ThemeWeb`, `allowedPageSizes`, `isConfirmCloseTab`, `LimitAppInDock`, `MenuIDLaunPad`, `MenuVisibleOpion`, `ParadiseLogOutTimeOut`. |
 | Quyền truy cập | `tblSC_Object`, `tblSC_Right_Stored`, `tblSC_GroupRight` | Phân quyền user/group nhìn thấy và dùng màn hình Web. |
 
 ParadiseHR hiện chỉ dùng **một kiểu duy nhất** cho menu Web: **HTML-rendered** (chi tiết Section 10). Cụ thể: `MEN_Menu.AssemblyName = 'DataSetting'`, `ClassName` trỏ tới cặp procedure wrapper + renderer (`sp_X` + `sp_X_html`), HTML/CSS/JS thực được lưu trong `tblHtmlScriptCache`, render qua control `ParadiseWebView2`. Có thể đi kèm `tblDataSetting` + `tblDataSettingLayout` để dựng layout container.
+
+Trong kiểu HTML-rendered có 2 nhánh triển khai đã xác minh:
+
+1. Renderer tự viết toàn bộ HTML/CSS/JS rồi build cache bằng `sp_GenerateHTMLScript`.
+2. Renderer dùng metadata `tblCommonControlType_Signed`; procedure `sptblCommonControlType_Signed_DUC @TableName` sinh HTML/JavaScript cho Grid View và control chung, trả `htmlProc`; sau đó cache cuối vẫn build bằng `sp_GenerateHTMLScript '<proc_html>'`.
 
 > ⚠️ **Kiểu Web page cố định ASPX đã LỖI THỜI và KHÔNG còn sử dụng**. Trước đây hệ thống có menu trỏ trực tiếp tới file `.aspx` (vd `/EmpInfo.aspx`, `/PRL/Payslip.aspx`, `/ATT/LeaveHistory.aspx`) — nay đã được thay thế hoàn toàn bằng menu HTML-rendered. Các MenuID còn sót trong DB đã được liệt kê tại [99_deprecated.md §5](99_deprecated.md). Khi đề xuất / thiết kế menu Web mới, **KHÔNG dùng pattern này**.
 
@@ -276,7 +306,7 @@ Cách `sp_PerformanceKPI_Working_Process` tính điểm tự động:
 
 1. Xác định kỳ tính: nếu không truyền `@FromDate/@ToDate` thì lấy kỳ lương hiện tại từ `fn_Get_SalaryPeriod_ByDate(GETDATE())`.
 2. Nếu không chạy debug, procedure chỉ chạy vào **thứ 2 hằng tuần** hoặc **ngày cuối kỳ lương**; đồng thời dùng `sp_getapplock` và `tblProcessTracker` để tránh chạy trùng quá sát nhau.
-3. Lấy danh sách nhân viên hợp lệ từ `fn_vtblEmployeeList_Bydate`, loại nhân viên nghỉ việc ngoài kỳ, loại nhân viên không chấm công (`TAOptionID <> 0`) và vị trí `tblPosition.NoTA = 1`.
+3. Lấy danh sách nhân viên hợp lệ từ `fn_vtblEmployeeList_Bydate` (xem [15_employee_query_apis.md §2](15_employee_query_apis.md) cho chi tiết 3 chế độ filter), loại nhân viên nghỉ việc ngoài kỳ, loại nhân viên không chấm công (`TAOptionID <> 0`) và vị trí `tblPosition.NoTA = 1`.
 4. Sinh lưới ngày làm việc theo từng nhân viên, lấy lịch/ca từ `tblWSchedule` + `tblShiftSetting`.
 5. Lấy log GPS/chấm công từ `tblTmpAttend` trong kỳ; mỗi ngày chỉ giữ log vào sớm nhất (`AttState = 1`) và log ra muộn nhất (`AttState = 2`).
 6. Map log vào lịch để có `AttStart`, `AttEnd`, xử lý ca qua đêm và tính `WorkingTimeMinute`.
@@ -305,10 +335,19 @@ ROW_NUMBER() OVER (
 
 ## 11. Refresh cache sau khi tạo
 
+Quy trình refresh chuẩn theo rule cấp quyền của dự án (xem [12_CreateMenu.md](12_CreateMenu.md) header + [13_Migrate_Menu.md](13_Migrate_Menu.md) header): **chỉ chạy 1 lệnh refresh duy nhất**.
+
 ```sql
-EXEC dbo.sp_Men_Menu_AfterSave_Simple;   -- hoặc sp_Men_Menu_AfterSave
-EXEC dbo.sp_UpdateMenuInUserRight;        -- refresh menu trong cache phân quyền
+-- Refresh cache layout sau khi save MEN_Menu — PHẢI truyền @ClassName
+EXEC dbo.sp_Men_Menu_AfterSave_Simple @ClassName = N'<ClassName>';
+-- (proc nội bộ resolve MenuID/AssemblyName/ParentMenuID rồi gọi sp_Men_Menu_AfterSave)
 ```
+
+> ⚠️ **TUYỆT ĐỐI KHÔNG** thêm `EXEC sp_UpdateMenuInUserRight @ObjectID = ...` vào script tạo/migrate menu. Proc này tự cấp `FullAccess = 32` cho **MỌI LoginID > 0** trong `tblSC_Login` → mở quyền menu cho toàn hệ thống, vi phạm rule cấp quyền (script chỉ cấp cho `LoginID = 3`; user tự cấp quyền cho user/group khác qua app hoặc script riêng).
+
+**Hành vi `sp_UpdateMenuInUserRight @ObjectID`** (verify từ `OBJECT_DEFINITION` — chỉ ghi để tham khảo):
+- Insert `tblSC_Right_Stored(ObjectID, LoginID, FullAccess=32)` cho **MỌI LoginID > 0** chưa có quyền với ObjectID này.
+- Update `FullAccess = 32` cho mọi row đã có.
 
 User cần logout/login để cây menu được load lại.
 
@@ -431,10 +470,11 @@ END
 [E] Phân quyền (xem 11_permissions) → tblSC_Right_Stored / tblSC_GroupRight + data scope
         │
         ▼
-[F] Build HTML cache lần đầu        → EXEC <class>_html  per LanguageID
+[F] Build HTML cache lần đầu        → CHỈ dùng helper sp_GenerateHTMLScript '<class>_html'
         │
         ▼
-[G] Refresh menu cache              → sp_Men_Menu_AfterSave_Simple + sp_UpdateMenuInUserRight
+[G] Refresh menu cache              → CHỈ sp_Men_Menu_AfterSave_Simple @ClassName='…'
+                                       KHÔNG gọi sp_UpdateMenuInUserRight (xem Section 11 + rule cấp quyền)
         │
         ▼
 [H] Đưa cho user đang dùng          → user logout/login → load lại cây menu
@@ -476,27 +516,22 @@ SET    IsUseMobileDevice = 1,
 WHERE  MenuID = 'MnuKPI007';
 ```
 
-**Phase F — Build cache HTML**
+**Phase F — Build cache HTML bằng helper `sp_GenerateHTMLScript` (cách duy nhất)**
 
 ```sql
-EXEC dbo.sp_KPIProcessCustomer_html @LoginID = 3, @LanguageID = 'VN', @isWeb = 1;
-EXEC dbo.sp_KPIProcessCustomer_html @LoginID = 3, @LanguageID = 'EN', @isWeb = 1;
+EXEC dbo.sp_GenerateHTMLScript 'sp_KPIProcessCustomer_html';
 ```
 
-Khi sửa renderer → xoá cache cũ rồi build lại:
+Khi sửa renderer → xoá cache cũ rồi build lại bằng helper:
 
 ```sql
 DELETE FROM tblHtmlScriptCache
 WHERE  TableName = 'sp_KPIProcessCustomer_html';
 
-EXEC dbo.sp_KPIProcessCustomer_html @LoginID = 3, @LanguageID = 'VN', @isWeb = 1;
-```
-
-Hoặc dùng helper:
-
-```sql
 EXEC dbo.sp_GenerateHTMLScript 'sp_KPIProcessCustomer_html';
 ```
+
+> ✅ Chuẩn thống nhất: không khuyến nghị gọi trực tiếp procedure renderer `_html` theo từng `LanguageID`; dùng helper `sp_GenerateHTMLScript` để build/rebuild cache.
 
 ### Đặc điểm thiết kế đáng chú ý
 

@@ -1,6 +1,8 @@
 # 02 — Database: Hồ sơ nhân viên (Employee)
 
 > Schema bảng `tblEmployee` + các bảng vệ tinh. Liên quan: [03_db_contract.md](03_db_contract.md), [04_db_biometric.md](04_db_biometric.md), [06_db_login_account.md](06_db_login_account.md).
+>
+> 💡 **Cần lấy danh sách nhân viên runtime (theo ngày / theo quyền user / theo cây)?** Xem [15_employee_query_apis.md](15_employee_query_apis.md) — mô tả chi tiết `fn_vtblEmployeeList_Bydate` (snapshot as-of) và `sp_getEmployeeListWithPermission` (filter theo quyền) — đây là API trục được 575+ procedure khác dùng.
 
 ## 1. Hồ sơ nhân viên (Employee Profile)
 

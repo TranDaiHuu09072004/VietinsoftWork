@@ -142,7 +142,7 @@ flowchart TD
     E --> F[Nhận diện ca / shift detector<br/>sp_ShiftDetector_*]
     F --> G[Chạy công ngày<br/>TA_Process_Main / Task_TA_Process_Main]
 
-    G --> G1[Lấy nhân viên hợp lệ<br/>tmpEmployeeTree + fn_vtblEmployeeList_Bydate]
+    G --> G1[Lấy nhân viên hợp lệ<br/>tmpEmployeeTree + fn_vtblEmployeeList_Bydate<br/>chi tiết: 15_employee_query_apis.md]
     G --> G2[Lấy lịch làm việc<br/>tblWSchedule + tblShiftSetting]
     G --> G3[Lấy nghỉ phép<br/>tblLvHistory]
     G --> G4[Lấy OT đăng ký/duyệt<br/>tblOTList / tblOTListRegistered]

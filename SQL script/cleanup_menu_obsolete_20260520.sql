@@ -100,13 +100,12 @@ BEGIN TRY
     PRINT '   MEN_Menu: deleted ' + CAST(@cnt_menu_webatt AS VARCHAR) + ' row(s)';
 
     ---------------------------------------------------------------------
-    -- 4. Refresh cache (theo quy trình tạo/sửa menu — Knowledge/07_menu_system.md)
+    -- 4. KHÔNG gọi sp_Men_Menu_AfterSave_Simple / sp_UpdateMenuInUserRight ở đây
+    --    vì cả 2 proc YÊU CẦU tham số (@ClassName / @ObjectID) chỉ dành cho menu
+    --    đang được SAVE/CREATE — không có ý nghĩa khi đang DELETE.
+    --    User chỉ cần logout/login để app load lại cây menu.
     ---------------------------------------------------------------------
-    IF OBJECT_ID('dbo.sp_Men_Menu_AfterSave_Simple', 'P') IS NOT NULL
-        EXEC dbo.sp_Men_Menu_AfterSave_Simple;
-    IF OBJECT_ID('dbo.sp_UpdateMenuInUserRight', 'P') IS NOT NULL
-        EXEC dbo.sp_UpdateMenuInUserRight;
-    PRINT '   Refreshed menu cache.';
+    PRINT '   [INFO] Không cần refresh — user logout/login để cây menu cập nhật.';
 
     COMMIT TRANSACTION;
     PRINT '=== Cleanup completed successfully. ===';

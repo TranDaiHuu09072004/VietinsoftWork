@@ -2,9 +2,106 @@
 
 > **Skill file** — hướng dẫn lập trình viên mới triển khai trọn vẹn 1 menu Web kiểu HTML-rendered (kiểu duy nhất ParadiseHR hiện dùng — kiểu ASPX-style đã lỗi thời, xem [99_deprecated.md §5](99_deprecated.md) và [99_deprecated.md §7](99_deprecated.md)).
 >
-> Liên quan: [07_menu_system.md](07_menu_system.md) (tri thức nền), [11_permissions.md](11_permissions.md) (phân quyền), [01_architecture.md](01_architecture.md) (3 nền tảng + cờ).
+> Liên quan: [07_menu_system.md](07_menu_system.md) (tri thức nền), [11_permissions.md](11_permissions.md) (phân quyền), [01_architecture.md](01_architecture.md) (3 nền tảng + cờ), [14_ParadiseStyle.md](14_ParadiseStyle.md) (chuẩn thiết kế UI — không thiết lập background cho menu).
 >
 > Ví dụ minh hoạ xuyên suốt file: menu **"Hello world Vietinsoft"** (`MnuHEP910`) hiển thị **Top 3 nhân viên có điểm xếp hạng cao nhất tháng hiện tại** — gọi API runtime qua `AjaxHPAParadise`.
+
+---
+
+## ⚠️ 2 QUY TẮC BẮT BUỘC (đọc trước tiên)
+
+### Rule 1 — Cấp quyền
+
+Mọi script tạo menu mới **PHẢI** tuân thủ:
+
+1. ✅ Chỉ `INSERT tblSC_Right_Stored(ObjectID, LoginID = 3, FullAccess = '32')`. **Không bao giờ** cấp cho LoginID khác / UserGroupID khác / tất cả user trong script tạo menu.
+2. ❌ **TUYỆT ĐỐI KHÔNG** gọi `EXEC sp_UpdateMenuInUserRight @ObjectID = ...` trong script tạo menu, vì proc này tự cấp `FullAccess = 32` cho **TẤT CẢ LoginID > 0** trong `tblSC_Login` → mở quyền menu cho mọi user, **vượt phạm vi cần thiết**.
+3. ➡️ Sau khi script chạy xong, **user tự cấp quyền** cho các user/group khác bằng giao diện phân quyền trong app, hoặc **tự viết script riêng** để cấp quyền hàng loạt cho `tblSC_Right_Stored` / `tblSC_GroupRight`.
+4. ✅ Phase H chỉ chạy `EXEC sp_Men_Menu_AfterSave_Simple @ClassName = N'<ClassName>'` để refresh cache layout. **KHÔNG** thêm bất kỳ proc nào khác.
+
+### Rule 2 — Pattern cờ cho menu HTML-rendered (rất dễ sai)
+
+Tất cả menu Web HTML-rendered đang chạy thực tế trong DB (`MnuKPI007` Sales Pipeline, `MnuTM022` Xếp hạng nhân viên, `MnuWPT037` Danh sách phê duyệt) đều dùng **CÙNG MỘT PATTERN** sau, **KHÔNG** có ngoại lệ:
+
+| Cờ trong `MEN_Menu` | Giá trị BẮT BUỘC | Lý do |
+|---|---|---|
+| `IsVisible` | `1` | Cho phép hiển thị trong cây |
+| `IsWeb` | **`0`** | Không phải ASPX-style cũ (đã deprecated) — wrapper chạy server-side, không có URL static |
+| `ViewOnWeb` | **`0`** | **KHÔNG** phải `1` — đây là sai lầm phổ biến |
+| `isShowLayOutWeb` | **`0`** | **KHÔNG** phải `1` |
+| `isShowInMobileLayOut` | **`0`** | **KHÔNG** phải `1` |
+| `IsUseMobileDevice` | `1` | Bật cho cả Web HTML-rendered (qua ParadiseWebView2) lẫn Mobile |
+| `glyphicon` | tuỳ chọn | Icon hiển thị |
+| `Priority` | tuỳ chọn (vd 99) | Vị trí trong cây |
+| `ParentMenuID` | tuỳ chọn | **PHẢI có `IsVisible=1`** — xem Rule 3 |
+
+> ⚠️ **Sai lầm điển hình**: nghĩ rằng "menu Web" = `ViewOnWeb=1` + `isShowLayOutWeb=1`. **SAI**. Các cờ này phải = 0. Hệ thống quyết định "menu Web HTML-rendered" qua `AssemblyName='DataSetting'` + `ClassName` trỏ tới cặp wrapper/renderer + có cache trong `tblHtmlScriptCache`.
+
+### Rule 3 — Parent menu PHẢI `IsVisible = 1`
+
+Trước khi chọn `ParentMenuID`, **luôn kiểm tra** parent có `IsVisible = 1` không. Nếu parent `IsVisible = 0` thì menu con cũng không hiển thị (ngay cả khi đầy đủ quyền).
+
+```sql
+SELECT MenuID, IsVisible
+FROM   MEN_Menu
+WHERE  MenuID = '<ParentMenuID dự định dùng>';
+-- Nếu IsVisible = 0 → CHỌN parent khác.
+```
+
+Parent visible đã verify (an toàn dùng cho menu HTML-rendered mới):
+- `MnuKPI000` (Trang chủ CRM) — đã có MnuKPI007 chạy OK
+- `MnuTM000` (Đào tạo) — đã có MnuTM022 chạy OK
+- `MnuWPT000` (Portal/WorkFlow) — đã có MnuWPT037 chạy OK
+- `MnuHRS000` (Quản trị nhân sự) — đã có MnuHRS142 chạy OK
+
+❌ KHÔNG nên dùng làm parent: `MnuHEP000` (Trợ giúp — `IsVisible=0` ở DB thực tế).
+
+### Rule 4 — BẮT BUỘC tạo `tblDataSetting` + `tblDataSettingLayout` cho mỗi menu HTML-rendered
+
+Đây là rule **dễ bỏ sót nhất**, gây triệu chứng "click menu thấy màn hình trắng" (menu hiển thị trong cây + có quyền + có cache HTML, nhưng app không biết kiểu render).
+
+Mỗi menu HTML-rendered **PHẢI** có **3 bảng metadata** sau (verify từ `MnuKPI447` Doanh số, `MnuTM022` Xếp hạng, `MnuWPT037` Danh sách phê duyệt — tất cả đều đầy đủ 3 bảng):
+
+| Bảng | Số dòng cần | Vai trò |
+|---|---|---|
+| `tblDataSetting` | 1 dòng | Báo cho app biết menu là procedure HTML-rendered (`IsProcedure=1, IsShowLayout=1`) + chỉ định cột render html (`ColumnDataType='html&ViewHtml'`, `ColumnOrderBy='html&0'`) |
+| `tblDataSettingLayout` | **2 dòng**: `root` + `lblhtml` | Định nghĩa container `ParadiseWebView2` chiếm 100% chiều rộng. Thiếu 2 dòng này → app render menu thành màn hình trắng. |
+| `tblHtmlScriptCache` | ≥ 1 dòng / language | HTML/CSS/JS thực do renderer sinh ra |
+
+**Triệu chứng nếu thiếu `tblDataSetting`/`tblDataSettingLayout`**: menu xuất hiện trong cây → click vào → màn hình trắng (no content). Đầy đủ quyền, cờ Web đúng, cache HTML có sẵn → vẫn không hiển thị.
+
+Đây là rule **không có ngoại lệ** — kể cả khi user chỉ nói "tạo menu mới" mà không nhắc đến cờ/parent/DataSetting, vẫn áp dụng đúng cả 4 rule này.
+
+### Rule 5 — Không để JavaScript trong renderer bị SQL Server parse như T-SQL
+
+Khi tạo renderer `<ClassName>_html`, HTML/CSS/JS thường được build trong chuỗi `NVARCHAR(MAX)` rồi lưu vào `tblHtmlScriptCache`. Vì vậy phải kiểm soát quote boundary của chuỗi `N'...'`.
+
+Nếu SQL Server báo lỗi gần `function`, `String`, tên biến JavaScript, hoặc identifier dài trong block `<script>`, nguyên nhân cần kiểm tra đầu tiên là chuỗi `N'...'` đã bị đóng sớm do dấu nháy đơn.
+
+Mẫu bắt buộc cho text đa ngôn ngữ đưa vào JavaScript:
+
+```sql
+DECLARE @emptyJs nvarchar(400) = REPLACE(REPLACE(@empty, N'\', N'\\'), N'"', N'\"');
+
+SET @html = N'
+<script>
+(function(){
+    var EMPTY_MSG = "' + @emptyJs + N'";
+
+    function escapeHtml(value){
+        if(value === null || value === undefined) return "";
+        return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/\u0027/g, "&#039;");
+    }
+})();
+</script>';
+```
+
+Không dùng `.replace(/''/g, ...)` trong JavaScript nhúng trong T-SQL; pattern này chứa nháy đơn raw và có thể làm đóng chuỗi SQL sớm.
 
 ---
 
@@ -43,14 +140,188 @@ Cách tự sinh `MenuID` mới: lấy `MAX` số sau 6 ký tự đầu trong cù
 [B] Viết cặp procedure UI     → <class>_html (renderer) + <class> (wrapper đọc cache)
 [C] Viết procedure API        → sp_<X>_<Action>: SELECT data từ DB
 [D] Tạo metadata menu         → MEN_Menu + tblSC_Object + tblMD_Message (qua sp_s_CreateMenu hoặc thủ công)
-[E] Set cờ nền tảng + UI      → IsWeb=0, ViewOnWeb=1, isShowLayOutWeb=1, IsUseMobileDevice, glyphicon, GroupID
-[F] Build HTML cache          → EXEC <class>_html cho từng LanguageID (VN/EN)
-[G] Phân quyền                → tblSC_Right_Stored (LoginID) hoặc tblSC_GroupRight (UserGroupID)
-[H] Refresh cache menu        → sp_Men_Menu_AfterSave_Simple + sp_UpdateMenuInUserRight
+[D2] tblDataSetting           → 1 dòng (IsProcedure=1, IsShowLayout=1, ColumnDataType='html&ViewHtml')  ← BẮT BUỘC
+[D3] tblDataSettingLayout     → 2 dòng (root + lblhtml/ParadiseWebView2)                                ← BẮT BUỘC
+[E] Set cờ nền tảng + UI      → IsWeb=0, ViewOnWeb=0, isShowLayOutWeb=0, isShowInMobileLayOut=0, IsUseMobileDevice=1
+[F] Build HTML cache          → CHỈ dùng helper sp_GenerateHTMLScript '<class>_html'
+[G] Phân quyền                → CHỈ tblSC_Right_Stored cho LoginID = 3 (admin). KHÔNG cấp cho user/group khác.
+[H] Refresh cache menu        → CHỈ sp_Men_Menu_AfterSave_Simple @ClassName='...'. KHÔNG gọi sp_UpdateMenuInUserRight.
 [I] User logout/login         → app load lại cây menu → click → wrapper trả HTML → JS gọi API runtime
 ```
 
-Xem chi tiết từng phase ở [07_menu_system.md §13](07_menu_system.md).
+> ⚠️ **Phase D2 + D3 là phần dễ bị bỏ sót nhất** — gây triệu chứng "click menu thấy màn hình trắng" (Rule 4).
+
+### 3.1. Nhánh UI config-driven bằng `tblCommonControlType_Signed`
+
+Ngoài kiểu renderer tự viết toàn bộ HTML/CSS/JS, ParadiseHR còn có nhánh build UI từ metadata control. Pattern này được dùng rộng rãi cho các màn hình có grid view / form nhiều control chuẩn (CRM, Recruitment, Training, KPI).
+
+#### Vai trò các thành phần
+
+| Thành phần | Vai trò |
+|---|---|
+| `tblCommonControlType_Signed` | Lưu cấu hình control/grid theo `TableName`, `ColumnName`, `Type`, `Layout`, `DataSourceSP`, `UID`, `SPLoadData`... Mỗi `TableName` = tên renderer (vd `sp_CRM_Customers_html`); mỗi row = 1 control (column hoặc container). |
+| `sptblCommonControlType_Signed_DUC @TableName` | Đọc metadata, sinh `html`, `loadUI`, `loadData` cho từng row + **UPDATE ngược** lại 3 cột đó trong `tblCommonControlType_Signed`. Trả `SELECT @nsqlHtml AS htmlProc` (1 row, 1 cột — thường không dùng, side-effect chính mới là điều cần). |
+| Renderer `<class>_html` | Viết HTML khung + nhúng `loadUI`/`loadData` của grid container bằng **dynamic SQL** trỏ theo `UID` (xem mẫu §3.1.3). Trả `SELECT @html AS html`. |
+| `sp_GenerateHTMLScript '<class>_html'` | Build cache chính thức vào `tblHtmlScriptCache` cho cả VN + EN. |
+
+#### 3.1.1. Schema `tblCommonControlType_Signed` (verify từ DB 2026-05-21)
+
+PK = `ID` (varchar(36), default `[dbo].[fn_UUIDv7_Min]()`); tất cả các cột khác đều **nullable**.
+
+Các cột thực sự dùng khi insert metadata:
+
+| Cột | Kiểu | Ý nghĩa |
+|---|---|---|
+| `TableName` | nvarchar(400) | = tên renderer `<class>_html` (khoá nhóm các row của 1 màn hình) |
+| `ColumnName` | nvarchar(400) | Tên cột data trong result-set của `SPLoadData`; với row grid container thì là tên định danh của grid (`GridCustomer`, `GridEmployees`...) |
+| `Type` | varchar(64) | `hpaControlGrid` (Grid full edit), `hpaControlGrid_Duc` (Grid read-only), `hpaControlText`, `hpaControlDate`, `hpaControlSelectEmployee`, `hpaControlSelectBox`, `hpaControlTagBox`, `hpaControlSegmented`, `hpaControlNumber`, `hpaControlMoney`, `hpaControlDateTime`, `hpaControlTime`, `hpaControlPhone`, `hpaControlFile`, `hpaControlRichTextEditor`, `hpaControlRichTextEditorPremium`, `hpaControlTextArea`, `hpaControlPipeline`, `hpaControlCheckBox` (chỉ render trong Grid), `hpaControlLink` (chỉ render trong Grid), `AdvancedFilterPanel`. **NULL** = column con của Grid (Type=NULL + Layout='Grid_View'). |
+| `Layout` | nvarchar(400) | `'Grid_View'` cho cả grid container + column; `'Card_View'` cho form card; NULL cho form thường |
+| `DataSourceSP` | varchar(100) | Tên SP load options (dropdown/lookup). Proc sẽ sinh JS `loadDataSourceCommon` gọi qua AjaxHPAParadise, lưu vào `window["DataSource_<ColumnName>"]`. |
+| `SPLoadData` | varchar(100) | Chỉ dùng với grid container — tên SP nghiệp vụ trả data grid (vd `sp_loadCRMCustomers`). |
+| `ColumnIDName` | nvarchar(400) | Tên field PK của row hiện tại (sinh `window.currentRecordID_<X>`). |
+| `TableEditor` | varchar(200) | Tên bảng vật lý cho lookup `column_id` qua `sys.columns` (proc dùng cho `%tableId%` placeholder). Với column row đặt là bảng gốc; với grid container row có thể để NULL. |
+| `DisplayName` | nvarchar(512) | Tiêu đề hiển thị trên header column (vd `'Email'`, `'Mã số thuế'`). |
+| `GridColumnName` | varchar(100) | Trên column row: trỏ tới `ColumnName` của grid container (vd `'GridCustomer'`). Trên grid container row: NULL. |
+| `GridWidth` | varchar(20) | Width pixel column (vd `'200'`). |
+| `AllowSorting` | bit | 1/0 |
+| `AllowFiltering` | bit | 1/0 |
+| `UID` | varchar(33) | `'P' + 32 ký tự` (uppercase hex hoặc bất cứ pattern nào dài 32). Nếu để NULL/rỗng, proc tự sinh `'P' + REPLACE(NEWID(),'-','')`. **Renderer cần trỏ tới UID grid container bằng dynamic SQL — đặt UID deterministic để script idempotent.** |
+| `html`, `loadUI`, `loadData` | nvarchar(MAX) | KHÔNG fill khi insert — `sptblCommonControlType_Signed_DUC` sẽ tự build và UPDATE. |
+
+#### 3.1.2. Thứ tự deploy (4 bước chuẩn)
+
+```
+1. DELETE FROM tblCommonControlType_Signed WHERE TableName='<class>_html'  -- idempotent
+2. INSERT các row metadata (UID deterministic, html/loadUI/loadData để NULL)
+3. EXEC sptblCommonControlType_Signed_DUC '<class>_html'                   -- populates html/loadUI/loadData
+4. CREATE OR ALTER PROCEDURE <class>_html                                  -- renderer trỏ tới UID
+5. DELETE FROM tblHtmlScriptCache WHERE TableName='<class>_html'           -- xoá cache cũ
+6. EXEC sp_GenerateHTMLScript '<class>_html'                               -- build cache VN + EN
+7. EXEC sp_Men_Menu_AfterSave_Simple @ClassName=N'<ClassName>'             -- refresh menu
+```
+
+> ⚠️ **Phải EXEC `sptblCommonControlType_Signed_DUC` TRƯỚC khi tạo renderer**, vì renderer dynamic-SQL `(SELECT loadUI FROM tblCommonControlType_Signed WHERE UID='...')` cần cột `loadUI` đã có data.
+
+#### 3.1.3. Pattern renderer nhúng `loadUI` / `loadData`
+
+Renderer concat 3 mảnh: HTML khung + `loadUI` của grid container + JS bao quanh + `loadData` + JS đóng. Mỗi mảnh subquery là dynamic SQL (đóng/mở N-string ở mỗi bên):
+
+```sql
+SET @html = ISNULL(@StyleHtml, N'') + N'
+    <div id="<class>" ...>
+        <div id="<GridName>" style="height: 100%;"></div>
+    </div>
+    <script>
+    (() => {
+        let DataSource = [];
+        '
++ (SELECT loadUI FROM tblCommonControlType_Signed WHERE UID = '<grid_container_UID>') + N'
+        window.currentRecordID_<ColumnIDName> = null;
+        function ReloadData() {
+            AjaxHPAParadise({
+                data: { name: "<SPLoadData>", param: [] },
+                success: function (res) {
+                    const json = typeof res === "string" ? JSON.parse(res) : res;
+                    const results = Array.isArray(json?.data?.[0]) ? json.data[0] : (json?.data?.[0] ? [json.data[0]] : []);
+                    const obj = results.length === 1 ? results[0] : (results[0] || null);
+                    const gridInstance = Instance<GridName><UID>;
+                    const gridConfig   = window.getGridConfig_<GridName>(results);
+                    gridInstance.beginUpdate();
+                    gridInstance.option("paging.enabled", true);
+                    gridInstance.option("paging.pageSize", gridConfig.pageSize);
+                    gridInstance.option("pager.allowedPageSizes", gridConfig.allowedPageSizes);
+                    gridInstance.option("dataSource", results);
+                    gridInstance.endUpdate();
+                    DataSource = results;
+                    '
++ (SELECT loadData FROM tblCommonControlType_Signed WHERE UID = '<grid_container_UID>') + N'
+                }
+            });
+        }
+        ReloadData();
+    })();
+    </script>';
+SELECT @html AS html;
+```
+
+| Biến template | Lấy từ |
+|---|---|
+| `<class>` | Tên renderer (`sp_HelloWorldVietinsoft_html`) — cũng là `TableName` trong metadata |
+| `<GridName>` | `ColumnName` của row grid container (vd `GridEmployees`) |
+| `<grid_container_UID>` | `UID` của row grid container (vd `P00000000000000000000000000000G01`) |
+| `<ColumnIDName>` | Tên PK row (vd `EmployeeID`) |
+| `<SPLoadData>` | Tên SP trả data grid (vd `sp_LoadHelloWorldVietinsoftEmployeeList`) |
+| `Instance<GridName><UID>` | Biến JS toàn cục được `loadUI` (sinh tự động) khởi tạo — instance của dxDataGrid |
+| `window.getGridConfig_<GridName>(results)` | Helper JS được `loadUI` sinh ra — trả `{pageSize, allowedPageSizes}` |
+
+#### 3.1.4. Pattern data API `<SPLoadData>`
+
+Chỉ cần `@LoginID INT = 3` (framework auto-bơm). Trả 1 SELECT result-set có **đúng các cột** matching `ColumnName` trong metadata:
+
+```sql
+CREATE OR ALTER PROCEDURE dbo.sp_LoadHelloWorldVietinsoftEmployeeList
+(
+    @LoginID INT = 3,
+    @LanguageID VARCHAR(5) = 'VN'
+)
+AS
+BEGIN
+    SELECT TOP 200
+        e.EmployeeID,
+        ISNULL(e.FullName, N'') AS FullName,
+        CASE WHEN e.Sex = 1 THEN N'Nam' WHEN e.Sex = 0 THEN N'Nữ' ELSE N'-' END AS Sex,
+        CONVERT(VARCHAR(10), e.Birthday, 103) AS Birthday,
+        ...
+    FROM tblEmployee e
+    WHERE ISNULL(e.IsTerminated, 0) = 0;
+END
+```
+
+#### 3.1.5. ⚠️ Khi migrate sang DB khác — PHẢI mang theo data `tblCommonControlType_Signed`
+
+Khi migrate / deploy menu config-driven sang DB khác (DEV → UAT → PROD, hoặc giữa các tenant), **không được chỉ migrate procedure + `tblHtmlScriptCache`**. Bắt buộc bao gồm cả data trong `tblCommonControlType_Signed` cho `TableName = '<class>_html'`. Lý do: renderer dynamic-SQL `(SELECT loadUI FROM tblCommonControlType_Signed WHERE UID='<UID>')` đọc trực tiếp từ bảng metadata — DB đích thiếu data → chuỗi rỗng → JS lỗi runtime `InstanceXXX is not defined` / `window.getGridConfig_XXX is not a function`.
+
+**Bắt buộc trong script migrate**:
+
+```sql
+-- 1. Xoá metadata cũ (idempotent)
+DELETE FROM tblCommonControlType_Signed WHERE TableName = '<class>_html';
+
+-- 2. Insert lại toàn bộ row metadata với UID DETERMINISTIC (không để NULL — proc tự sinh UID random sẽ phá liên kết với renderer)
+INSERT INTO tblCommonControlType_Signed (TableName, ColumnName, Type, Layout, ..., UID) VALUES
+    ('<class>_html', 'GridX', 'hpaControlGrid_Duc', 'Grid_View', ..., 'P00...G01'),
+    ...;
+
+-- 3. EXEC để populate html/loadUI/loadData
+EXEC sptblCommonControlType_Signed_DUC '<class>_html';
+
+-- 4. Mới được build cache
+DELETE FROM tblHtmlScriptCache WHERE TableName = '<class>_html';
+EXEC sp_GenerateHTMLScript '<class>_html';
+```
+
+Xem rule chi tiết ở [13_Migrate_Menu.md Rule 4](13_Migrate_Menu.md) (đã mở rộng để cover bảng này).
+
+#### 3.1.6. Ví dụ tham chiếu đã chạy production
+
+| Renderer | Pattern | Data API |
+|---|---|---|
+| `sp_CRM_Customers_html` | `hpaControlGrid_Duc` (read-only grid) — 7 column + 1 container | `sp_loadCRMCustomers` |
+| `sp_KPIProcessCustomer_html` | `hpaControlSegmented` + `hpaControlSelectEmployee` + 2 × `hpaControlDate` (form filter) | (load qua các API filter riêng) |
+| `sp_REC_Candidate_html`, `sp_Train_SubjectList_New_html`, `sp_Adjustment_html` | Hỗn hợp form + grid | (xem source) |
+
+Script template đầy đủ end-to-end cho menu Hello world Vietinsoft: [SQL script/update_menu_HelloWorldVietinsoft_employeelist_20260521.sql](../SQL%20script/update_menu_HelloWorldVietinsoft_employeelist_20260521.sql) — chứa cả 6 bước (metadata → DUC → renderer → cache → refresh).
+
+#### 3.1.7. Lỗi thường gặp
+
+| Triệu chứng | Nguyên nhân | Fix |
+|---|---|---|
+| Click menu → JS lỗi `InstanceXXX is not defined` | Renderer build trước khi `EXEC sptblCommonControlType_Signed_DUC` → cột `loadUI` rỗng | Chạy lại đúng thứ tự: metadata → DUC → renderer → `sp_GenerateHTMLScript` |
+| Grid hiện nhưng không có data | `SPLoadData` không tồn tại / sai tên column SELECT | Test thủ công: `EXEC <SPLoadData> @LoginID=3` — kiểm tra column name khớp `ColumnName` trong metadata |
+| `EXEC sptblCommonControlType_Signed_DUC` báo lỗi `Invalid column name` khi join `sys.columns` | `TableEditor` trỏ tới bảng không tồn tại / cột metadata không tồn tại trên `TableEditor` | Đảm bảo `TableEditor` là bảng vật lý có cột tương ứng, hoặc để NULL cho row grid container |
+| Cache rebuild xong nhưng UI vẫn cũ | Chưa xoá cache cũ trước khi build | `DELETE FROM tblHtmlScriptCache WHERE TableName='<class>_html'` rồi mới `sp_GenerateHTMLScript` |
+
+Xem thêm tri thức nền từng phase ở [07_menu_system.md §13](07_menu_system.md).
 
 ---
 
@@ -255,46 +526,126 @@ EXEC dbo.sp_s_CreateMenu
      @Text         = N'Hello world Vietinsoft',
      @TextEN       = 'Hello world Vietinsoft',
      @ClassName    = 'sp_HelloWorldVietinsoft',
-     @ParentMenuID = 'MnuHEP000',          -- nhóm Trợ giúp
+     @ParentMenuID = 'MnuKPI000',          -- Trang chủ CRM (IsVisible=1 — verify trước!)
      @AssemblyName = 'DataSetting',
      @Option       = 1,                    -- 1 = thực thi (0 = preview script)
      @LoginIDList  = '3';                  -- cấp FullAccess=32 cho LoginID=3 (admin)
 ```
 
-Proc tự sinh `MenuID = 'MnuHEP910'` + `ObjectID = MAX+1`, insert đủ 3 bảng metadata + cấp quyền. Hoặc dùng cách insert thủ công nếu cần kiểm soát `MenuID` cụ thể — xem [SQL script/deploy_menu_HelloWorldVietinsoft_20260520.sql](../SQL%20script/deploy_menu_HelloWorldVietinsoft_20260520.sql).
+Proc tự sinh `MenuID = 'MnuKPI<N>'` (số tiếp theo trong nhóm KPI) + `ObjectID = MAX+1`, insert đủ 3 bảng metadata + cấp quyền. Hoặc dùng cách insert thủ công nếu cần kiểm soát `MenuID` cụ thể — xem [SQL script/deploy_menu_HelloWorldVietinsoft_20260520.sql](../SQL%20script/deploy_menu_HelloWorldVietinsoft_20260520.sql).
 
-### 4.6. Phase E — Cờ nền tảng + UI
+> ⚠️ **Trước khi gọi `sp_s_CreateMenu`**: phải verify parent menu có `IsVisible=1` (Rule 3). Đặc biệt **TRÁNH** `MnuHEP000` (Trợ giúp) vì có `IsVisible=0` ở DB thực tế.
+
+### 4.5b. Phase D2 — Tạo dòng trong `tblDataSetting` (BẮT BUỘC theo Rule 4)
+
+```sql
+INSERT INTO tblDataSetting
+    (TableName, ViewName, AllowAdd, ReadOnlyColumns, ComboboxColumns,
+     ColumnOrderBy, ColumnHide, ReadOnly, TableEditorName, IsProcedure,
+     -- ... + nhiều cột notnull khác (xem script ví dụ đầy đủ) ...
+     IsShowLayout, LoadDataAfterShow, AllowDelete, ColumnDataType,
+     IsLayoutCommandButton, ControlHiddenInShowLayout, FormLayoutJS)
+VALUES
+    ('sp_HelloWorldVietinsoft', 'sp_HelloWorldVietinsoft', 1, '', '',
+     'html&0', 'isReadOnlyRow,dtftxxENGColumns', 0, '', 1,
+     -- ... defaults '' / 0 / false cho các cột còn lại ...
+     1, 1, 1, 'html&ViewHtml',
+     1,
+     'grdTableEditor,txtFilter,btnReload,btnFWDelete,btnFWReset,btnExport,btnFWSave,btnFWAdd,isReadOnlyRow,dtftxxENGColumns',
+     1);
+```
+
+| Cột | Giá trị | Ý nghĩa |
+|---|---|---|
+| `TableName` | `'sp_HelloWorldVietinsoft'` | = `ClassName` của menu (PK) |
+| `ViewName` | `'sp_HelloWorldVietinsoft'` | Giống `TableName` |
+| `IsProcedure` | `1` | Báo cho app: đây là procedure (không phải table/view) |
+| `IsShowLayout` | `1` | Bật layout container → app đọc `tblDataSettingLayout` |
+| `ColumnOrderBy` | `'html&0'` | Render cột `html` (cột duy nhất renderer trả về), thứ tự 0 = ascending |
+| `ColumnDataType` | `'html&ViewHtml'` | Cột `html` có kiểu `ViewHtml` → app render HTML thay vì text |
+| `ControlHiddenInShowLayout` | (chuỗi dài) | Ẩn các button không cần (Save/Delete/Add/Reset/Export...) cho menu read-only |
+| `FormLayoutJS` | `1` | Bật JS layout |
+| Các binary cột (`LayoutDataConfig`, `LayoutDataConfigWeb`, ...) | NULL | Không cần fill — layout thực ở `tblDataSettingLayout` |
+
+> ⚠️ `tblDataSetting` có rất nhiều cột notnull (text rỗng `''`, bit `0`, int `0`). Xem [SQL script/fix_menu_HelloWorldVietinsoft_v2_20260520.sql](../SQL%20script/fix_menu_HelloWorldVietinsoft_v2_20260520.sql) để có template INSERT đầy đủ.
+
+### 4.5c. Phase D3 — Tạo 2 dòng `tblDataSettingLayout` (container `ParadiseWebView2`)
+
+```sql
+-- Row 1: root group
+INSERT INTO tblDataSettingLayout
+    (TableName, Name, ControlName, NamePa, Type, TypeLayout,
+     Lx, Ly, Sx, Sy, WidthPercentage, ControlType, TextLocation, CaptionHorizontalAlign,
+     CaptionVerticalAlign, TabPageOrder
+     -- ... + các cột notnull khác (string '', int 0, bit 0) ...
+    )
+VALUES
+    ('sp_HelloWorldVietinsoft', 'root', '', '', 'g', '6',
+     0, 0, 1620, 929, 100, '', 'top', 'default', 'default', -1
+     /* ... */ );
+
+-- Row 2: lblhtml — ParadiseWebView2 control (chứa HTML từ cache)
+INSERT INTO tblDataSettingLayout
+    (TableName, Name, ControlName, NamePa, Type, TypeLayout,
+     Lx, Ly, Sx, Sy, WidthPercentage, ControlType, TextLocation, CaptionHorizontalAlign,
+     CaptionVerticalAlign, Padding, PaddingTop, PaddingLeft, PaddingBottom, PaddingRight
+     /* ... */ )
+VALUES
+    ('sp_HelloWorldVietinsoft', 'lblhtml', 'html', 'root', 'i', '6',
+     0, 0, 1620, 929, 100, 'ParadiseWebView2', 'default', 'default',
+     'default', 2, 2, 2, 2, 2
+     /* ... */ );
+```
+
+| Row | `Name` | `Type` | `ControlType` | `ControlName` | `NamePa` | Ý nghĩa |
+|---|---|---|---|---|---|---|
+| 1 | `root` | `g` (group) | `''` | `''` | `''` | Root container |
+| 2 | `lblhtml` | `i` (item) | `ParadiseWebView2` | `html` | `root` | WebView2 control hiển thị HTML, link vào cột `html` của procedure wrapper |
+
+> Khoá logic: `(TableName, Name)`. Idempotent: `DELETE FROM tblDataSettingLayout WHERE TableName='<x>'` rồi `INSERT` lại 2 row.
+
+### 4.6. Phase E — Cờ nền tảng + UI (theo PATTERN ĐÚNG ở Rule 2)
 
 ```sql
 UPDATE MEN_Menu
-SET    IsWeb              = 0,    -- 0 vì kiểu HTML-rendered (wrapper server-side)
-       ViewOnWeb          = 1,
-       isShowLayOutWeb    = 1,    -- bật layout container WebView
-       IsUseMobileDevice  = 1,    -- bật cho mobile
-       isShowInMobileLayOut = 1,
-       glyphicon          = N'Info',
-       GroupID            = 'MnuHEP000',
-       Priority           = 99
+SET    IsVisible            = 1,
+       IsWeb                = 0,    -- HTML-rendered, không phải ASPX
+       ViewOnWeb            = 0,    -- ⚠️ PHẢI = 0 (không phải 1!)
+       isShowLayOutWeb      = 0,    -- ⚠️ PHẢI = 0
+       IsUseMobileDevice    = 1,    -- bật cho mobile + Web HTML-rendered
+       isShowInMobileLayOut = 0,    -- ⚠️ PHẢI = 0
+       glyphicon            = N'Info',
+       GroupID              = 'MnuKPI000',   -- giống ParentMenuID
+       Priority             = 99
 WHERE  MenuID = 'MnuHEP910';
 ```
 
-### 4.7. Phase F — Build cache HTML cho VN + EN
+### 4.7. Phase F — Build cache HTML bằng helper `sp_GenerateHTMLScript` (cách duy nhất)
 
 ```sql
-EXEC dbo.sp_HelloWorldVietinsoft_html @LoginID=3, @LanguageID='VN', @isWeb=1;
-EXEC dbo.sp_HelloWorldVietinsoft_html @LoginID=3, @LanguageID='EN', @isWeb=1;
--- hoặc helper:
 EXEC dbo.sp_GenerateHTMLScript 'sp_HelloWorldVietinsoft_html';
 ```
 
-### 4.8. Phase H — Refresh menu cache
+> ✅ Chuẩn thống nhất: chỉ dùng helper `sp_GenerateHTMLScript` để build/rebuild HTML cache cho renderer. Không khuyến nghị gọi trực tiếp procedure renderer `_html` theo từng `LanguageID` trong script tạo/migrate/update menu.
+
+### 4.8. Phase H — Refresh menu cache (CHỈ 1 lệnh)
+
+Theo quy tắc bắt buộc ở đầu file: Phase H **chỉ** chạy `sp_Men_Menu_AfterSave_Simple` với `@ClassName` của menu vừa tạo. **TUYỆT ĐỐI KHÔNG** gọi `sp_UpdateMenuInUserRight`.
 
 ```sql
-EXEC dbo.sp_Men_Menu_AfterSave_Simple;
-EXEC dbo.sp_UpdateMenuInUserRight;
+EXEC dbo.sp_Men_Menu_AfterSave_Simple @ClassName = N'sp_HelloWorldVietinsoft';
 ```
 
-User logout/login để app load cây menu mới.
+> ⚠️ Lưu ý signature: proc này có default `@ClassName = ''` nhưng nếu không truyền sẽ resolve menu rỗng → không hữu ích. **Luôn truyền** `@ClassName` thực tế.
+
+Sau khi script chạy xong:
+- User logout/login để app load cây menu mới (chỉ admin LoginID = 3 thấy được).
+- Để cấp quyền cho user/group khác: dùng giao diện phân quyền trong app, hoặc viết script riêng `INSERT tblSC_Right_Stored` / `tblSC_GroupRight`.
+
+**Hành vi của `sp_UpdateMenuInUserRight @ObjectID`** (đã verify source DB — chỉ ghi để tham khảo, KHÔNG dùng):
+- Insert `tblSC_Right_Stored(ObjectID, LoginID, FullAccess=32)` cho **MỌI LoginID > 0** trong `tblSC_Login` chưa có quyền.
+- Update `FullAccess = 32` cho mọi row đã có.
+- Lý do tránh: mở quyền menu cho tất cả user toàn hệ thống — vượt phạm vi cần thiết.
 
 ---
 
@@ -345,15 +696,20 @@ Khi cần ảnh nhân viên hoặc file binary — gọi `paradisefile_sp_GetFil
 
 ---
 
-## 6. Checklist 7 điểm dành cho lập trình viên mới
+## 6. Checklist 12 điểm dành cho lập trình viên mới
 
 1. ☐ Đã chọn `MenuID` không trùng — kiểm tra qua `SELECT * FROM MEN_Menu WHERE MenuID='<id>'`.
-2. ☐ Renderer đã UPSERT cache cho **cả VN và EN** (2 dòng trong `tblHtmlScriptCache`).
-3. ☐ Wrapper đã `SELECT TOP 1 html` lọc đúng `(TableName, ScreenType='-1', LanguageID)`.
-4. ☐ Procedure API runtime có 2 tham số chuẩn `@LoginID` + `@LanguageID`.
-5. ☐ JS gọi `AjaxHPAParadise` với `param` là **mảng phẳng** `[name, value, ...]`, KHÔNG phải object.
-6. ☐ Đã chạy `sp_Men_Menu_AfterSave_Simple` + `sp_UpdateMenuInUserRight` sau khi insert metadata.
-7. ☐ Đã verify menu hiển thị bằng cách logout/login → mở menu → mở DevTools → check Network tab xem `AjaxHPAParadise` POST đúng `name` + `param`.
+2. ☐ **Parent menu** đã verify `IsVisible = 1` — `SELECT IsVisible FROM MEN_Menu WHERE MenuID='<ParentMenuID>'`. **Né `MnuHEP000`**.
+3. ☐ **Cờ MEN_Menu theo Rule 2**: `IsWeb=0, ViewOnWeb=0, isShowLayOutWeb=0, isShowInMobileLayOut=0, IsUseMobileDevice=1`. Không bật `ViewOnWeb=1` (sai lầm phổ biến).
+4. ☐ **Phase D2 (Rule 4) — `tblDataSetting`**: 1 dòng với `IsProcedure=1, IsShowLayout=1, ColumnOrderBy='html&0', ColumnDataType='html&ViewHtml'`. **Thiếu = màn hình trắng.**
+5. ☐ **Phase D3 (Rule 4) — `tblDataSettingLayout`**: 2 dòng `root` (`Type='g'`) + `lblhtml` (`Type='i', ControlType='ParadiseWebView2', ControlName='html', NamePa='root'`). **Thiếu = màn hình trắng.**
+6. ☐ Renderer đã UPSERT cache cho **cả VN và EN** (2 dòng trong `tblHtmlScriptCache`).
+7. ☐ Wrapper đã `SELECT TOP 1 html` lọc đúng `(TableName, ScreenType='-1', LanguageID)`.
+8. ☐ Procedure API runtime có 2 tham số chuẩn `@LoginID` + `@LanguageID`.
+9. ☐ JS gọi `AjaxHPAParadise` với `param` là **mảng phẳng** `[name, value, ...]`, KHÔNG phải object.
+10. ☐ Phase G — chỉ `INSERT tblSC_Right_Stored(ObjectID, LoginID = 3, FullAccess = '32')`.
+11. ☐ Phase H — chỉ `EXEC sp_Men_Menu_AfterSave_Simple @ClassName = '<ClassName>'`. **KHÔNG** gọi `sp_UpdateMenuInUserRight`.
+12. ☐ Đã verify: logout/login (LoginID = 3) → menu hiển thị → click vào → giao diện render → mở DevTools → check Network tab xem `AjaxHPAParadise` POST đúng `name` + `param`. Cấp quyền cho user/group khác sau (qua app hoặc script riêng).
 
 ---
 
@@ -361,12 +717,16 @@ Khi cần ảnh nhân viên hoặc file binary — gọi `paradisefile_sp_GetFil
 
 | Triệu chứng | Nguyên nhân hay gặp | Cách kiểm tra |
 |---|---|---|
-| Menu không hiện trong cây | Chưa `sp_UpdateMenuInUserRight` / user chưa logout-login / `IsVisible = 0` / chưa cấp quyền | `SELECT m.IsVisible, o.ObjectID, r.LoginID FROM MEN_Menu m LEFT JOIN tblSC_Object o ON o.Description=m.MenuID LEFT JOIN tblSC_Right_Stored r ON r.ObjectID=o.ObjectID WHERE m.MenuID='<id>'` |
-| Mở menu thấy trắng / "loading..." không kết thúc | Renderer chưa chạy → cache rỗng | `SELECT DATALENGTH(html) FROM tblHtmlScriptCache WHERE TableName='<class>_html' AND LanguageID='VN'` |
-| Hiển thị HTML cũ sau khi sửa | Cache HTML chưa được rebuild | `DELETE FROM tblHtmlScriptCache WHERE TableName='<class>_html'; EXEC dbo.<class>_html @LoginID=3, @LanguageID='VN', @isWeb=1;` |
+| Menu không hiện trong cây dù đã cấp quyền + logout/login | (1) Sai cờ Web (`ViewOnWeb=1`/`isShowLayOutWeb=1`/`isShowInMobileLayOut=1` — phải = 0 theo Rule 2); HOẶC (2) parent menu `IsVisible = 0` (vd `MnuHEP000`); HOẶC (3) `IsVisible = 0` của chính menu | So sánh cờ với menu HTML-rendered đang chạy: `SELECT m.MenuID, m.IsVisible, m.IsWeb, m.ViewOnWeb, m.isShowLayOutWeb, m.IsUseMobileDevice, m.isShowInMobileLayOut, p.IsVisible AS ParentVisible FROM MEN_Menu m LEFT JOIN MEN_Menu p ON p.MenuID=m.ParentMenuID WHERE m.MenuID IN ('<id>','MnuKPI007')` |
+| **Menu hiện trong cây + click vào → màn hình TRẮNG (không content)** | **Thiếu Phase D2 + D3** — KHÔNG có dòng trong `tblDataSetting` và `tblDataSettingLayout`. App đọc `MEN_Menu.AssemblyName='DataSetting'` nhưng không tìm thấy config layout → render rỗng. | Check: `SELECT * FROM tblDataSetting WHERE TableName='<ClassName>';` + `SELECT * FROM tblDataSettingLayout WHERE TableName='<ClassName>';` Phải có 1 row tblDataSetting (`IsProcedure=1, IsShowLayout=1`) + 2 row tblDataSettingLayout (`root` + `lblhtml`). Fix: chạy script tạo 2 bảng (xem [fix_menu_HelloWorldVietinsoft_v2_20260520.sql](../SQL%20script/fix_menu_HelloWorldVietinsoft_v2_20260520.sql)). |
+| Mở menu thấy trắng / "loading..." không kết thúc | Renderer chưa được build cache → cache rỗng | `SELECT DATALENGTH(html) FROM tblHtmlScriptCache WHERE TableName='<class>_html' AND LanguageID='VN'`; nếu rỗng thì chạy `EXEC dbo.sp_GenerateHTMLScript '<class>_html';` |
+| Hiển thị HTML cũ sau khi sửa | Cache HTML chưa được rebuild | `DELETE FROM tblHtmlScriptCache WHERE TableName='<class>_html'; EXEC dbo.sp_GenerateHTMLScript '<class>_html';` |
 | JS gọi API lỗi 500 | Tham số `param` sai (object thay vì array) hoặc thiếu `@LoginID`/`@LanguageID` trong procedure | Mở DevTools Network → xem request body |
 | Data trống nhưng DB có | `EmployeeID` mismatch (varchar có leading zeros) hoặc filter ngày sai | Chạy thẳng `EXEC <proc_API> @LoginID=3, @LanguageID='VN'` trong SSMS |
 | `'Cannot insert NULL into column ''html'''` | Insert thiếu cột notnull của `tblHtmlScriptCache` | Phải fill cả 5 cột notnull (`html`, `HtmlParadise`, `paradiseJs`, `Version`, `VersionData`) — xem [07_menu_system.md §10](07_menu_system.md) |
+| `Msg 201: Procedure 'sp_Men_Menu_AfterSave_Simple' expects parameter '@ClassName'` | Gọi proc refresh thiếu `@ClassName` | `EXEC sp_Men_Menu_AfterSave_Simple @ClassName = N'<ClassName>'` |
+| Menu hiện đúng UI nhưng tất cả user trong hệ thống cũng thấy | **Vi phạm rule cấp quyền** — đã gọi `sp_UpdateMenuInUserRight` (proc tự cấp `FullAccess=32` cho mọi LoginID) | Xoá row dư trong `tblSC_Right_Stored`: `DELETE FROM tblSC_Right_Stored WHERE ObjectID = <id> AND LoginID <> 3;` Sau đó user tự cấp lại quyền qua app cho user/group cần thiết. |
+| Cần cấp quyền cho user khác / cả group sau khi menu đã chạy | Theo rule chuẩn, script tạo menu chỉ cấp cho LoginID = 3 | Dùng giao diện phân quyền trong app, hoặc viết script riêng `INSERT tblSC_Right_Stored(ObjectID, LoginID, FullAccess='32')` / `INSERT tblSC_GroupRight(ObjectID, UserGroupID, FullAccess='32')` |
 
 ---
 
@@ -374,7 +734,8 @@ Khi cần ảnh nhân viên hoặc file binary — gọi `paradisefile_sp_GetFil
 
 | Mục đích | File |
 |---|---|
-| Script deploy đầy đủ menu Hello world Vietinsoft (đã được cập nhật để hiển thị Top 3 ranking) | [SQL script/deploy_menu_HelloWorldVietinsoft_20260520.sql](../SQL%20script/deploy_menu_HelloWorldVietinsoft_20260520.sql) |
+| Script update menu Hello world Vietinsoft sang **demo `tblCommonControlType_Signed` + `sptblCommonControlType_Signed_DUC`** (grid danh sách nhân viên) — template đầy đủ pattern config-driven (§3.1) | [SQL script/update_menu_HelloWorldVietinsoft_employeelist_20260521.sql](../SQL%20script/update_menu_HelloWorldVietinsoft_employeelist_20260521.sql) |
+| Script update menu Hello world Vietinsoft sang ParadiseStyle reference (Top 3 ranking) | [SQL script/update_menu_HelloWorldVietinsoft_paradisestyle_20260521.sql](../SQL%20script/update_menu_HelloWorldVietinsoft_paradisestyle_20260521.sql) |
 | Script cleanup menu ASPX-style lỗi thời (kiểu menu Web duy nhất bị deprecated) | [SQL script/cleanup_menu_aspx_20260520.sql](../SQL%20script/cleanup_menu_aspx_20260520.sql) |
 | Tri thức nền: 5 mảnh dữ liệu, cờ nền tảng, refresh, HTML cache | [07_menu_system.md](07_menu_system.md) |
 | Phân quyền: `FullAccess` map, data scope, inheritance | [11_permissions.md](11_permissions.md) |

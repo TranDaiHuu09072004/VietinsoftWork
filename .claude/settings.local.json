@@ -16,7 +16,12 @@
       "PowerShell(try { $gcm = \\(Get-Command git-credential-manager -ErrorAction Stop\\).Source; \"GCM available at: $gcm\" } catch { try { $gcm = \\(Get-Command git-credential-manager-core -ErrorAction Stop\\).Source; \"GCM \\(core\\) available at: $gcm\" } catch { \"WARNING: git-credential-manager not found in PATH\" } })",
       "PowerShell(git config --global credential.helper wincred; \"credential.helper now: $\\(git config --global credential.helper\\)\")",
       "mcp__mssql-vietinsoft__read_query",
-      "mcp__mssql-vietinsoft__describe_table"
+      "mcp__mssql-vietinsoft__describe_table",
+      "Bash(python3 -c \"import sys; sys.stdout.reconfigure\\(encoding='utf-8'\\); print\\(open\\(r'C:\\\\\\\\Users\\\\\\\\cuong.vu\\\\\\\\.claude\\\\\\\\projects\\\\\\\\d--VTS-User-Cuong-vu-Agent-work-VietinsoftWork\\\\\\\\2236749a-dfab-4291-8c5f-5c3aa3398120\\\\\\\\tool-results\\\\\\\\mcp-mssql-vietinsoft-read_query-1779319874111.txt', encoding='utf-8'\\).read\\(\\)[0:80000]\\)\")",
+      "PowerShell($path = 'C:\\\\Users\\\\cuong.vu\\\\.claude\\\\projects\\\\d--VTS-User-Cuong-vu-Agent-work-VietinsoftWork\\\\2236749a-dfab-4291-8c5f-5c3aa3398120\\\\tool-results\\\\mcp-mssql-vietinsoft-read_query-1779319874111.txt'; $content = [System.IO.File]::ReadAllText\\($path\\); Write-Output \"TOTAL LENGTH: $\\($content.Length\\)\"; Write-Output $content.Substring\\(0, [Math]::Min\\(40000, $content.Length\\)\\))",
+      "PowerShell($path = 'C:\\\\Users\\\\cuong.vu\\\\.claude\\\\projects\\\\d--VTS-User-Cuong-vu-Agent-work-VietinsoftWork\\\\2236749a-dfab-4291-8c5f-5c3aa3398120\\\\tool-results\\\\mcp-mssql-vietinsoft-read_query-1779319874111.txt'; $content = [System.IO.File]::ReadAllText\\($path\\); $out = 'C:\\\\Users\\\\cuong.vu\\\\.claude\\\\projects\\\\d--VTS-User-Cuong-vu-Agent-work-VietinsoftWork\\\\2236749a-dfab-4291-8c5f-5c3aa3398120\\\\tool-results\\\\span_40k_80k.txt'; [System.IO.File]::WriteAllText\\($out, $content.Substring\\(40000, 40000\\)\\); Write-Output \"WROTE: $out\"; Write-Output \"LEN: $\\(\\(Get-Item $out\\).Length\\)\")",
+      "Bash(git config *)",
+      "Bash(git add *)"
     ]
   }
 }

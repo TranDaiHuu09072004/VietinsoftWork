@@ -210,12 +210,13 @@ ORDER BY m.ParentMenuID, m.MenuID;
 GO
 
 -- ----------------------------------------------------------------------------
--- REFRESH menu cache (chạy sau cùng nếu verify OK)
+-- LƯU Ý — KHÔNG cần gọi sp_Men_Menu_AfterSave_Simple / sp_UpdateMenuInUserRight
+--         sau cleanup:
+--   - sp_Men_Menu_AfterSave_Simple @ClassName chỉ refresh cache 1 menu cụ thể vừa
+--     SAVE/CREATE (không có ý nghĩa khi đang DELETE).
+--   - sp_UpdateMenuInUserRight @ObjectID chỉ insert quyền cho 1 ObjectID mới —
+--     ObjectID của menu đã xoá là vô nghĩa.
+-- User chỉ cần LOGOUT/LOGIN để app load lại cây menu (các menu ASPX biến mất).
 -- ----------------------------------------------------------------------------
-EXEC dbo.sp_Men_Menu_AfterSave_Simple;
-PRINT '[OK] sp_Men_Menu_AfterSave_Simple executed';
-GO
-
-EXEC dbo.sp_UpdateMenuInUserRight;
-PRINT '[OK] sp_UpdateMenuInUserRight executed';
+PRINT '[INFO] User cần logout/login để app cập nhật cây menu sau cleanup.';
 GO
