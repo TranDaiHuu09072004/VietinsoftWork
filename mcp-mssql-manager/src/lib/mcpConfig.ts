@@ -1,54 +1,52 @@
 import type { ConnectionProfile, McpServerConfig, RootMcpConfig, VsCodeMcpConfig } from '../types';
 
-export function buildMcpArgs(profile: Pick<ConnectionProfile, 'serverName' | 'packageName'>, envPrefix: 'plain' | 'vscode'): string[] {
-  const env = (name: string) => (envPrefix === 'vscode' ? `\${env:${name}}` : `\${${name}}`);
-
+export function buildMcpArgs(profile: Pick<ConnectionProfile, 'packageName' | 'server' | 'port' | 'database' | 'user'>, password = ''): string[] {
   return [
     '-y',
     profile.packageName,
     '--sqlserver',
     '--server',
-    env('MSSQL_SERVER'),
+    profile.server,
     '--port',
-    env('MSSQL_PORT'),
+    profile.port,
     '--database',
-    env('MSSQL_DATABASE'),
+    profile.database,
     '--user',
-    env('MSSQL_USER'),
+    profile.user,
     '--password',
-    env('MSSQL_PASSWORD'),
+    password,
   ];
 }
 
-export function buildVsCodeServerConfig(profile: ConnectionProfile): McpServerConfig {
+export function buildVsCodeServerConfig(profile: ConnectionProfile, password = ''): McpServerConfig {
   return {
     type: 'stdio',
     command: 'npx',
-    args: buildMcpArgs(profile, 'vscode'),
+    args: buildMcpArgs(profile, password),
   };
 }
 
-export function buildRootServerConfig(profile: ConnectionProfile): McpServerConfig {
+export function buildRootServerConfig(profile: ConnectionProfile, password = ''): McpServerConfig {
   return {
     command: 'npx',
-    args: buildMcpArgs(profile, 'plain'),
+    args: buildMcpArgs(profile, password),
   };
 }
 
-export function mergeVsCodeMcpConfig(existing: Partial<VsCodeMcpConfig> | undefined, profile: ConnectionProfile): VsCodeMcpConfig {
+export function mergeVsCodeMcpConfig(existing: Partial<VsCodeMcpConfig> | undefined, profile: ConnectionProfile, password = ''): VsCodeMcpConfig {
   return {
     servers: {
       ...(existing?.servers ?? {}),
-      [profile.serverName]: buildVsCodeServerConfig(profile),
+      [profile.serverName]: buildVsCodeServerConfig(profile, password),
     },
   };
 }
 
-export function mergeRootMcpConfig(existing: Partial<RootMcpConfig> | undefined, profile: ConnectionProfile): RootMcpConfig {
+export function mergeRootMcpConfig(existing: Partial<RootMcpConfig> | undefined, profile: ConnectionProfile, password = ''): RootMcpConfig {
   return {
     mcpServers: {
       ...(existing?.mcpServers ?? {}),
-      [profile.serverName]: buildRootServerConfig(profile),
+      [profile.serverName]: buildRootServerConfig(profile, password),
     },
   };
 }

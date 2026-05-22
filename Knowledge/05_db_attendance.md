@@ -189,6 +189,8 @@ Các bước xử lý chính đã xác minh từ DB:
 
 ## Tham số xử lý quan trọng (`tblParameter`)
 
+- `SAL_START` — ngày bắt đầu chu kỳ tính công/lương (hiện tại = 10).
+- `SAL_STOP` — ngày kết thúc chu kỳ tính công/lương (hiện tại = 9).
 - `RemoveDuplicateAttTime_Interval` — loại bỏ lần bấm trùng trong N giây.
 - `SaveLogsInsertExiststblTmpAttend` — chỉ tải data mới từ máy hay tải lại hết (liên quan trực tiếp `tblTmpAttend`).
 - `ATT_SHOWTIMEINOUT` — chế độ hiển thị bảng công tổng hợp (giờ in/out hay tổng giờ làm).

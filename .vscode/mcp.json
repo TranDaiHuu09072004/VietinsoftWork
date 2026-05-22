@@ -5,14 +5,30 @@
       "command": "npx",
       "args": [
         "-y",
-        "@executeautomation/database-server",
-        "--sqlserver",
-        "--server", "${env:MSSQL_SERVER}",
-        "--port", "${env:MSSQL_PORT}",
-        "--database", "${env:MSSQL_DATABASE}",
-        "--user", "${env:MSSQL_USER}",
-        "--password", "${env:MSSQL_PASSWORD}"
-      ]
+        "@bilims/mcp-sqlserver"
+      ],
+      "env": {
+        "SQLSERVER_HOST": "${env:MSSQL_SERVER}",
+        "SQLSERVER_PORT": "${env:MSSQL_PORT}",
+        "SQLSERVER_USER": "${env:MSSQL_USER}",
+        "SQLSERVER_PASSWORD": "${env:MSSQL_PASSWORD}",
+        "SQLSERVER_DATABASE": "${env:MSSQL_DATABASE}"
+      }
+    },
+    "Paradise_Dev": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@bilims/mcp-sqlserver"
+      ],
+      "env": {
+        "SQLSERVER_HOST": "192.168.11.51",
+        "SQLSERVER_PORT": "2222",
+        "SQLSERVER_USER": "vts.sa",
+        "SQLSERVER_PASSWORD": "LuaThieng1@3@2020",
+        "SQLSERVER_DATABASE": "Paradise_Dev"
+      }
     }
   }
 }

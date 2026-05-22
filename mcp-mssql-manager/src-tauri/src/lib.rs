@@ -1,4 +1,7 @@
 use serde::{Deserialize, Serialize};
+use std::net::{TcpStream, ToSocketAddrs};
+use std::process::{Command, Stdio};
+use std::time::Duration;
 
 const KEYRING_SERVICE: &str = "mcp-mssql-manager";
 
@@ -6,6 +9,16 @@ const KEYRING_SERVICE: &str = "mcp-mssql-manager";
 pub struct SecretPayload {
     profile_id: String,
     password: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TestConnectionPayload {
+    server: String,
+    port: String,
+    database: String,
+    user: String,
+    password: String,
+    package_name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -53,10 +66,59 @@ fn delete_profile_password(profile_id: String) -> Result<(), AppError> {
 }
 
 #[tauri::command]
-fn test_mcp_connection() -> TestResult {
+fn test_mcp_connection(payload: TestConnectionPayload) -> TestResult {
+    let host = payload.server.trim();
+    let port = payload.port.trim();
+    let package_name = payload.package_name.trim();
+
+    if host.is_empty() || port.is_empty() {
+        return failed("Server and port are required before testing.");
+    }
+
+    let address = format!("{host}:{port}");
+    let socket_addresses = match address.to_socket_addrs() {
+        Ok(addresses) => addresses.collect::<Vec<_>>(),
+        Err(error) => return failed(format!("Cannot resolve {address}: {error}")),
+    };
+
+    let Some(first_address) = socket_addresses.first() else {
+        return failed(format!("Cannot resolve {address}: no socket address found."));
+    };
+
+    if let Err(error) = TcpStream::connect_timeout(first_address, Duration::from_secs(5)) {
+        return failed(format!("TCP connection to {address} failed: {error}"));
+    }
+
+    let npx_status = Command::new("npx")
+        .arg("--version")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+
+    match npx_status {
+        Ok(status) if status.success() => TestResult {
+            success: true,
+            message: format!(
+                "TCP connection to {address} succeeded. npx is available. MCP package `{package_name}` can be launched for database `{}` with user `{}`.",
+                payload.database.trim(),
+                payload.user.trim(),
+            ),
+        },
+        Ok(status) => failed(format!(
+            "TCP connection to {address} succeeded, but `npx --version` exited with code {:?}.",
+            status.code()
+        )),
+        Err(error) => failed(format!(
+            "TCP connection to {address} succeeded, but `npx` is not available: {error}"
+        )),
+    }
+}
+
+fn failed(message: impl Into<String>) -> TestResult {
     TestResult {
         success: false,
-        message: "MCP process test is not implemented yet. UI and secure storage are ready for wiring.".to_string(),
+        message: message.into(),
     }
 }
 

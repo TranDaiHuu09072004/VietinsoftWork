@@ -22,7 +22,9 @@
       "PowerShell($path = 'C:\\\\Users\\\\cuong.vu\\\\.claude\\\\projects\\\\d--VTS-User-Cuong-vu-Agent-work-VietinsoftWork\\\\2236749a-dfab-4291-8c5f-5c3aa3398120\\\\tool-results\\\\mcp-mssql-vietinsoft-read_query-1779319874111.txt'; $content = [System.IO.File]::ReadAllText\\($path\\); $out = 'C:\\\\Users\\\\cuong.vu\\\\.claude\\\\projects\\\\d--VTS-User-Cuong-vu-Agent-work-VietinsoftWork\\\\2236749a-dfab-4291-8c5f-5c3aa3398120\\\\tool-results\\\\span_40k_80k.txt'; [System.IO.File]::WriteAllText\\($out, $content.Substring\\(40000, 40000\\)\\); Write-Output \"WROTE: $out\"; Write-Output \"LEN: $\\(\\(Get-Item $out\\).Length\\)\")",
       "Bash(git config *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "PowerShell($path = 'd:\\\\VTS User\\\\Cuong.vu\\\\Agent work\\\\VietinsoftWork\\\\Knowledge\\\\12_CreateMenu.md'; $lines = Get-Content -LiteralPath $path -Encoding UTF8; $newLines = @\\(\\); $skip = $false; for\\($i=0; $i -lt $lines.Count; $i++\\){ $line = $lines[$i]; if\\($line -eq '<!-- RULE5_OLD_BLOCK_START -->'\\){ $skip = $true; continue }; if\\($skip\\){ if\\($line -match '^Không dùng `\\\\.replace'\\){ $skip = $false; continue } else { continue } }; $newLines += $line }; Set-Content -LiteralPath $path -Value $newLines -Encoding UTF8; \"Done: $\\($newLines.Count\\) lines \\(was $\\($lines.Count\\)\\)\")",
+      "PowerShell($path = 'd:\\\\VTS User\\\\Cuong.vu\\\\Agent work\\\\VietinsoftWork\\\\Knowledge\\\\13_Migrate_Menu.md'; $lines = Get-Content -LiteralPath $path -Encoding UTF8; $newLines = @\\(\\); $skip = $false; for\\($i=0; $i -lt $lines.Count; $i++\\){ $line = $lines[$i]; if\\($line -eq '<!-- RULE5_OLD_BLOCK_START -->'\\){ $skip = $true; continue }; if\\($skip\\){ if\\($line -match '^Đây là 5 rule'\\){ $skip = $false; continue } else { continue } }; $newLines += $line }; Set-Content -LiteralPath $path -Value $newLines -Encoding UTF8; \"Done: $\\($newLines.Count\\) lines \\(was $\\($lines.Count\\)\\)\")"
     ]
   }
 }

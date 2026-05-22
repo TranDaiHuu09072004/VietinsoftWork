@@ -2,11 +2,19 @@
 
 > **Skill file** — dùng bắt buộc khi Agent làm bất kỳ việc gì liên quan đến thiết kế, refactor, update UI/UX, renderer HTML, CSS/JS giao diện cho menu Web ParadiseHR.
 >
-> Nguồn chuẩn hiện tại: [SQL script/sp_MainStyleCSSParadise_v3.sql](../SQL%20script/sp_MainStyleCSSParadise_v3.sql), procedure `dbo.sp_MainStyleCSSParadise` sinh CSS toàn cục qua output `@StyleHtml`.
+> **Nguồn CSS toàn cục**: file [SQL script/sp_MainStyleCSSParadise_v3.sql](../SQL%20script/sp_MainStyleCSSParadise_v3.sql) — procedure `dbo.sp_MainStyleCSSParadise` sinh CSS toàn cục cho hệ thống.
 >
-> Liên quan: [07_menu_system.md](07_menu_system.md) (menu + HTML cache), [12_CreateMenu.md](12_CreateMenu.md) (tạo menu mới), [13_Migrate_Menu.md](13_Migrate_Menu.md) (migrate/update menu có sẵn), [99_deprecated.md](99_deprecated.md) (item lỗi thời).
+> ⚠️ **Procedure này CHỈ được EXEC 1 lần tại 4 layout gốc** bao quát page shell:
+> - `sp_dashboard_mobile_Beta`
+> - `paradise_dashboard_sslayoutbody`
+> - `sslayoutbody`
+> - `HtmlMacOSLayOut`
 >
-> Quyết định kỹ thuật: `sp_MainStyleCSSParadise` không gọi `ss_RequestHttp`, không đọc credential từ `tblSC_Login` để minify CSS. Khi không phải debug, CSS được tối ưu nội bộ trong T-SQL bằng pipeline deterministic: bỏ comment CSS, chuẩn hoá whitespace, nén khoảng trắng và bỏ khoảng trắng quanh delimiter CSS phổ biến.
+> CSS đã được inject sẵn vào `<head>` của page bởi 4 layout này → **renderer menu thông thường KHÔNG cần gọi `sp_MainStyleCSSParadise`** và **KHÔNG dùng biến `@StyleHtml`**. Token `--paradise-*` + class `.paradise-*` đã sẵn dùng trong scope page (xem Rule 2).
+>
+> Liên quan: [07_menu_system.md](07_menu_system.md) (menu + HTML cache), [12_CreateMenu.md](12_CreateMenu.md) (tạo menu mới), [13_Migrate_Menu.md](13_Migrate_Menu.md) (migrate/update menu có sẵn), [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md) (skill viết renderer an toàn), [99_deprecated.md](99_deprecated.md) (item lỗi thời).
+>
+> Ghi chú kỹ thuật về `sp_MainStyleCSSParadise` (chỉ liên quan khi maintain proc gốc): proc không gọi `ss_RequestHttp`, không đọc credential từ `tblSC_Login` để minify CSS. Khi không phải debug, CSS được tối ưu nội bộ trong T-SQL bằng pipeline deterministic: bỏ comment CSS, chuẩn hoá whitespace, nén khoảng trắng và bỏ khoảng trắng quanh delimiter CSS phổ biến.
 
 ---
 
@@ -25,21 +33,43 @@ Khi thiết kế hoặc refactor giao diện menu:
 
 Mục tiêu: mọi menu đồng nhất với shell của ParadiseHR, không phá theme, dark mode, layout tổng và không tạo mảng nền lệch chuẩn.
 
-### Rule 2 — Bắt buộc dùng `sp_MainStyleCSSParadise`
+### Rule 2 — KHÔNG gọi `sp_MainStyleCSSParadise` trong renderer menu thông thường
 
-Renderer HTML của menu phải gọi global style trước khi build HTML:
+`sp_MainStyleCSSParadise` **CHỈ** được EXEC 1 lần tại 4 layout gốc bao quát page shell:
+
+- `sp_dashboard_mobile_Beta`
+- `paradise_dashboard_sslayoutbody`
+- `sslayoutbody`
+- `HtmlMacOSLayOut`
+
+CSS toàn cục (token `--paradise-*`, class `.paradise-*`, dark-mode override) được 4 layout này inject vào `<head>` của page **một lần duy nhất** → mọi renderer menu HTML-rendered chạy bên trong page shell **tự động có sẵn toàn bộ token + class** mà không cần khai báo lại.
+
+❌ Pattern cũ — KHÔNG dùng nữa:
 
 ```sql
+-- LỖI THỜI, không gọi proc này trong renderer menu nữa
 DECLARE @StyleHtml nvarchar(max) = N'';
 IF OBJECT_ID('dbo.sp_MainStyleCSSParadise', 'P') IS NOT NULL
 BEGIN
     EXEC dbo.sp_MainStyleCSSParadise @StyleHtml = @StyleHtml OUTPUT;
 END
-
 SET @html = ISNULL(@StyleHtml, N'') + N'...HTML menu...';
 ```
 
+✅ Pattern đúng cho renderer thông thường:
+
+```sql
+SET @html = N'<div id="menuRoot" class="<prefix>-page">
+    <!-- nội dung menu — dùng .paradise-card, .paradise-btn, var(--paradise-*) trực tiếp -->
+</div>
+<style>
+    .<prefix>-page { /* CSS local nếu cần */ }
+</style>';
+```
+
 Không copy toàn bộ CSS global vào từng menu. Chỉ viết CSS local tối thiểu cho layout riêng của menu.
+
+> Trường hợp ngoại lệ: nếu Agent đang **maintain chính 4 layout gốc** trên, EXEC `sp_MainStyleCSSParadise` vẫn cần — nhưng đây là việc của framework, không phải của renderer menu thông thường.
 
 ### Rule 3 — Ưu tiên token `--paradise-*`, không hardcode màu/spacing/font
 
@@ -66,7 +96,7 @@ ParadiseStyle có nhóm token nền nhạt cùng tone với màu chữ/semantic 
 - Token: `--paradise-bg-primary-subtle`, `--paradise-bg-secondary-subtle`, `--paradise-bg-success-subtle`, `--paradise-bg-danger-subtle`, `--paradise-bg-warning-subtle`, `--paradise-bg-info-subtle`, `--paradise-bg-header1-subtle`, `--paradise-bg-important-subtle`.
 - Utility class tương ứng: `.paradise-bg-primary-subtle`, `.paradise-bg-success-subtle`, `.paradise-bg-danger-subtle`, ...
 - Chỉ dùng cho vùng highlight nhỏ; vẫn không được dùng để tạo background toàn page/menu wrapper theo Rule 1.
-- Dark mode đã có override riêng trong `sp_MainStyleCSSParadise`, nên renderer không hardcode màu nền subtle.
+- Dark mode đã có override riêng trong CSS toàn cục (inject sẵn từ 4 layout gốc, xem Rule 2), nên renderer không hardcode màu nền subtle.
 
 ### Rule 4 — Không import font/CSS ngoài trong từng menu
 
@@ -78,7 +108,7 @@ ParadiseStyle có nhóm token nền nhạt cùng tone với màu chữ/semantic 
 
 - ❌ Tránh `style="..."` dài trong HTML.
 - ✅ Tạo class local có prefix riêng của menu, ví dụ `hwvts-`, `crm-`, `lesson-`.
-- ✅ CSS local phải đặt trong `<style>` cùng renderer, sau `@StyleHtml`, để scope theo menu.
+- ✅ CSS local phải đặt trong `<style>` cùng renderer (KHÔNG cần ghép sau `@StyleHtml` — CSS toàn cục đã có sẵn từ layout gốc), để scope theo menu.
 
 ### Rule 6 — CSS local phải scope theo root menu
 
@@ -160,7 +190,7 @@ Base rule chuẩn của button phải có các thuộc tính căn giữa:
 }
 ```
 
-Chỉ dùng class local có scope riêng khi đó là khác biệt thiết kế riêng của menu, không phải bug của button global. Khi user yêu cầu điều tra nguyên nhân gốc, phải kiểm tra `sp_MainStyleCSSParadise`, `tblHtmlScriptCache`, computed/matched CSS trước khi đề xuất override local.
+Chỉ dùng class local có scope riêng khi đó là khác biệt thiết kế riêng của menu, không phải bug của button global. Khi user yêu cầu điều tra nguyên nhân gốc, phải kiểm tra file [sp_MainStyleCSSParadise_v3.sql](../SQL%20script/sp_MainStyleCSSParadise_v3.sql) (nguồn CSS toàn cục), `tblHtmlScriptCache` (cache renderer), computed/matched CSS trước khi đề xuất override local.
 
 Khi user yêu cầu "bo tròn giống badge/status/chip", ưu tiên sửa trực tiếp `.paradise-btn` trong global style nếu đây là chuẩn chung; chỉ override local khi user xác nhận đó là ngoại lệ menu.
 
@@ -193,7 +223,7 @@ Mẫu an toàn:
 DECLARE @emptyJs nvarchar(400) = REPLACE(REPLACE(@empty, N'\', N'\\'), N'"', N'\"');
 DECLARE @loadingJs nvarchar(400) = REPLACE(REPLACE(@loading, N'\', N'\\'), N'"', N'\"');
 
-SET @html = ISNULL(@StyleHtml, N'') + N'
+SET @html = N'
 <script>
 (function(){
     var EMPTY_MSG = "' + @emptyJs + N'";

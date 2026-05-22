@@ -34,7 +34,7 @@ describe('mcp config merge', () => {
 
     expect(merged.servers.other).toBeDefined();
     expect(merged.servers['mssql-vietinsoft'].type).toBe('stdio');
-    expect(merged.servers['mssql-vietinsoft'].args).toContain('${env:MSSQL_SERVER}');
+    expect(merged.servers['mssql-vietinsoft'].args).toContain('localhost');
   });
 
   it('merges root config without removing existing servers', () => {
@@ -51,6 +51,6 @@ describe('mcp config merge', () => {
     );
 
     expect(merged.mcpServers.other).toBeDefined();
-    expect(merged.mcpServers['mssql-vietinsoft'].args).toContain('${MSSQL_SERVER}');
+    expect(merged.mcpServers['mssql-vietinsoft'].args).toContain('localhost');
   });
 });

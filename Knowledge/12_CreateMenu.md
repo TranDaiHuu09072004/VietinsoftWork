@@ -1,8 +1,10 @@
-# 12 — Skill: Quy trình tạo menu Web mới trong ParadiseHR
+﻿# 12 — Skill: Quy trình tạo menu Web mới trong ParadiseHR
 
 > **Skill file** — hướng dẫn lập trình viên mới triển khai trọn vẹn 1 menu Web kiểu HTML-rendered (kiểu duy nhất ParadiseHR hiện dùng — kiểu ASPX-style đã lỗi thời, xem [99_deprecated.md §5](99_deprecated.md) và [99_deprecated.md §7](99_deprecated.md)).
 >
 > Liên quan: [07_menu_system.md](07_menu_system.md) (tri thức nền), [11_permissions.md](11_permissions.md) (phân quyền), [01_architecture.md](01_architecture.md) (3 nền tảng + cờ), [14_ParadiseStyle.md](14_ParadiseStyle.md) (chuẩn thiết kế UI — không thiết lập background cho menu).
+>
+> 🔍 **Cần debug menu có sẵn (không phải tạo mới)?** Xem [18_FindMenuProcedure.md](18_FindMenuProcedure.md) — quy trình 5 bước tra cứu từ tên menu → procedure.
 >
 > Ví dụ minh hoạ xuyên suốt file: menu **"Hello world Vietinsoft"** (`MnuHEP910`) hiển thị **Top 3 nhân viên có điểm xếp hạng cao nhất tháng hiện tại** — gọi API runtime qua `AjaxHPAParadise`.
 
@@ -72,36 +74,10 @@ Mỗi menu HTML-rendered **PHẢI** có **3 bảng metadata** sau (verify từ `
 
 Đây là rule **không có ngoại lệ** — kể cả khi user chỉ nói "tạo menu mới" mà không nhắc đến cờ/parent/DataSetting, vẫn áp dụng đúng cả 4 rule này.
 
-### Rule 5 — Không để JavaScript trong renderer bị SQL Server parse như T-SQL
+### Rule 5 — Renderer HTML/JS phải an toàn (xem skill riêng)
 
-Khi tạo renderer `<ClassName>_html`, HTML/CSS/JS thường được build trong chuỗi `NVARCHAR(MAX)` rồi lưu vào `tblHtmlScriptCache`. Vì vậy phải kiểm soát quote boundary của chuỗi `N'...'`.
+Khi viết renderer `<ClassName>_html` build HTML/CSS/JS trong chuỗi `NVARCHAR(MAX)`, **bắt buộc đọc** [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md) — file skill này tổng hợp 7 quy tắc escape T-SQL → JS, pattern MERGE `tblHtmlScriptCache` 8 cột, xử lý cột varbinary (Msg 257), dynamic SQL config-driven, polyfill global helper, template copy-paste ready và checklist 15 điểm trước khi export. **KHÔNG** tự suy đoán pattern escape khi viết script.
 
-Nếu SQL Server báo lỗi gần `function`, `String`, tên biến JavaScript, hoặc identifier dài trong block `<script>`, nguyên nhân cần kiểm tra đầu tiên là chuỗi `N'...'` đã bị đóng sớm do dấu nháy đơn.
-
-Mẫu bắt buộc cho text đa ngôn ngữ đưa vào JavaScript:
-
-```sql
-DECLARE @emptyJs nvarchar(400) = REPLACE(REPLACE(@empty, N'\', N'\\'), N'"', N'\"');
-
-SET @html = N'
-<script>
-(function(){
-    var EMPTY_MSG = "' + @emptyJs + N'";
-
-    function escapeHtml(value){
-        if(value === null || value === undefined) return "";
-        return String(value)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/\u0027/g, "&#039;");
-    }
-})();
-</script>';
-```
-
-Không dùng `.replace(/''/g, ...)` trong JavaScript nhúng trong T-SQL; pattern này chứa nháy đơn raw và có thể làm đóng chuỗi SQL sớm.
 
 ---
 
@@ -202,57 +178,9 @@ Các cột thực sự dùng khi insert metadata:
 
 > ⚠️ **Phải EXEC `sptblCommonControlType_Signed_DUC` TRƯỚC khi tạo renderer**, vì renderer dynamic-SQL `(SELECT loadUI FROM tblCommonControlType_Signed WHERE UID='...')` cần cột `loadUI` đã có data.
 
-#### 3.1.3. Pattern renderer nhúng `loadUI` / `loadData`
+#### 3.1.3. Pattern renderer nhúng `loadUI` / `loadData` (xem skill riêng)
 
-Renderer concat 3 mảnh: HTML khung + `loadUI` của grid container + JS bao quanh + `loadData` + JS đóng. Mỗi mảnh subquery là dynamic SQL (đóng/mở N-string ở mỗi bên):
-
-```sql
-SET @html = ISNULL(@StyleHtml, N'') + N'
-    <div id="<class>" ...>
-        <div id="<GridName>" style="height: 100%;"></div>
-    </div>
-    <script>
-    (() => {
-        let DataSource = [];
-        '
-+ (SELECT loadUI FROM tblCommonControlType_Signed WHERE UID = '<grid_container_UID>') + N'
-        window.currentRecordID_<ColumnIDName> = null;
-        function ReloadData() {
-            AjaxHPAParadise({
-                data: { name: "<SPLoadData>", param: [] },
-                success: function (res) {
-                    const json = typeof res === "string" ? JSON.parse(res) : res;
-                    const results = Array.isArray(json?.data?.[0]) ? json.data[0] : (json?.data?.[0] ? [json.data[0]] : []);
-                    const obj = results.length === 1 ? results[0] : (results[0] || null);
-                    const gridInstance = Instance<GridName><UID>;
-                    const gridConfig   = window.getGridConfig_<GridName>(results);
-                    gridInstance.beginUpdate();
-                    gridInstance.option("paging.enabled", true);
-                    gridInstance.option("paging.pageSize", gridConfig.pageSize);
-                    gridInstance.option("pager.allowedPageSizes", gridConfig.allowedPageSizes);
-                    gridInstance.option("dataSource", results);
-                    gridInstance.endUpdate();
-                    DataSource = results;
-                    '
-+ (SELECT loadData FROM tblCommonControlType_Signed WHERE UID = '<grid_container_UID>') + N'
-                }
-            });
-        }
-        ReloadData();
-    })();
-    </script>';
-SELECT @html AS html;
-```
-
-| Biến template | Lấy từ |
-|---|---|
-| `<class>` | Tên renderer (`sp_HelloWorldVietinsoft_html`) — cũng là `TableName` trong metadata |
-| `<GridName>` | `ColumnName` của row grid container (vd `GridEmployees`) |
-| `<grid_container_UID>` | `UID` của row grid container (vd `P00000000000000000000000000000G01`) |
-| `<ColumnIDName>` | Tên PK row (vd `EmployeeID`) |
-| `<SPLoadData>` | Tên SP trả data grid (vd `sp_LoadHelloWorldVietinsoftEmployeeList`) |
-| `Instance<GridName><UID>` | Biến JS toàn cục được `loadUI` (sinh tự động) khởi tạo — instance của dxDataGrid |
-| `window.getGridConfig_<GridName>(results)` | Helper JS được `loadUI` sinh ra — trả `{pageSize, allowedPageSizes}` |
+Renderer concat HTML khung + `loadUI` + JS bao quanh + `loadData` qua dynamic SQL subquery `(SELECT loadUI/loadData FROM tblCommonControlType_Signed WHERE UID = '<grid_container_UID>')`. **Code mẫu đầy đủ + bảng biến template + quy tắc UID deterministic**: xem [17_RendererHtmlJsSafe.md §4](17_RendererHtmlJsSafe.md). UID phải **deterministic** (vd `'P00000000000000000000000000000G01'`) để renderer + cache reproducible khi export sang DB khác.
 
 #### 3.1.4. Pattern data API `<SPLoadData>`
 
@@ -322,21 +250,9 @@ Script template đầy đủ end-to-end cho menu Hello world Vietinsoft: [SQL sc
 | Cache rebuild xong nhưng UI vẫn cũ | Chưa xoá cache cũ trước khi build | `DELETE FROM tblHtmlScriptCache WHERE TableName='<class>_html'` rồi mới `sp_GenerateHTMLScript` |
 | SelectBox/SelectEmployee/TextSearch hiển thị nhưng dropdown trống / load không có data trên barebones HTML-rendered menu | Menu KHÔNG phải DataSetting menu nên các global JS helper (`loadDataSourceCommon`, `hpaUtils`, `RemoveToneMarks_Js`, `uiManager`, biến `LoginID`/`LanguageID`) KHÔNG được framework tự load. `loadUI` của control gọi `loadDataSourceCommon(...)` → undefined → silent fail | Polyfill 5 global trong bootstrap script TRƯỚC khi gọi loadUI (xem §3.1.8) |
 
-#### 3.1.8. Polyfill các global helper khi nhúng hpaControl* vào barebones HTML-rendered menu
+#### 3.1.8. Polyfill các global helper khi nhúng hpaControl* vào barebones HTML-rendered menu (xem skill riêng)
 
-Các menu sinh ra bằng `DataSetting`/`hpaControlGrid_Duc` được framework wrapper render kèm theo bộ global JS helper. Khi nhúng `hpaControl*` riêng lẻ vào một menu HTML-rendered đơn giản (vd menu Hello Vietinsoft sample), các helper này KHÔNG có sẵn → các call như `loadDataSourceCommon("ColX", "sp_xxx", cb)` rơi vào `undefined` → control nằm im / dropdown rỗng.
-
-**Bắt buộc polyfill các global sau** trong `<script>` bootstrap của renderer, đặt TRƯỚC khi inject `loadUI`:
-
-- `window.LoginID`, `window.LanguageID` — inject từ tham số của renderer (`CAST(@LoginID AS NVARCHAR(20))`, `@LanguageID`).
-- `window.loadDataSourceCommon(columnName, dataSourceSP, onSuccessCallback)` — gọi `AjaxHPAParadise({ name: dataSourceSP, param: ["LoginID", LoginID, "LanguageID", LanguageID] })` rồi set `window["DataSource_<columnName>"]`, `window["DataSourceIDField_<columnName>"]`, `window["DataSourceNameField_<columnName>"]` từ `json.dataSchema[0][0|1].name` (hoặc `json.valueExpr` / `json.displayExpr` nếu có), gọi callback `onSuccessCallback(data, json)`.
-- `window.hpaUtils` = `{ loadAvatar: noop, highlightText: function(text, search) { ... } }` — SelectEmployee cần `loadAvatar`, SelectBox `itemTemplate` cần `highlightText`. Cho phép noop trên `loadAvatar` nếu demo không cần avatar.
-- `window.RemoveToneMarks_Js(s)` — bỏ dấu tiếng Việt cho grid search của SelectEmployee. Dùng `String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").toLowerCase()`.
-- `window.uiManager` = `{ showAlert: function(opt){ console.warn(opt); } }` — các nhánh error/validation gọi `uiManager.showAlert`.
-
-Reference implementation tham khảo: bootstrap script ở renderer `sp_HelloWorldVietinsoft_html` (sau khi áp `update_menu_HelloVietinsoft_addconfigcontrols_20260521.sql`). Đặt tất cả `if (typeof window.X === "undefined") window.X = ...` đầu IIFE, rồi mới `waitReady` để `loadUI` chạy với context đầy đủ.
-
-⚠️ Lưu ý: `saveFunction`, `updateOrDeleteDataExample` chỉ gọi khi `AutoSave=1`. Nếu menu sample đặt `AutoSave=0` thì KHÔNG cần polyfill 2 hàm này — branch không bao giờ chạm tới.
+Khi nhúng `hpaControl*` riêng lẻ vào barebones HTML-rendered menu (không dùng wrapper `DataSetting` full), các global helper (`loadDataSourceCommon`, `hpaUtils`, `RemoveToneMarks_Js`, `uiManager`, `LoginID`/`LanguageID`) KHÔNG có sẵn → control im lặng / dropdown rỗng. **Bắt buộc polyfill 5 global trong bootstrap `<script>` TRƯỚC khi inject `loadUI`** — xem code mẫu đầy đủ trong [17_RendererHtmlJsSafe.md §3.5](17_RendererHtmlJsSafe.md).
 
 Xem thêm tri thức nền từng phase ở [07_menu_system.md §13](07_menu_system.md).
 

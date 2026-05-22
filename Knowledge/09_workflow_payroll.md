@@ -291,10 +291,35 @@ sp_CompanySalaryPayment_Process  → đánh dấu đã thanh toán
 
 Nhân viên xem trên **Web/Mobile ESS** (xem [01_architecture.md](01_architecture.md)). Có thể gửi qua email (`tblPendingEmail`) hoặc Zalo (`tblZaloMessage`).
 
+## Chu kỳ tính lương hàng tháng (Salary Period / Payroll Cycle)
+
+Chu kỳ tính lương hàng tháng được cấu hình động thông qua các tham số trong bảng `tblParameter` và được tính toán bằng hàm `dbo.fn_Get_SalaryPeriod(@Month, @Year)`.
+
+### 1. Tham số cấu hình (`tblParameter`)
+*   **`SAL_START`**: Ngày bắt đầu chu kỳ tính lương (mặc định hiện tại là `10`).
+*   **`SAL_STOP`**: Ngày kết thúc chu kỳ tính lương (mặc định hiện tại là `9`).
+
+### 2. Nguyên tắc tính toán (`dbo.fn_Get_SalaryPeriod`)
+Hàm nhận vào hai tham số `@Month` (tháng tính lương) và `@Year` (năm tính lương) và trả ra khoảng thời gian `[FromDate, ToDate]`:
+*   **Công thức xác định `FromDate`**: 
+    *   Bắt đầu từ ngày `@SalStart` của tháng `@Month` năm `@Year`.
+    *   Nếu `@SalStart > @salStop` và `@SalStart > 15` (ví dụ chu kỳ tính từ ngày 20 tháng trước đến ngày 19 tháng sau), ngày bắt đầu sẽ lùi lại 1 tháng: `FromDate = dateadd(month, -1, FromDate)`.
+    *   Với cấu hình hiện tại (`SAL_START = 10` <= 15), ngày bắt đầu luôn là **ngày 10 của tháng `@Month`**.
+*   **Công thức xác định `ToDate`**:
+    *   Kết thúc vào ngày `@salStop` của tháng kế tiếp (`@Month + 1`).
+    *   Với cấu hình hiện tại (`SAL_STOP = 9`), ngày kết thúc luôn là **ngày 9 của tháng kế tiếp**.
+
+> [!NOTE]
+> **Ví dụ chu kỳ tính lương thực tế:**
+> *   Kỳ lương **Tháng 5/2026**: từ `10/05/2026 00:00:00` đến `09/06/2026 23:59:59`.
+> *   Kỳ lương **Tháng 12/2026**: từ `10/12/2026 00:00:00` đến `09/01/2027 23:59:59`.
+
 ## Tham số `tblParameter` chi phối tính lương
 
 | Code | Ý nghĩa |
 |---|---|
+| `SAL_START` | Ngày bắt đầu chu kỳ tính lương trong tháng (hiện tại = 10) |
+| `SAL_STOP` | Ngày kết thúc chu kỳ tính lương trong tháng (hiện tại = 9) |
 | `CAL_SALTAX_PROGRESSIVE_ALLEMPS` | Áp dụng thuế luỹ tiến cho cả thời vụ / học việc / thử việc? |
 | `ROUND_ATTDAYS` | Làm tròn ngày công hưởng lương |
 | `HAFT_DAY_ATT_OPTION` | Cách tính nghỉ nửa buổi |

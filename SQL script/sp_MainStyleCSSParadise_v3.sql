@@ -1,69 +1,5 @@
--- ============================================================================
--- File   : SQL script/sp_MainStyleCSSParadise_v3.sql
--- Version: 3.0.0
--- Date   : 2026-05-20
--- Mục đích: Sinh CSS toàn cục cho ParadiseHR Web (output qua @StyleHtml).
---           Refactor từ sp_MainStyleCSSParadise_Refactored.sql với 21 cải tiến
---           thuộc 5 Priority đã thống nhất với user.
---
--- CHANGELOG so với version cũ:
---   ── Priority 1: Bug fix + Performance ─────────────────────────────────
---   [1] Bỏ dòng `SET @debug = 1` đè cuối → minification thực sự chạy production.
---   [2] Bỏ `* { transition: ... }` global → chỉ apply cho interactive elements
---       (button, a, input, textarea, select, .btn, .card, .dx-button, ...).
---   [3] Scope `input, textarea` qua `:where()` → specificity = 0,0,0 → user
---       component có thể override dễ dàng.
---   [4] Scope `.btn` override qua `:where()` → không vỡ Bootstrap thuần.
---
---   ── Priority 2: Dark mode + Token enrichment ──────────────────────────
---   [5] Spacing scale: --paradise-space-0..8 (0 → 4rem).
---   [6] Z-index scale: --paradise-z-* (base, dropdown, sticky, fixed,
---       modal-backdrop, modal, popup, tooltip, toast).
---   [7] Shadow scale: --paradise-shadow-sm/md/lg/xl.
---   [8] Card tokens: --paradise-card-bg/border/shadow/radius/padding.
---   [9] Modal tokens: --paradise-modal-bg/backdrop/radius/shadow.
---   [10] Dark mode override TOÀN BỘ color/button/decoration/checkbox variables
---        (không chỉ 8 var như trước).
---
---   ── Priority 3: Responsive + Accessibility ────────────────────────────
---   [11] Bổ sung breakpoints: 768px (tablet), 1024px (laptop), 1280px+ (wide).
---   [12] `@media (prefers-reduced-motion: reduce)` → tắt animation cho user
---        nhạy cảm với chuyển động.
---   [13] `:focus-visible` outline → keyboard navigation rõ ràng.
---   [14] Timeline colors dùng variables thay vì hardcode hex.
---
---   ── Priority 4: Security + Code organization ──────────────────────────
---   [15] Loại bỏ minify runtime qua HTTP (`ss_RequestHttp`) để tránh phụ thuộc
---        network/API/credential trong procedure sinh style toàn cục.
---   [16] Tối ưu CSS nội bộ bằng pipeline deterministic: bỏ comment CSS và
---        chuẩn hoá whitespace an toàn ngay trong T-SQL, không gọi service ngoài.
---   [17] Tách `--paradise-font-family-base` (Inter + fallback system-ui) thành
---        token chung → menu không cần tự import Google Fonts riêng lẻ.
---
---   ── Priority 5: Long-term refactor ────────────────────────────────────
---   [18] Tổ chức CSS thành 10 SECTION rõ ràng (variables → base → buttons →
---        inputs → cards/modals → grid → utilities → timeline → responsive →
---        legacy compat). Mỗi section có comment banner.
---   [19] BEM modifier convention mới: `.paradise-btn--lg`, `.paradise-btn--reload`.
---        GIỮ alias cũ (`.btnreload`, `.paradise-btn-lg`) cho backward compat —
---        đánh dấu [LEGACY] trong comment để dần deprecate.
---   [20] Mỗi token quan trọng có comment "Used by: <component>" để dev biết
---        impact khi đổi.
---
---   ── Note về adoption ──────────────────────────────────────────────────
---   [21] Item "Áp dụng vào component" KHÔNG thuộc phạm vi file này — đây là
---        việc refactor renderer của từng menu (vd sp_CRMDashboard,
---        sp_KPIListDataCollection) để dùng var(--paradise-color-header1) thay
---        vì hardcode #00673b. Sẽ thực hiện trong các PR riêng cho từng menu.
---
--- Cảnh báo: BACKUP DB trước khi chạy. Đây là CREATE OR ALTER procedure —
---           sẽ thay thế version cũ. Test ở môi trường dev trước.
--- ============================================================================
 
-SET NOCOUNT ON;
-GO
-
-CREATE OR ALTER PROCEDURE [dbo].[sp_MainStyleCSSParadise]
+ALTER   PROCEDURE [dbo].sp_MainStyleCSSParadise
     @StyleHtml nvarchar(max) output
 AS
 BEGIN
@@ -72,17 +8,18 @@ BEGIN
     DECLARE @Html nvarchar(max) = N'';
 
     -- ====================================================================
-    -- SECTION 1 — DESIGN TOKENS (LIGHT MODE)
+    -- SECTION 1 — DESIGN TOKENS (DARK MODE — Paradise Modern Default)
     -- All values exposed as CSS custom properties for global consumption.
     -- Components SHOULD use var(--paradise-*) instead of hardcoding colors.
+    -- Inspired by Paradise Modern Dark palette (xem css/styles.css).
     -- ====================================================================
     SET @Html = N'
 :root {
-    /* ===== FONT FAMILY (NEW) — Used by: body, all menu containers ===== */
-    --paradise-font-family-base: ''Inter'', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    --paradise-font-family-mono: ''SF Mono'', Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    /* ===== FONT FAMILY — Inter cho UI, JetBrains Mono cho data/value ===== */
+    --paradise-font-family-base: ''Inter'', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, "Helvetica Neue", Arial, sans-serif;
+    --paradise-font-family-mono: ''JetBrains Mono'', ''SF Mono'', Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
-    /* ===== SPACING SCALE (NEW) — Used by: card padding, modal margin, grid gap ===== */
+    /* ===== SPACING SCALE ===== */
     --paradise-space-0: 0;
     --paradise-space-1: 0.25rem;   /* 4px */
     --paradise-space-2: 0.5rem;    /* 8px */
@@ -93,7 +30,7 @@ BEGIN
     --paradise-space-7: 3rem;      /* 48px */
     --paradise-space-8: 4rem;      /* 64px */
 
-    /* ===== Z-INDEX SCALE (NEW) — Used by: dropdown, modal, popup, tooltip ===== */
+    /* ===== Z-INDEX SCALE ===== */
     --paradise-z-base: 1;
     --paradise-z-dropdown: 1000;
     --paradise-z-sticky: 1020;
@@ -104,114 +41,125 @@ BEGIN
     --paradise-z-tooltip: 1080;
     --paradise-z-toast: 1090;
 
-    /* ===== SHADOW SCALE (NEW) — Used by: card, modal, hover effects ===== */
-    --paradise-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-    --paradise-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
-    --paradise-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
-    --paradise-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+    /* ===== SHADOW SCALE — dark theme: bóng đậm để card nổi trên bg-0 ===== */
+    --paradise-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --paradise-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+    --paradise-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+    --paradise-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.55), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
 
-    /* ===== TRANSITION (3 tốc độ) — Used by: button hover, card hover, modal ===== */
+    /* ===== TRANSITION — fast 0.15s đặc trưng Paradise Modern ===== */
     --paradise-transition-fast: all 0.15s ease;
     --paradise-transition-base: all 0.25s ease-in-out;
     --paradise-transition-slow: all 0.4s ease;
 
-    /* ===== BORDER RADIUS SCALE (NEW) ===== */
-    --paradise-border-color: rgba(229, 231, 234, 1);
-    --paradise-border-radius-sm: 0.375rem;     /* 6px  - input/badge nhỏ */
-    --paradise-border-radius-md: 0.75rem;      /* 12px - input/card chuẩn */
-    --paradise-border-radius-lg: 1rem;         /* 16px - card lớn */
-    --paradise-border-radius-xl: 1.25rem;      /* 20px - button bo tròn */
-    --paradise-border-radius-pill: 999px;      /* pill - badge/status */
+    /* ===== BORDER RADIUS — sharp corners (4px / 2px) cho card/badge;
+            pill 1.25rem giữ cho action button (theo yêu cầu) ===== */
+    --paradise-border-radius-sm: 2px;
+    --paradise-border-radius-md: 4px;
+    --paradise-border-radius-lg: 6px;
+    --paradise-border-radius-xl: 1.25rem;
+    --paradise-border-radius-pill: 999px;
 
-    /* ===== MÀU SẮC CƠ BẢN (light mode) ===== */
-    /* Primary đổi sang xanh CRM cho đồng bộ với MnuKPI001 (Tổng quan CRM) */
-    --paradise-color-primary: rgba(0, 103, 59, 1);          /* #00673b - xanh CRM brand */
-    --paradise-color-secondary: rgba(108, 117, 125, 1);
-    --paradise-color-success: rgba(25, 135, 84, 1);         /* #198754 - xanh success */
-    --paradise-color-danger: rgba(220, 53, 69, 1);
-    --paradise-color-warning: rgba(255, 193, 7, 1);
-    --paradise-color-info: rgba(23, 162, 184, 1);
-    --paradise-color-dark: rgba(52, 58, 64, 1);
-    --paradise-color-light: rgba(248, 249, 250, 1);
+    /* ===== PARADISE PALETTE — dark default (theo css/styles.css) ===== */
+    --paradise-bg-0: #0b0e11;          /* Global background */
+    --paradise-bg-1: #1e2329;          /* Surface / card */
+    --paradise-bg-2: #2b3139;          /* Hover / border */
+    --paradise-bg-3: #474d57;          /* Active / lighter border */
+    --paradise-border-color: #2b3139;
+    --paradise-border-strong: #474d57;
 
-    /* ===== SUBTLE BACKGROUND TOKENS (NEW) — Used by: badges, alerts, chips, KPI cards ===== */
-    /* Quy ước: màu nền cùng tone với text semantic nhưng rất nhạt để dùng cho highlight nhỏ. */
-    --paradise-bg-primary-subtle: rgba(0, 103, 59, 0.10);
-    --paradise-bg-secondary-subtle: rgba(108, 117, 125, 0.12);
-    --paradise-bg-success-subtle: rgba(25, 135, 84, 0.12);
-    --paradise-bg-danger-subtle: rgba(220, 53, 69, 0.10);
-    --paradise-bg-warning-subtle: rgba(255, 193, 7, 0.18);
-    --paradise-bg-info-subtle: rgba(23, 162, 184, 0.12);
-    --paradise-bg-dark-subtle: rgba(52, 58, 64, 0.10);
-    --paradise-bg-light-subtle: rgba(248, 249, 250, 0.90);
-    --paradise-bg-header1-subtle: rgba(0, 103, 59, 0.10);
-    --paradise-bg-header2-subtle: rgba(0, 76, 57, 0.10);
-    --paradise-bg-important-subtle: rgba(255, 0, 0, 0.08);
+    --paradise-fg-0: #eaecef;          /* Primary text */
+    --paradise-fg-1: #b7bdc6;          /* Secondary text */
+    --paradise-fg-2: #848e9c;          /* Muted text */
+    --paradise-fg-3: #707a8a;          /* Deep muted */
 
-    /* ===== MÀU NỀN & TEXT ===== */
-    --paradise-bg-body: #ffffff;
-    --paradise-bg-surface: color(display-p3 0.97 1 0.95 / 0.5);
-    --paradise-text-body: #212529;
-    --paradise-text-muted: #6c757d;
+    /* ===== MÀU SẮC CƠ BẢN (dark default) ===== */
+    --paradise-color-primary: #22ab3f;             /* Paradise Green accent (WCAG AA compliant: 4.95:1 contrast) */
+    --paradise-color-secondary: rgba(140, 150, 160, 1);
+    --paradise-color-success: #0ecb81;             /* pos */
+    --paradise-color-danger: #f6465d;              /* neg */
+    --paradise-color-warning: #f0b90b;             /* warn */
+    --paradise-color-info: #3b82f6;
+    --paradise-color-dark: var(--paradise-fg-0);
+    --paradise-color-light: var(--paradise-bg-1);
 
-    /* ===== CARD TOKENS (NEW) — Used by: .paradise-card, .glass-card (legacy) ===== */
-    --paradise-card-bg: #ffffff;
-    --paradise-card-border: 1px solid #e5e7eb;
+    /* ===== SUBTLE BACKGROUND TOKENS — Used by: badges, alerts, chips, KPI ===== */
+    --paradise-bg-primary-subtle: rgba(34, 171, 63, 0.16);
+    --paradise-bg-secondary-subtle: rgba(140, 150, 160, 0.16);
+    --paradise-bg-success-subtle: rgba(14, 203, 129, 0.15);
+    --paradise-bg-danger-subtle: rgba(246, 70, 93, 0.15);
+    --paradise-bg-warning-subtle: rgba(240, 185, 11, 0.15);
+    --paradise-bg-info-subtle: rgba(59, 130, 246, 0.15);
+    --paradise-bg-dark-subtle: rgba(184, 192, 207, 0.12);
+    --paradise-bg-light-subtle: rgba(60, 65, 70, 0.85);
+    --paradise-bg-header1-subtle: rgba(34, 171, 63, 0.18);
+    --paradise-bg-header2-subtle: rgba(14, 110, 70, 0.18);
+    --paradise-bg-important-subtle: rgba(246, 70, 93, 0.15);
+
+    /* ===== BODY & SURFACE — DARK ===== */
+    --paradise-bg-body: var(--paradise-bg-0);
+    --paradise-bg-surface: var(--paradise-bg-1);
+    --paradise-text-body: var(--paradise-fg-0);
+    --paradise-text-muted: var(--paradise-fg-2);
+
+    /* ===== CARD TOKENS — sharp 4px corner, dark surface ===== */
+    --paradise-card-bg: var(--paradise-bg-1);
+    --paradise-card-border: 1px solid var(--paradise-border-color);
     --paradise-card-shadow: var(--paradise-shadow-sm);
     --paradise-card-radius: var(--paradise-border-radius-md);
-    --paradise-card-padding: var(--paradise-space-5);
+    --paradise-card-padding: var(--paradise-space-4);
 
-    /* ===== MODAL TOKENS (NEW) — Used by: Bootstrap .modal-content, .modal-backdrop ===== */
-    --paradise-modal-bg: #ffffff;
-    --paradise-modal-backdrop: rgba(0, 0, 0, 0.65);
-    --paradise-modal-radius: var(--paradise-border-radius-md);
-    --paradise-modal-shadow: var(--paradise-shadow-xl);
+    /* ===== MODAL TOKENS — dark + blur backdrop ===== */
+    --paradise-modal-bg: var(--paradise-bg-1);
+    --paradise-modal-backdrop: rgba(0, 0, 0, 0.7);
+    --paradise-modal-radius: 6px;
+    --paradise-modal-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
 
-    /* ===== MÀU TRANG TRÍ & LOGO ===== */
-    --paradise-color-decor-bg1: rgba(237, 255, 200, 1);
-    --paradise-color-decor-bg2: rgba(213, 254, 129, 1);
-    --paradise-color-decor-main: rgba(159, 225, 45, 1);
-    --paradise-color-logo-main: rgba(115, 196, 29, 1);
-    --paradise-color-text-bg: rgba(29, 147, 54, 1);
-    --paradise-color-header1: rgba(0, 103, 59, 1);          /* Used by: MnuKPI001 title gradient */
-    --paradise-color-header2: rgba(0, 76, 57, 1);
-    --paradise-color-important: rgba(255, 0, 0, 1);
+    /* ===== DECORATION & LOGO — dark-tinted ===== */
+    --paradise-color-decor-bg1: rgba(40, 50, 30, 1);
+    --paradise-color-decor-bg2: rgba(60, 80, 40, 1);
+    --paradise-color-decor-main: rgba(120, 180, 60, 1);
+    --paradise-color-logo-main: #22ab3f;
+    --paradise-color-text-bg: #22ab3f;
+    --paradise-color-header1: #22ab3f;
+    --paradise-color-header2: #14723f;
+    --paradise-color-important: #f6465d;
 
-    /* ===== MÀU NÚT BẤM CỤ THỂ ===== */
-    --paradise-color-btnreload: rgba(25, 135, 84, 1);
-    --paradise-color-btnfwadd: rgba(25, 135, 84, 1);
-    --paradise-color-btnexport: rgba(0, 100, 0, 1);
-    --paradise-color-btnfwsave: rgba(37, 32, 94, 1);
-    --paradise-color-btnfwdelete: rgba(233, 66, 53, 1);
-    --paradise-color-btnfwreset: rgba(255, 192, 0, 1);
+    /* ===== BUTTON SEMANTIC COLORS — adjusted cho dark ===== */
+    --paradise-color-btnreload: #0ecb81;
+    --paradise-color-btnfwadd: #0ecb81;
+    --paradise-color-btnexport: #22ab3f;
+    --paradise-color-btnfwsave: #3b82f6;
+    --paradise-color-btnfwdelete: #f6465d;
+    --paradise-color-btnfwreset: #f0b90b;
 
-    /* ===== INPUT & CHECKBOX ===== */
-    --paradise-color-input-border: rgba(229, 231, 234, 1);
-    --paradise-color-input-border-hover: rgba(158, 162, 174, 1);
-    --paradise-color-input-disabled: rgba(229, 231, 234, 1);
-    --paradise-color-input-focus-ring: rgba(13, 110, 253, 0.25);
+    /* ===== INPUT & CHECKBOX — dark ===== */
+    --paradise-color-input-border: var(--paradise-bg-2);
+    --paradise-color-input-border-hover: var(--paradise-bg-3);
+    --paradise-color-input-disabled: rgba(43, 49, 57, 0.6);
+    --paradise-color-input-focus-ring: rgba(34, 171, 63, 0.35);
 
-    --paradise-color-checkbox: rgba(21, 115, 71, 1);
-    --paradise-color-checkbox-border: rgba(21, 115, 71, 1);
-    --paradise-color-checkbox-border-hover: rgba(21, 115, 71, 0.5);
-    --paradise-color-checkbox-border-disabled: rgba(229, 231, 234, 1);
+    --paradise-color-checkbox: #22ab3f;
+    --paradise-color-checkbox-border: #22ab3f;
+    --paradise-color-checkbox-border-hover: rgba(34, 171, 63, 0.55);
+    --paradise-color-checkbox-border-disabled: var(--paradise-bg-2);
 
-    /* ===== GRID & DATA CELL ===== */
-    --paradise-bg-edit-cell: cornsilk;
-    --paradise-bg-focus-cell: #d0e5fb;
+    /* ===== GRID & DATA CELL — dark surface ===== */
+    --paradise-bg-edit-cell: rgba(240, 185, 11, 0.12);
+    --paradise-bg-focus-cell: rgba(59, 130, 246, 0.18);
     --paradise-bg-weekend-cell: inherit;
-    --paradise-border-focus-cell: #d0e5fb;
+    --paradise-border-focus-cell: rgba(59, 130, 246, 0.4);
 
-    /* ===== TYPOGRAPHY ===== */
+    /* ===== TYPOGRAPHY — dense (13px base như styles.css) ===== */
     --paradise-font-heading-main: 1.125rem;
     --paradise-font-heading-sub: 1rem;
-    --paradise-font-label: 1rem;
-    --paradise-font-body1: 0.875rem;
-    --paradise-font-body2: 0.875rem;
+    --paradise-font-label: 0.8125rem;
+    --paradise-font-body1: 0.8125rem;
+    --paradise-font-body2: 0.75rem;
 
-    --paradise-font-button-xl: 1.125rem;
-    --paradise-font-button-lg: 1rem;
-    --paradise-font-button-md: 0.875rem;
+    --paradise-font-button-xl: 1rem;
+    --paradise-font-button-lg: 0.875rem;
+    --paradise-font-button-md: 0.8125rem;
     --paradise-font-button-sm: 0.75rem;
     --paradise-font-button-xs: 0.625rem;
 
@@ -227,92 +175,104 @@ BEGIN
     --line-height-md: 1.25rem;
     --line-height-lg: 1.5rem;
 
+    /* ===== TOPBAR (Paradise Modern) ===== */
+    --paradise-topbar-h: 52px;
+
     /* ===== LEGACY ALIASES (giữ tương thích — không xoá) ===== */
     --paradise-input-border-radius: var(--paradise-border-radius-md);
     --paradise-button-border-radius: var(--paradise-border-radius-xl);
 }
 
 /* ====================================================================
-   SECTION 2 — DARK MODE OVERRIDE (TOÀN BỘ color tokens)
-   Trigger: <html data-bs-theme="dark"> hoặc <body data-bs-theme="dark">
+   SECTION 2 — LIGHT MODE OVERRIDE (TOÀN BỘ color tokens)
+   Trigger: <html data-bs-theme="light"> hoặc <body data-bs-theme="light">
+   Đảo lại palette cho light mode (vẫn giữ tone xanh Paradise).
    ==================================================================== */
-[data-bs-theme="dark"] {
+[data-bs-theme="light"] {
     /* Body / surface */
-    --paradise-bg-body: #121212;
-    --paradise-bg-surface: #1e1e1e;
-    --paradise-text-body: #e0e0e0;
-    --paradise-text-muted: #a0a0a0;
+    --paradise-bg-0: #f5f6f8;
+    --paradise-bg-1: #ffffff;
+    --paradise-bg-2: #edffc8;
+    --paradise-bg-3: #d1d4dc;
+    --paradise-border-color: #e5e7eb;
+    --paradise-border-strong: #d1d4dc;
 
-    /* Border */
-    --paradise-border-color: #2e2e2e;
+    --paradise-fg-0: #1e2329;
+    --paradise-fg-1: #474d57;
+    --paradise-fg-2: #707a8a;
+    --paradise-fg-3: #848e9c;
 
-    /* Card / Modal */
-    --paradise-card-bg: #1e1e1e;
-    --paradise-card-border: 1px solid #2e2e2e;
-    --paradise-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-    --paradise-modal-bg: #1e1e1e;
-    --paradise-modal-backdrop: rgba(0, 0, 0, 0.85);
-    --paradise-modal-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7);
+    --paradise-bg-body: #ffffff;
+    --paradise-bg-surface: color(display-p3 0.97 1 0.95 / 0.5);
+    --paradise-text-body: var(--paradise-fg-0);
+    --paradise-text-muted: var(--paradise-fg-2);
 
-    /* Brand colors — sáng hơn cho contrast tốt trên bg đen */
-    --paradise-color-primary: rgba(0, 150, 80, 1);
-    --paradise-color-secondary: rgba(140, 150, 160, 1);
-    --paradise-color-success: rgba(40, 180, 100, 1);
-    --paradise-color-danger: rgba(240, 80, 90, 1);
-    --paradise-color-warning: rgba(255, 200, 40, 1);
-    --paradise-color-info: rgba(50, 180, 200, 1);
-    --paradise-color-dark: rgba(200, 205, 215, 1);
-    --paradise-color-light: rgba(60, 65, 70, 1);
+    /* Card / Modal — light */
+    --paradise-card-bg: #ffffff;
+    --paradise-card-border: 1px solid #e5e7eb;
+    --paradise-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --paradise-modal-bg: #ffffff;
+    --paradise-modal-backdrop: rgba(0, 0, 0, 0.5);
+    --paradise-modal-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
 
-    /* Subtle backgrounds — dark mode: cùng tone nhưng đủ nổi trên nền tối */
-    --paradise-bg-primary-subtle: rgba(0, 150, 80, 0.20);
-    --paradise-bg-secondary-subtle: rgba(140, 150, 160, 0.18);
-    --paradise-bg-success-subtle: rgba(40, 180, 100, 0.20);
-    --paradise-bg-danger-subtle: rgba(240, 80, 90, 0.18);
-    --paradise-bg-warning-subtle: rgba(255, 200, 40, 0.20);
-    --paradise-bg-info-subtle: rgba(50, 180, 200, 0.20);
-    --paradise-bg-dark-subtle: rgba(200, 205, 215, 0.16);
-    --paradise-bg-light-subtle: rgba(60, 65, 70, 0.85);
-    --paradise-bg-header1-subtle: rgba(0, 150, 80, 0.20);
-    --paradise-bg-header2-subtle: rgba(0, 110, 70, 0.20);
-    --paradise-bg-important-subtle: rgba(255, 90, 90, 0.16);
+    /* Brand colors — Paradise Green đậm hơn cho contrast trên bg sáng */
+    --paradise-color-primary: #00673b;
+    --paradise-color-secondary: rgba(108, 117, 125, 1);
+    --paradise-color-success: #198754;
+    --paradise-color-danger: #dc3545;
+    --paradise-color-warning: #ffc107;
+    --paradise-color-info: #17a2b8;
+    --paradise-color-dark: rgba(52, 58, 64, 1);
+    --paradise-color-light: rgba(248, 249, 250, 1);
 
-    /* Button colors — adjust cho dark */
-    --paradise-color-btnreload: rgba(40, 180, 100, 1);
-    --paradise-color-btnfwadd: rgba(40, 180, 100, 1);
-    --paradise-color-btnexport: rgba(30, 150, 40, 1);
-    --paradise-color-btnfwsave: rgba(80, 75, 160, 1);
-    --paradise-color-btnfwdelete: rgba(240, 80, 90, 1);
-    --paradise-color-btnfwreset: rgba(255, 180, 40, 1);
+    /* Subtle backgrounds — light variants */
+    --paradise-bg-primary-subtle: rgba(0, 103, 59, 0.10);
+    --paradise-bg-secondary-subtle: rgba(108, 117, 125, 0.12);
+    --paradise-bg-success-subtle: rgba(25, 135, 84, 0.12);
+    --paradise-bg-danger-subtle: rgba(220, 53, 69, 0.10);
+    --paradise-bg-warning-subtle: rgba(255, 193, 7, 0.18);
+    --paradise-bg-info-subtle: rgba(23, 162, 184, 0.12);
+    --paradise-bg-dark-subtle: rgba(52, 58, 64, 0.10);
+    --paradise-bg-light-subtle: rgba(248, 249, 250, 0.90);
+    --paradise-bg-header1-subtle: rgba(0, 103, 59, 0.10);
+    --paradise-bg-header2-subtle: rgba(0, 76, 57, 0.10);
+    --paradise-bg-important-subtle: rgba(255, 0, 0, 0.08);
 
-    /* Header colors */
-    --paradise-color-header1: rgba(0, 150, 80, 1);
-    --paradise-color-header2: rgba(0, 110, 70, 1);
-    --paradise-color-text-bg: rgba(50, 180, 90, 1);
+    /* Button colors — light */
+    --paradise-color-btnreload: rgba(25, 135, 84, 1);
+    --paradise-color-btnfwadd: rgba(25, 135, 84, 1);
+    --paradise-color-btnexport: rgba(0, 100, 0, 1);
+    --paradise-color-btnfwsave: rgba(37, 32, 94, 1);
+    --paradise-color-btnfwdelete: rgba(233, 66, 53, 1);
+    --paradise-color-btnfwreset: rgba(255, 192, 0, 1);
 
-    /* Decoration */
-    --paradise-color-decor-bg1: rgba(40, 50, 30, 1);
-    --paradise-color-decor-bg2: rgba(60, 80, 40, 1);
-    --paradise-color-decor-main: rgba(120, 180, 60, 1);
-    --paradise-color-logo-main: rgba(140, 220, 80, 1);
-    --paradise-color-important: rgba(255, 90, 90, 1);
+    /* Header & decoration — light */
+    --paradise-color-header1: rgba(0, 103, 59, 1);
+    --paradise-color-header2: rgba(0, 76, 57, 1);
+    --paradise-color-text-bg: rgba(29, 147, 54, 1);
+    --paradise-color-logo-main: rgba(115, 196, 29, 1);
+    --paradise-color-important: rgba(255, 0, 0, 1);
+
+    --paradise-color-decor-bg1: rgba(237, 255, 200, 1);
+    --paradise-color-decor-bg2: rgba(213, 254, 129, 1);
+    --paradise-color-decor-main: rgba(159, 225, 45, 1);
 
     /* Input */
-    --paradise-color-input-border: #495057;
-    --paradise-color-input-border-hover: #6c757d;
-    --paradise-color-input-disabled: #343a40;
-    --paradise-color-input-focus-ring: rgba(40, 180, 100, 0.4);
+    --paradise-color-input-border: rgba(229, 231, 234, 1);
+    --paradise-color-input-border-hover: rgba(158, 162, 174, 1);
+    --paradise-color-input-disabled: rgba(229, 231, 234, 1);
+    --paradise-color-input-focus-ring: rgba(13, 110, 253, 0.25);
 
     /* Checkbox */
-    --paradise-color-checkbox: rgba(40, 180, 100, 1);
-    --paradise-color-checkbox-border: rgba(40, 180, 100, 1);
-    --paradise-color-checkbox-border-hover: rgba(40, 180, 100, 0.5);
-    --paradise-color-checkbox-border-disabled: #343a40;
+    --paradise-color-checkbox: rgba(21, 115, 71, 1);
+    --paradise-color-checkbox-border: rgba(21, 115, 71, 1);
+    --paradise-color-checkbox-border-hover: rgba(21, 115, 71, 0.5);
+    --paradise-color-checkbox-border-disabled: rgba(229, 231, 234, 1);
 
     /* Grid */
-    --paradise-bg-edit-cell: #014D4E;
-    --paradise-bg-focus-cell: #0c3b5e;
-    --paradise-border-focus-cell: #0c3b5e;
+    --paradise-bg-edit-cell: cornsilk;
+    --paradise-bg-focus-cell: #d0e5fb;
+    --paradise-border-focus-cell: #d0e5fb;
 }
 </style>
 
@@ -321,7 +281,7 @@ BEGIN
    SECTION 3 — BASE & ACCESSIBILITY
    ==================================================================== */
 
-/* [P3 #12] Reduced motion — tôn trọng preference user */
+/* Reduced motion — tôn trọng preference user */
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -333,29 +293,59 @@ BEGIN
     }
 }
 
-/* [P3 #13] Focus visible — keyboard navigation */
+/* Focus visible — keyboard navigation */
 *:focus-visible {
     outline: 2px solid var(--paradise-color-primary);
     outline-offset: 2px;
 }
 
-/* Body base — dùng font-family token */
+/* Body base — dark default, Inter, dense 13px như styles.css */
 body {
     background-color: var(--paradise-bg-body);
     color: var(--paradise-text-body);
     font-family: var(--paradise-font-family-base);
+    font-size: 13px;
+    line-height: 1.2;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
-/* [P1 #2] Transition chỉ apply cho INTERACTIVE elements (KHÔNG dùng `*` global) */
-/* :where() giữ specificity = 0,0,0 để user component dễ override */
+/* Anchor — hover sang Paradise Green */
+a {
+    color: inherit;
+    text-decoration: none;
+    transition: var(--paradise-transition-fast);
+}
+a:hover {
+    color: var(--paradise-color-primary);
+}
+
+/* Transition chỉ apply cho INTERACTIVE elements */
 :where(button, a, input, textarea, select,
        .btn, .card, .paradise-card, .data-setting-button,
        .paradise-btn, .dx-button, .dx-checkbox-icon) {
-    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+}
+
+/* Scrollbar — dark theme custom (webkit) */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+::-webkit-scrollbar-track {
+    background: var(--paradise-bg-0);
+}
+::-webkit-scrollbar-thumb {
+    background: var(--paradise-bg-3);
+    border-radius: var(--paradise-border-radius-sm);
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--paradise-fg-3);
 }
 
 /* ====================================================================
    SECTION 4 — GRID & DATA SETTING (DevExtreme integration)
+   Dark-aware: header uppercase nhỏ, hàng zebra subtle, hover sang bg-0.
    ==================================================================== */
 .data-setting-edit-cell {
     background-color: var(--paradise-bg-edit-cell);
@@ -391,13 +381,44 @@ body {
     justify-content: center;
 }
 
+/* DevExtreme datagrid theming — dark surface, uppercase header */
+.dx-datagrid {
+    background-color: var(--paradise-bg-1);
+    color: var(--paradise-text-body);
+}
+.dx-datagrid .dx-row > td {
+    border-bottom: 1px solid var(--paradise-border-color);
+}
+.dx-datagrid-headers {
+    background-color: var(--paradise-bg-1);
+    color: var(--paradise-text-muted);
+    border-bottom: 1px solid var(--paradise-border-color);
+}
+.dx-datagrid-headers .dx-datagrid-text-content {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+.dx-datagrid-rowsview .dx-data-row:hover > td {
+    background-color: var(--paradise-bg-0);
+}
+
+/* Cell value: monospace nếu container có class .paradise-data-mono */
+.paradise-data-mono,
+.paradise-data-mono .dx-datagrid-rowsview td,
+.dx-datagrid.paradise-data-mono .dx-datagrid-text-content {
+    font-family: var(--paradise-font-family-mono);
+}
+
 /* ====================================================================
    SECTION 5 — BUTTONS
    New BEM modifier classes: .paradise-btn--lg, .paradise-btn--reload, ...
    Legacy alias classes giữ tương thích: .btn-lg, .btnreload, ...
+   Action button giữ pill (1.25rem) theo yêu cầu.
    ==================================================================== */
 
-/* [P1 #4] Base button — :where() để KHÔNG override Bootstrap với specificity cao */
+/* Base button — :where() để KHÔNG override Bootstrap với specificity cao */
 :where(.data-setting-button, .btn) {
     --paradise-btn-padding-y: 0.75rem;
     --paradise-btn-padding-x: 1rem;
@@ -416,7 +437,8 @@ body {
     font-weight: var(--font-weight-semi-bold);
     line-height: var(--line-height-md);
     text-align: center;
-    transition: var(--paradise-transition-base);
+    transition: var(--paradise-transition-fast);
+    white-space: nowrap;
 }
 
 .paradise-btn {
@@ -437,18 +459,20 @@ body {
     font-weight: var(--font-weight-semi-bold);
     line-height: var(--line-height-md);
     text-align: center;
-    transition: var(--paradise-transition-base);
+    transition: var(--paradise-transition-fast);
+    white-space: nowrap;
 }
 
+/* Hover: brighten (dark default); light mode đảo lại trong override bên dưới */
 :where(.data-setting-button, .paradise-btn, .btn):hover {
-    filter: brightness(0.9);
-}
-
-[data-bs-theme="dark"] :where(.data-setting-button, .paradise-btn, .btn):hover {
     filter: brightness(1.1);
 }
 
-/* [P5 #19] Size variants — BEM modifier (mới) + alias (legacy) */
+[data-bs-theme="light"] :where(.data-setting-button, .paradise-btn, .btn):hover {
+    filter: brightness(0.9);
+}
+
+/* Size variants — BEM modifier (mới) + alias (legacy) */
 :where(.paradise-btn--lg, .paradise-btn-lg /* [LEGACY] */, .btn-lg) {
     --paradise-btn-padding-y: 0.875rem;
     --paradise-btn-padding-x: 1.25rem;
@@ -478,6 +502,7 @@ body {
     color: white;
     height: 2.5rem;
     min-width: 10rem;
+    border: 1px solid transparent;
 }
 
 /* Action button — màu theo nghiệp vụ */
@@ -500,6 +525,7 @@ body {
 .btnfwreset, .paradise-btn-reset, .paradise-btn--reset {
     background-color: var(--paradise-color-btnfwreset);
     border-color: var(--paradise-color-btnfwreset);
+    color: #000;
 }
 .btnexport, .paradise-btn-export, .paradise-btn--export, .data-setting-button-export,
 .btnimport, .paradise-btn-import, .paradise-btn--import, .data-setting-button-import {
@@ -507,11 +533,19 @@ body {
     border-color: var(--paradise-color-btnexport);
 }
 
+/* Primary accent button (Paradise Green filled) */
+.btn-primary, .paradise-btn--primary {
+    background-color: var(--paradise-color-primary);
+    border-color: var(--paradise-color-primary);
+    color: #fff;
+    font-weight: var(--font-weight-bold);
+}
+
 /* ====================================================================
    SECTION 6 — INPUTS & CONTROLS
+   Dark surface, border subtle, focus ring Paradise Green.
    ==================================================================== */
 
-/* [P1 #3] Scope `input, textarea` với :where() — specificity 0 → user override dễ */
 :where(.paradise-input,
        .dx-texteditor-input-container,
        .dx-editor-outlined,
@@ -524,6 +558,8 @@ body {
 .dx-texteditor.dx-editor-outlined .dx-texteditor-input {
     height: 2.5rem;
     border-color: var(--paradise-color-input-border);
+    background-color: var(--paradise-bg-body);
+    color: var(--paradise-text-body);
 }
 
 .dx-texteditor.dx-editor-outlined.dx-state-active,
@@ -555,7 +591,8 @@ body {
 .dx-radiobutton-icon {
     border-radius: var(--paradise-border-radius-sm);
     border: 1px solid var(--paradise-color-checkbox-border);
-    transition: var(--paradise-transition-base);
+    transition: var(--paradise-transition-fast);
+    background-color: var(--paradise-bg-1);
 }
 
 .dx-checkbox-checked.dx-state-active .dx-checkbox-icon,
@@ -575,22 +612,23 @@ input[type="checkbox"] {
 }
 
 /* ====================================================================
-   SECTION 7 — CARDS & MODALS (NEW)
+   SECTION 7 — CARDS & MODALS
+   Sharp 4px corner, dark surface, blur backdrop.
    ==================================================================== */
 
-/* [P2 #8] Paradise card — token-based */
 .paradise-card {
     background-color: var(--paradise-card-bg);
     border: var(--paradise-card-border);
     box-shadow: var(--paradise-card-shadow);
     border-radius: var(--paradise-card-radius);
     padding: var(--paradise-card-padding);
-    transition: var(--paradise-transition-base);
+    transition: var(--paradise-transition-fast);
 }
 
 .paradise-card.clickable:hover {
-    transform: translateY(-4px);
+    transform: translateY(-2px);
     box-shadow: var(--paradise-shadow-lg);
+    border-color: var(--paradise-border-strong);
     cursor: pointer;
 }
 
@@ -601,27 +639,31 @@ input[type="checkbox"] {
     box-shadow: var(--paradise-card-shadow);
     border-radius: var(--paradise-card-radius);
     padding: var(--paradise-card-padding);
-    transition: var(--paradise-transition-base);
+    transition: var(--paradise-transition-fast);
 }
 .glass-card.clickable:hover {
-    transform: translateY(-4px);
+    transform: translateY(-2px);
     box-shadow: var(--paradise-shadow-lg);
+    border-color: var(--paradise-border-strong);
     cursor: pointer;
 }
 
-/* [P2 #9] Bootstrap modal override với tokens */
+/* Bootstrap modal override với tokens — blur backdrop kiểu Paradise Modern */
 .modal-content {
     background-color: var(--paradise-modal-bg);
+    border: 1px solid var(--paradise-border-strong);
     border-radius: var(--paradise-modal-radius);
     box-shadow: var(--paradise-modal-shadow);
     color: var(--paradise-text-body);
 }
 .modal-backdrop.show {
     background: var(--paradise-modal-backdrop);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
 }
 
 /* ====================================================================
-   SECTION 8 — TYPOGRAPHY & BACKGROUND UTILITIES
+   SECTION 8 — TYPOGRAPHY, BADGES & BACKGROUND UTILITIES
    ==================================================================== */
 .paradise-text-primary   { color: var(--paradise-color-primary); }
 .paradise-text-secondary { color: var(--paradise-color-secondary); }
@@ -631,6 +673,11 @@ input[type="checkbox"] {
 .paradise-text-info      { color: var(--paradise-color-info); }
 .paradise-text-dark      { color: var(--paradise-text-body); }
 .paradise-text-muted     { color: var(--paradise-text-muted); }
+
+/* Semantic shortcut classes (theo styles.css: .pos / .neg / .muted) */
+.paradise-pos    { color: var(--paradise-color-success) !important; }
+.paradise-neg    { color: var(--paradise-color-danger) !important; }
+.paradise-muted  { color: var(--paradise-text-muted); }
 
 .paradise-bg-primary-subtle   { background-color: var(--paradise-bg-primary-subtle); }
 .paradise-bg-secondary-subtle { background-color: var(--paradise-bg-secondary-subtle); }
@@ -644,11 +691,68 @@ input[type="checkbox"] {
 .paradise-bg-header2-subtle   { background-color: var(--paradise-bg-header2-subtle); }
 .paradise-bg-important-subtle { background-color: var(--paradise-bg-important-subtle); }
 
+/* Badge — compact uppercase chip (Paradise Modern style) */
+.paradise-badge {
+    display: inline-flex;
+    padding: 2px 6px;
+    border-radius: var(--paradise-border-radius-sm);
+    font-size: 10px;
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    line-height: 1.4;
+}
+.paradise-badge--success { background: var(--paradise-bg-success-subtle); color: var(--paradise-color-success); }
+.paradise-badge--error,
+.paradise-badge--danger  { background: var(--paradise-bg-danger-subtle);  color: var(--paradise-color-danger); }
+.paradise-badge--warn,
+.paradise-badge--warning { background: var(--paradise-bg-warning-subtle); color: var(--paradise-color-warning); }
+.paradise-badge--info    { background: var(--paradise-bg-info-subtle);    color: var(--paradise-color-info); }
+.paradise-badge--primary { background: var(--paradise-bg-primary-subtle); color: var(--paradise-color-primary); }
+
+/* KPI block — Paradise Modern dashboard pattern */
+.paradise-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1px;
+    background: var(--paradise-border-color);
+    border: 1px solid var(--paradise-border-color);
+    border-radius: var(--paradise-card-radius);
+    overflow: hidden;
+    margin-bottom: var(--paradise-space-4);
+}
+.paradise-kpi {
+    background: var(--paradise-bg-1);
+    padding: var(--paradise-space-4);
+    display: flex;
+    flex-direction: column;
+}
+.paradise-kpi__label {
+    color: var(--paradise-text-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: var(--paradise-space-1);
+    font-weight: var(--font-weight-semi-bold);
+}
+.paradise-kpi__value {
+    font-family: var(--paradise-font-family-mono);
+    font-size: 20px;
+    font-weight: var(--font-weight-bold);
+    color: var(--paradise-text-body);
+}
+.paradise-kpi__value.paradise-pos { color: var(--paradise-color-success); }
+.paradise-kpi__value.paradise-neg { color: var(--paradise-color-danger); }
+.paradise-kpi__sub {
+    margin-top: var(--paradise-space-1);
+    font-size: 11px;
+    color: var(--paradise-text-muted);
+}
+
 /* ====================================================================
    SECTION 9 — TIMELINE / REQUEST CARDS
    ==================================================================== */
 
-/* [P3 #14] Timeline colors — dùng variables thay vì hardcode */
 .timeline-step .circle.blue   { background-color: var(--paradise-color-primary); }
 .timeline-step .circle.gray   { background-color: var(--paradise-text-muted); }
 .timeline-step .circle.yellow { background-color: var(--paradise-color-warning); }
@@ -656,7 +760,8 @@ input[type="checkbox"] {
 .timeline-step .circle.red    { background-color: var(--paradise-color-danger); }
 
 .request-CardList .card {
-    transition: var(--paradise-transition-base);
+    transition: var(--paradise-transition-fast);
+    background-color: var(--paradise-bg-1);
     border: none;
     border-bottom: 1px solid var(--paradise-border-color);
     border-radius: 0;
@@ -665,12 +770,35 @@ input[type="checkbox"] {
     box-shadow: var(--paradise-shadow-md);
     transform: translateY(-2px);
 }
+
+/* Fade in animation — giữ utility từ styles.css */
+@keyframes vtsFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+.paradise-fade-in { animation: vtsFadeIn 0.3s ease; }
+
+/* ====================================================================
+   SECTION 9.5 — STANDARD AVATAR STYLES (ParadiseStyle)
+   Consistent circle styling for employee avatar images across menus.
+   ==================================================================== */
+.avatar-img {
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 50% !important;
+    border: 2px solid var(--paradise-border-color);
+    padding: 2px;
+    box-sizing: border-box;
+    display: inline-block;
+    vertical-align: middle;
+}
 </style>
 
 <style>
 /* ====================================================================
    SECTION 10 — RESPONSIVE BREAKPOINTS
-   Mobile-first approach: base styles cho mobile, override cho larger.
+   Mobile-first: tăng tap target, card stack, button full-width.
    ==================================================================== */
 
 /* MOBILE SMALL (max-width: 480px) */
@@ -716,11 +844,16 @@ input[type="checkbox"] {
 
     /* Card padding nhỏ hơn cho mobile */
     .paradise-card, .glass-card {
-        padding: var(--paradise-space-4);
+        padding: var(--paradise-space-3);
     }
+
+    /* KPI grid: 1 cột khi quá hẹp */
+    .paradise-kpi-grid { grid-template-columns: 1fr; }
+    .paradise-kpi { padding: var(--paradise-space-3); }
+    .paradise-kpi__value { font-size: 16px; }
 }
 
-/* [P3 #11] TABLET (481px - 768px) */
+/* TABLET (481px - 768px) */
 @media (min-width: 481px) and (max-width: 768px) {
     .paradise-card, .glass-card {
         padding: var(--paradise-space-4);
@@ -731,19 +864,20 @@ input[type="checkbox"] {
     .data-setting-grid {
         max-height: 65dvh;
     }
+    .paradise-kpi-grid { grid-template-columns: 1fr 1fr; }
 }
 
-/* [P3 #11] LAPTOP (769px - 1024px) */
+/* LAPTOP (769px - 1024px) */
 @media (min-width: 769px) and (max-width: 1024px) {
     .data-setting-grid {
         max-height: 70dvh;
     }
 }
 
-/* [P3 #11] DESKTOP WIDE (min-width: 1280px) */
+/* DESKTOP WIDE (min-width: 1280px) */
 @media (min-width: 1280px) {
     .paradise-card, .glass-card {
-        padding: var(--paradise-space-6);
+        padding: var(--paradise-space-5);
     }
     .data-setting-grid {
         max-height: 80dvh;
@@ -832,20 +966,3 @@ input[type="checkbox"] {
     SET @Html = N'<style>' + @Html + N'</style>';
     SET @StyleHtml = @Html;
 END
-GO
-
-PRINT '[OK] Created/Altered procedure dbo.sp_MainStyleCSSParadise v3.0.0';
-GO
-
--- ============================================================================
--- TEST CALL — Verify procedure compile + optimized output.
--- ============================================================================
-DECLARE @TestHtml nvarchar(max);
-EXEC dbo.sp_MainStyleCSSParadise @StyleHtml = @TestHtml output;
-SELECT
-    DATALENGTH(@TestHtml) / 2 AS HtmlChars,
-    CASE WHEN @TestHtml LIKE N'%ss_RequestHttp%' THEN 1 ELSE 0 END AS HasHttpMinifyCall,
-    CASE WHEN @TestHtml LIKE N'%/*%' THEN 1 ELSE 0 END AS HasCssComments,
-    LEFT(@TestHtml, 200)      AS Preview_First200,
-    RIGHT(@TestHtml, 200)     AS Preview_Last200;
-GO

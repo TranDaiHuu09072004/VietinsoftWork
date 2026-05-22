@@ -1,24 +1,10 @@
--- ============================================================================
--- File   : SQL script/update_menu_HelloVietinsoft_paradisestyle_20260521.sql
--- Date   : 2026-05-21
--- Author : Antigravity
--- Mục đích: Tinh chỉnh renderer sp_HelloWorldVietinsoft_html sau khi menu đã
---           rename "Hello world Vietinsoft" -> "Hello Vietinsoft":
---
---   A. Đồng bộ tiêu đề trong renderer (@title + aria-label) với tên menu mới.
---   B. Input dùng token --paradise-input-border-radius (thay vì --md trực tiếp).
---   C. Input background dùng --paradise-bg-surface (rõ hơn trong dark mode, vì
---      input nằm trên card -> không bị flat với --bg-body #121212).
---   D. .hwvts-check-row thêm cursor:pointer (a11y affordance cho checkbox/radio).
---   E. Tiêu đề menu chuyển từ <h1> -> <h2> để giữ heading hierarchy hợp lệ
---      (shell ParadiseHR đã có <h1> ở chrome).
---
--- KHÔNG chạm metadata menu (MEN_Menu/tblSC_Object/tblDataSetting/quyền).
--- Sau khi ALTER xong: build lại cache (sp_GenerateHTMLScript) + refresh menu.
--- ============================================================================
+-- =====================================================================================
+-- Script update UI menu Hello Vietinsoft theo chuẩn ParadiseStyle (Đồng bộ chuẩn từ DB)
+-- Ngày cập nhật: 2026-05-21
+-- Tác giả: Antigravity (Sửa lỗi baseline theo thực tế DB)
+-- Scope: Renderer html của sp_HelloWorldVietinsoft_html
+-- =====================================================================================
 
-SET XACT_ABORT ON;
-GO
 
 CREATE OR ALTER PROCEDURE [dbo].[sp_HelloWorldVietinsoft_html]
 (
@@ -30,11 +16,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    DECLARE @StyleHtml NVARCHAR(MAX) = N'';
-    IF OBJECT_ID('dbo.sp_MainStyleCSSParadise', 'P') IS NOT NULL
-    BEGIN
-        EXEC dbo.sp_MainStyleCSSParadise @StyleHtml = @StyleHtml OUTPUT;
-    END
+
 
     DECLARE @title       NVARCHAR(200) = N'Hello Vietinsoft';
     DECLARE @subtitle    NVARCHAR(300);
@@ -100,7 +82,7 @@ BEGIN
     DECLARE @loadingJs NVARCHAR(400) = REPLACE(REPLACE(@loading, N'\', N'\\'), N'"', N'\"');
     DECLARE @html NVARCHAR(MAX);
 
-    SET @html = ISNULL(@StyleHtml, N'') + N'
+    SET @html = N'
 <div id="helloWorldVtsContainer" class="hwvts-page">
     <style>
         .hwvts-page {
@@ -141,15 +123,47 @@ BEGIN
             color: var(--paradise-text-muted);
             font-size: var(--paradise-font-body2);
             font-weight: var(--font-weight-semi-bold);
+            transition: var(--paradise-transition-fast);
         }
-        .hwvts-badge,
-        .hwvts-token-primary {
+        .hwvts-badge {
+            background-color: var(--paradise-bg-primary-subtle);
+            border-color: rgba(34, 171, 63, 0.25);
             color: var(--paradise-color-primary);
         }
-        .hwvts-token-success { color: var(--paradise-color-success); }
-        .hwvts-token-danger { color: var(--paradise-color-danger); }
-        .hwvts-token-warning { color: var(--paradise-color-warning); }
-        .hwvts-token-info { color: var(--paradise-color-info); }
+        .hwvts-token-chip.hwvts-token-primary {
+            background-color: var(--paradise-bg-primary-subtle);
+            border-color: rgba(34, 171, 63, 0.25);
+            color: var(--paradise-color-primary);
+        }
+        .hwvts-token-chip.hwvts-token-success,
+        .hwvts-status.hwvts-token-success {
+            background-color: var(--paradise-bg-success-subtle);
+            border-color: rgba(14, 203, 129, 0.25);
+            color: var(--paradise-color-success);
+        }
+        .hwvts-token-chip.hwvts-token-danger,
+        .hwvts-status.hwvts-token-danger {
+            background-color: var(--paradise-bg-danger-subtle);
+            border-color: rgba(246, 70, 93, 0.25);
+            color: var(--paradise-color-danger);
+        }
+        .hwvts-token-chip.hwvts-token-warning,
+        .hwvts-status.hwvts-token-warning {
+            background-color: var(--paradise-bg-warning-subtle);
+            border-color: rgba(240, 185, 11, 0.25);
+            color: var(--paradise-color-warning);
+        }
+        .hwvts-token-chip.hwvts-token-info,
+        .hwvts-status.hwvts-token-info {
+            background-color: var(--paradise-bg-info-subtle);
+            border-color: rgba(59, 130, 246, 0.25);
+            color: var(--paradise-color-info);
+        }
+        .hwvts-token-chip:not([class*="hwvts-token-"]) {
+            background-color: var(--paradise-bg-secondary-subtle);
+            border-color: var(--paradise-border-color);
+            color: var(--paradise-text-muted);
+        }
         .hwvts-title {
             margin: 0;
             color: var(--paradise-color-primary);
@@ -229,7 +243,7 @@ BEGIN
         .hwvts-select,
         .hwvts-textarea {
             width: 100%;
-            background-color: var(--paradise-bg-surface);
+            background-color: var(--paradise-bg-body);
             border: 1px solid var(--paradise-border-color);
             border-radius: var(--paradise-input-border-radius);
             padding: var(--paradise-space-3) var(--paradise-space-4);
@@ -562,27 +576,25 @@ BEGIN
     WHEN NOT MATCHED BY TARGET THEN
         INSERT (TableName, LanguageID, ScreenType, html, HtmlParadise, paradiseJs, Version, VersionData)
         VALUES (src.TableName, src.LanguageID, src.ScreenType, src.html, src.HtmlParadise, src.paradiseJs, src.Version, src.VersionData);
+
+    SELECT @html AS html;
 END
 GO
 
--- Build lại cache cho cả VN và EN (loop bên trong sp_GenerateHTMLScript)
-BEGIN TRY
-    EXEC dbo.sp_GenerateHTMLScript N'sp_HelloWorldVietinsoft_html';
-
-    -- Refresh menu (KHÔNG gọi sp_UpdateMenuInUserRight để không nới quyền cho mọi user)
-    IF OBJECT_ID(N'dbo.sp_Men_Menu_AfterSave_Simple', 'P') IS NOT NULL
-        EXEC dbo.sp_Men_Menu_AfterSave_Simple @ClassName = N'sp_HelloWorldVietinsoft';
-
-    PRINT N'[OK] Đã ALTER renderer + rebuild cache (VN/EN) + refresh menu.';
-END TRY
-BEGIN CATCH
-    PRINT N'[ERROR rebuild cache] ' + ERROR_MESSAGE();
-    THROW;
-END CATCH
+PRINT '1. Da tao procedure sp_HelloWorldVietinsoft_html.';
 GO
 
--- Verify
-SELECT TableName, LanguageID, Version, VersionData, LEN(html) AS HtmlLen
-FROM dbo.tblHtmlScriptCache
-WHERE TableName = 'sp_HelloWorldVietinsoft_html'
-ORDER BY LanguageID;
+-- Rebuild cache tự động
+IF OBJECT_ID('tempdb..#Results') IS NOT NULL DROP TABLE #Results;
+DELETE FROM tblHtmlScriptCache WHERE TableName = 'sp_HelloWorldVietinsoft_html';
+GO
+EXEC dbo.sp_GenerateHTMLScript 'sp_HelloWorldVietinsoft_html';
+GO
+PRINT '2. Da refresh cache HTML thanh cong.';
+GO
+
+-- Yêu cầu app tải lại bộ đệm
+EXEC dbo.sp_Men_Menu_AfterSave_Simple @ClassName = N'sp_HelloWorldVietinsoft';
+GO
+PRINT '3. Da kich hoat reset menu cache client.';
+GO

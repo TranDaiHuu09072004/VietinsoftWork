@@ -89,7 +89,7 @@ Các tool MCP được phép dùng (load schema qua `ToolSearch` nếu cần):
 
 ### Bước 5 — Tự cập nhật Knowledge (Self-Learning)
 
-Sau khi xác minh tri thức mới từ DB/source, BẮT BUỘC ghi vào file Knowledge đúng chủ đề:
+Sau khi xác minh tri thức mới từ DB/source, BẮT BUỘC Hỏi người dùng có đồng ý ghi vào file Knowledge đúng chủ đề hay không:
 
 - **Xác định file đúng** qua [Knowledge/INDEX.md](Knowledge/INDEX.md) — bảng map table/procedure/keyword → file.
 - Chèn nội dung vào đúng section bên trong file. Nếu không khớp section nào: thêm sub-heading mới ở vị trí phù hợp.

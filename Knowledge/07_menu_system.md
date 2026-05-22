@@ -6,7 +6,9 @@
 >
 > 🔁 **Cần migrate/update một menu đã có**? Xem skill file [13_Migrate_Menu.md](13_Migrate_Menu.md) — quy trình tìm menu theo tên, inventory metadata/source/API/ngôn ngữ/quyền, rồi tạo script idempotent không chèn trùng `MEN_Menu`, `tblSC_Object`, `tblSC_Right_Stored`, `tblSC_GroupRight`.
 >
-> 🎨 **Cần thiết kế/refactor giao diện menu**? Xem skill file [14_ParadiseStyle.md](14_ParadiseStyle.md) — bắt buộc dùng `sp_MainStyleCSSParadise`, token `--paradise-*`, và **không thiết lập background cho bất cứ menu nào**.
+> 🎨 **Cần thiết kế/refactor giao diện menu**? Xem skill file [14_ParadiseStyle.md](14_ParadiseStyle.md) — dùng token `--paradise-*` + class `.paradise-*` đã inject sẵn từ 4 layout gốc (renderer menu thông thường **KHÔNG** gọi `sp_MainStyleCSSParadise`), và **không thiết lập background cho bất cứ menu nào**.
+>
+> 🔍 **Cần tìm procedure của một menu có sẵn để debug/sửa UI**? Xem skill file [18_FindMenuProcedure.md](18_FindMenuProcedure.md) — quy trình 5 bước copy-paste-ready từ **tên menu** → `tblMD_Message` → `MEN_Menu.ClassName` → verify `sys.objects` → tìm renderer `%_html`.
 
 ## 1. Cấu trúc menu — 5 mảnh dữ liệu liên kết qua `MenuID`
 

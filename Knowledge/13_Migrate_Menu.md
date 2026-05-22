@@ -1,4 +1,4 @@
-# 13 — Skill: Quy trình migrate / update menu ParadiseHR
+﻿# 13 — Skill: Quy trình migrate / update menu ParadiseHR
 
 > **Skill file** — dùng khi user yêu cầu kiểu: "tạo script update cho menu Quản lý bài học", "viết script migrate menu Nhật ký công việc", "migrate giao diện menu X sang hệ thống mới", "update lại UI / phân quyền / ngôn ngữ của menu".
 >
@@ -66,52 +66,10 @@ WHERE TableName = '<ClassName>_html';
 -- > 0 → bắt buộc đưa metadata này vào script migrate
 ```
 
-### Rule 5 — Renderer HTML/JS phải an toàn với quote boundary của T-SQL
+### Rule 5 — Renderer HTML/JS phải an toàn (xem skill riêng)
 
-Khi migrate/update renderer `sp_X_html`, nếu HTML/JavaScript được build bằng chuỗi `N'...'`, phải rà toàn bộ dấu nháy trước khi bàn giao script.
+Khi migrate/update renderer `sp_X_html`, **bắt buộc đọc** [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md) — gồm: pattern escape quote boundary T-SQL/JS, xử lý cột `varbinary(max)` của `tblDataSetting`/`tblDataSettingLayout` (tránh lỗi Msg 257), pattern dynamic SQL `tblCommonControlType_Signed`, MERGE `tblHtmlScriptCache` 8 cột notnull, polyfill global helper, template copy-paste ready, và checklist 15 điểm trước khi export. **Đây là rule bắt buộc cho mọi script migrate/update menu có renderer.**
 
-Triệu chứng lỗi:
-- `Incorrect syntax near the keyword 'function'`
-- `String is not a recognized built-in function name`
-- Lỗi gần tên biến/hàm JavaScript dài
-
-Nguyên nhân đã gặp: JavaScript bị rơi ra ngoài chuỗi SQL do nháy đơn trong block `<script>` hoặc do nối chuỗi inline sai, ví dụ `.replace(/''/g, ...)` hoặc `REPLACE(@text, '"', '\"')` đặt trực tiếp giữa block JS.
-
-Quy tắc xử lý:
-1. Dùng biến T-SQL đã escape sẵn cho text đưa vào JavaScript:
-
-```sql
-DECLARE @emptyJs nvarchar(400) = REPLACE(REPLACE(@empty, N'\', N'\\'), N'"', N'\"');
-DECLARE @loadingJs nvarchar(400) = REPLACE(REPLACE(@loading, N'\', N'\\'), N'"', N'\"');
-```
-
-2. Trong JavaScript, nối biến đã escape:
-
-```sql
-var EMPTY_MSG = "' + @emptyJs + N'";
-var LOADING_MSG = "' + @loadingJs + N'";
-```
-
-3. Escape dấu nháy đơn phía client bằng unicode escape, không viết raw `'` trong regex:
-
-```javascript
-.replace(/\u0027/g, "&#039;")
-```
-
-4. Trước khi kết luận script OK, kiểm tra bằng mắt hoặc checker tĩnh:
-   - `<script>`, `function ...`, `String(...)`, `AjaxHPAParadise(...)` phải nằm bên trong chuỗi `@html`.
-   - `MERGE dbo.tblHtmlScriptCache` phải nằm ngoài chuỗi `@html`.
-   - Không còn pattern `.replace(/''/g`.
-
-Đây là rule bắt buộc cho mọi script migrate/update menu có renderer HTML/JS.
-
-> [!IMPORTANT]
-> **Tránh lỗi Implicit conversion (nvarchar to varbinary(max)) - Msg 257**:
-> Trong `tblDataSetting` và `tblDataSettingLayout` có các cột kiểu dữ liệu `varbinary(max)` (ví dụ: `LayoutDataConfigFillter`, `LayoutParamConfig`, `LayoutDataConfigColumnView`, `LayoutDataConfigCardView`, `LayoutMobileLocalConfig` trong `tblDataSetting`, và `BackgroundImage` trong `tblDataSettingLayout`).
-> Khi viết câu lệnh `MERGE` hoặc `SELECT ... UNION ALL` để chèn dữ liệu tĩnh, **không được** truyền chuỗi rỗng `N''` (kiểu `nvarchar`) vào các cột này. 
-> Thay vào đó, **phải sử dụng `CAST(NULL AS VARBINARY(MAX))`** (hoặc `NULL` trực tiếp nếu kiểu dữ liệu được xác định đúng) để tránh lỗi Msg 257.
-
-Đây là 5 rule **không có ngoại lệ**.
 
 ---
 
@@ -148,6 +106,8 @@ Không dùng file này cho tạo menu mới từ đầu nếu không có menu ng
 ## 2. Checklist đầu vào cần hỏi user nếu thiếu
 
 Nếu user chỉ nói tên menu, ví dụ "Quản lý bài học", Agent vẫn có thể bắt đầu bằng query theo `tblMD_Message.Content`.
+
+→ Xem [18_FindMenuProcedure.md](18_FindMenuProcedure.md) cho quy trình lookup 5 bước chuẩn (kèm xử lý case 0 match / nhiều match / `ClassName` là VIEW / không có `_html`).
 
 Nếu có nhiều kết quả trùng tên, phải hỏi user chọn menu nào.
 
@@ -623,34 +583,9 @@ GO
 
 Áp dụng tương tự cho `sp_X_html` và `sp_X`.
 
-### 11.2. `tblHtmlScriptCache` trong renderer
+### 11.2. `tblHtmlScriptCache` trong renderer (xem skill riêng)
 
-Renderer phải tự upsert cache bằng `MERGE` theo `(TableName, LanguageID)` và fill đủ cột not-null:
-
-```sql
-MERGE dbo.tblHtmlScriptCache AS tgt
-USING (SELECT
-          'sp_X_html' AS TableName,
-          @LanguageID AS LanguageID,
-          '-1' AS ScreenType,
-          @html AS html,
-          N'' AS HtmlParadise,
-          N'' AS paradiseJs,
-          '1' AS Version,
-          N'' AS VersionData
-      ) AS src
-   ON tgt.TableName = src.TableName AND tgt.LanguageID = src.LanguageID
-WHEN MATCHED THEN
-    UPDATE SET tgt.ScreenType   = src.ScreenType,
-               tgt.html         = src.html,
-               tgt.HtmlParadise = src.HtmlParadise,
-               tgt.paradiseJs   = src.paradiseJs,
-               tgt.Version      = src.Version,
-               tgt.VersionData  = src.VersionData
-WHEN NOT MATCHED BY TARGET THEN
-    INSERT (TableName, LanguageID, ScreenType, html, HtmlParadise, paradiseJs, Version, VersionData)
-    VALUES (src.TableName, src.LanguageID, src.ScreenType, src.html, src.HtmlParadise, src.paradiseJs, src.Version, src.VersionData);
-```
+Renderer phải tự upsert cache bằng `MERGE` theo `(TableName, LanguageID)` và fill đủ **8 cột notnull** (`TableName, LanguageID, ScreenType, html, HtmlParadise, paradiseJs, Version, VersionData`). **Template MERGE đầy đủ + giải thích từng cột**: xem [17_RendererHtmlJsSafe.md §5](17_RendererHtmlJsSafe.md).
 
 ### 11.3. `MEN_Menu`
 

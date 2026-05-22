@@ -1,0 +1,4874 @@
+CREATE   PROCEDURE [dbo].[sp_ResignationLeave_html](@LoginID INT = 3, @LanguageID VARCHAR(2) = 'VN', @IdentityID varchar(36) = '')
+
+as
+
+set nocount on
+
+declare @APPLICATION_ADDRESS nvarchar(max) =dbo.fn_GetAPPLICATION_ADDRESS(), @html nvarchar(max) ='', @GroupButton nvarchar(max) =N'', @script nvarchar(max) =N''
+
+exec sp_getGroupButtonRequest @html=@GroupButton output
+
+set @script = N'
+
+var employeeId = "";
+
+var leaveStatus = null;
+
+var historyData = [];
+
+var qlbetaJsonFilesSelected = [];
+
+var leaveJsonFilesSelected = [];
+
+if (["Android", "iOS"].includes(getMobileOperatingSystem())) {
+
+
+
+} else {
+
+    $("#backBtn").addClass("d-none");
+
+}
+
+
+
+// Bi?n toàn c?c đ? lưu IdentityID c?a đơn đư?c ch?n
+
+var selectedIdentityID = sp_ResignationLeave_param.IdentityID;
+
+console.log(selectedIdentityID);
+
+var requestorEmployeeID = ""; // ID của người làm đơn cần duyệt
+
+var isViewingDetail = false; // Bi?n đ? theo d?i tr?ng thái xem chi ti?t
+
+
+
+$("#header_sp_ResignationLeave").addClass("d-none");
+
+$("#contentContainer_sp_ResignationLeave").css("height", "calc(100vh - 65px)");
+
+
+
+$("#leaveImageModal").off("click").on("click", function () {
+
+    $(this).modal("hide");
+
+});
+
+
+
+$("#leave-image-modal-img").off("click").on("click", function (e) {
+
+    e.stopPropagation();
+
+});
+
+function setFormReadOnly(isReadOnly) {
+
+    $("#loaiNghi").dxSelectBox("instance").option("readOnly", isReadOnly);
+
+    $("#tuNgay").prop("readonly", isReadOnly);
+
+    $("#denNgay").prop("readonly", isReadOnly);
+
+    $("#lyDo").prop("readonly", isReadOnly);
+
+    $("#leave-fileForExpenses").prop("disabled", isReadOnly);
+
+    $("#sp_ResignationLeave .btnApprove").prop("disabled", isReadOnly).toggleClass("d-none", isReadOnly);
+
+}
+
+
+
+function validateField(fieldId) {
+
+    const field = $("#" + fieldId);
+
+    const value = field.val();
+
+    const errorElement = fieldId === "tuNgay" || fieldId === "denNgay" ? $(".validate_error_date0") : $(".validate_error_" + fieldId);
+
+    if (!value) {
+
+        errorElement.text("Trường này không được để trống!").addClass("active");
+
+        return false;
+
+    } else {
+
+        errorElement.removeClass("active").text("");
+
+        return true;
+
+    }
+
+}
+
+//chuyển tab
+
+function showTab(tabId) {
+
+    $("#register-tab, #history-tab, #approver-history-tab").hide();
+
+    $("#" + tabId + "-tab").show();
+
+    $(".tab").removeClass("active");
+
+    $("#" + tabId + "-tab-label").addClass("active");
+
+
+
+    if (tabId === "history" /*&& !historyData.length LuongNQ*/) {
+
+        // *** KIỂM TRA XEM CÓ ĐANG XEM CHI TIẾT ĐƠN CỦA AI KHÔNG ***
+
+        if (isViewingDetail && requestorEmployeeID && requestorEmployeeID !== "") {
+
+            console.log("Đang xem chi tiết đơn - Load lịch sử của người làm đơn:", requestorEmployeeID);
+
+            loadHistoryForRequestor(requestorEmployeeID);
+
+        } else {
+
+            console.log("Không xem chi tiết - Load lịch sử của bản thân:", employeeId);
+
+            loadHistory();
+
+        }
+
+    }
+
+    if (tabId === "approver-history") {
+
+        loadApproverHistory();
+
+    }
+
+    if (tabId === "register") {
+
+
+
+        if (!isViewingDetail) {
+
+            $("#sp_ResignationLeave .btnApprove").addClass("d-none");
+
+            $("#sp_ResignationLeave .btnReject").addClass("d-none");
+
+            $("#sp_ResignationLeave .btnDestroy").addClass("d-none");
+
+            $("#sp_ResignationLeave .btnRegister").removeClass("d-none");
+
+            setFormReadOnly(false);
+
+            $("#loaiNghi").dxSelectBox("instance").option("value", null);
+
+
+
+            //LuongNQ
+
+            //$("#tuNgay").val("");
+
+            //$("#denNgay").val("");
+
+            const now = new Date();
+
+            const today = now.toISOString().split("T")[0];
+
+            $("#tuNgay").val(`${today}T08:00`);
+
+            $("#denNgay").val(`${today}T17:00`);
+
+            $("#lyDo").val("");
+
+            leaveJsonFilesSelected = [];
+
+            QlbetaAddFileUI(leaveJsonFilesSelected);
+
+            $("#register-tab-label").text("%MnuWPT315%");
+
+            $("#qlbeta-customchosefileExpenses").removeClass("d-none");
+
+            $("#lblChoseFile").addClass("d-none");
+
+            $("#employeeLeaveHistory").hide();
+
+            //getTimelineqlbeta("", 1, "container_approver", "employeeInfo");
+
+
+
+
+
+            // *** RESET requestorEmployeeID khi tạo đơn mới ***
+
+            requestorEmployeeID = "";
+
+
+
+            $("#sp_ResignationLeave .btnApprove").addClass("d-none").prop("disabled", true);
+
+        }
+
+        else {
+
+            $("#sp_ResignationLeave .btnRegister").addClass("d-none");
+
+            $("#register-tab-label").text("%SeeDetail%");
+
+            $("#qlbeta-customchosefileExpenses").addClass("d-none");
+
+            $("#lblChoseFile").removeClass("d-none");
+
+            $("#employeeLeaveHistory").show();
+
+
+
+        }
+
+    }
+
+}
+
+// hàm load lịch sử cho người làm đơn sử dụng stored procedure có sẵn
+
+async function loadHistoryForRequestor(targetEmployeeID) {
+
+    showLoadingByClassOrID("#sp_FormEmployee");
+
+    try {
+
+        console.log("Gọi sp_GetEmployeeLeaveHistory với EmployeeID:", targetEmployeeID);
+
+        const result = await AjaxHPAParadiseAsync({
+
+            data: {
+
+                name: "sp_GetEmployeeLeaveHistory",
+
+                param: ["EmployeeID", targetEmployeeID, "LanguageID", LanguageID]
+
+            }
+
+        });
+
+        console.log("Kết quả lịch sử của employee " + targetEmployeeID + ":", result);
+
+        const parsedResult = JSON.parse(result);
+
+        historyData = parsedResult.data && parsedResult.data[0] ? parsedResult.data[0] : [];
+
+        console.log("historyData của người làm đơn:", historyData);
+
+        renderHistoryList(historyData);
+
+    } catch (e) {
+
+        console.error("Lỗi khi load lịch sử của người làm đơn:", e);
+
+
+
+        uiManager.showAlert({
+
+            type: "error",
+
+            message: "Không thể tải lịch sử đơn nghỉ phép của người làm đơn!",
+
+        });
+
+    }
+
+    HideLoadingByClassOrID("#sp_FormEmployee");
+
+}
+
+
+
+function formatDateTime(dateStr) {
+
+    if (!dateStr) return "N/A";
+
+
+
+    try {
+
+        const date = new Date(dateStr);
+
+
+
+        // Kiểm tra xem date có hợp lệ không
+
+        if (isNaN(date.getTime())) {
+
+            return "N/A";
+
+        }
+
+
+
+        // Lấy thành phần ngày tháng năm giờ phút
+
+        const day = date.getDate().toString().padStart(2, "0");
+
+        const month = (date.getMonth() + 1).toString().padStart(2, "0");
+
+        const year = date.getFullYear();
+
+        const hours = date.getHours().toString().padStart(2, "0");
+
+        const minutes = date.getMinutes().toString().padStart(2, "0");
+
+
+
+        return `${day}/${month}/${year} ${hours}:${minutes}`;
+
+    } catch (error) {
+
+        console.error("Lỗi format date:", error, dateStr);
+
+        return "N/A";
+
+    }
+
+}
+
+//hàm format ngắn gọn hơn cho trường hợp chỉ cần ngày
+
+function formatDateOnly(dateStr) {
+
+    if (!dateStr) return "N/A";
+
+
+
+    try {
+
+        const date = new Date(dateStr);
+
+
+
+        if (isNaN(date.getTime())) {
+
+            return "N/A";
+
+        }
+
+
+
+        const day = date.getDate().toString().padStart(2, "0");
+
+        const month = (date.getMonth() + 1).toString().padStart(2, "0");
+
+        const year = date.getFullYear();
+
+
+
+        return `${day}/${month}/${year}`;
+
+    } catch (error) {
+
+        console.error("Lỗi format date only:", error, dateStr);
+
+        return "N/A";
+
+    }
+
+}
+
+function formatDateTimeMobile(dateStr) {
+
+    if (!dateStr) return "N/A";
+
+
+
+    try {
+
+        const date = new Date(dateStr);
+
+
+
+        if (isNaN(date.getTime())) {
+
+            return "N/A";
+
+        }
+
+
+
+        const now = new Date();
+
+        const day = date.getDate().toString().padStart(2, "0");
+
+        const month = (date.getMonth() + 1).toString().padStart(2, "0");
+
+        const year = date.getFullYear();
+
+        const hours = date.getHours().toString().padStart(2, "0");
+
+        const minutes = date.getMinutes().toString().padStart(2, "0");
+
+
+
+        // Nếu là năm hiện tại thì không hiển thị năm để tiết kiệm không gian
+
+        if (year === now.getFullYear()) {
+
+            return `${day}/${month} ${hours}:${minutes}`;
+
+        } else {
+
+            return `${day}/${month}/${year} ${hours}:${minutes}`;
+
+        }
+
+    } catch (error) {
+
+        console.error("Lỗi format date mobile:", error, dateStr);
+
+        return "N/A";
+
+    }
+
+}
+
+function formatDateTimeInput(dateStr) {
+
+    if (!dateStr) return "";
+
+    const date = new Date(dateStr);
+
+    const year = date.getFullYear();
+
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+
+    const day = String(date.getDate()).padStart(2, "0");
+
+    const hours = String(date.getHours()).padStart(2, "0");
+
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+
+}
+
+
+
+function getStatusLabel(status) {
+
+    switch (status) {
+
+        case 0: return { text: "Chờ duyệt", class: "status-0" };
+
+        case 1: return { text: "Đang duyệt", class: "status-1" };
+
+        case 2: return { text: "Đã duyệt", class: "status-2" };
+
+        case 3: return { text: "Từ chối", class: "status-3" };
+
+        case 4: return { text: "Hủy", class: "status-4" };
+
+        case 5: return { text: "Hủy thành công", class: "status-5" };
+
+        default: return { text: "Không xác định", class: "status-0" };
+
+    }
+
+}
+
+
+
+//hàm này không dùng
+
+function loadApproverHistory() {
+
+    showLoadingByClassOrID("#sp_FormEmployee");
+
+    try {
+
+        AjaxHPAParadiseAsync({
+
+            data: {
+
+                name: "sp_GetLeaveRequestsForApprover",
+
+                param: ["LoginID", UserID, "LanguageID", LanguageID]
+
+            },
+
+            success: function (result) {
+
+                console.log("Kết quả từ sp_GetLeaveRequestsForApprover:", result);
+
+                const parsedResult = JSON.parse(result);
+
+                const approverHistoryData = parsedResult.data && parsedResult.data[0] ? parsedResult.data[0] : [];
+
+                console.log("approverHistoryData:", approverHistoryData);
+
+                renderApproverHistoryList(approverHistoryData);
+
+                HideLoadingByClassOrID("#sp_FormEmployee");
+
+            }
+
+        });
+
+    } catch (e) {
+
+        console.error("Lỗi parse JSON:", e);
+
+
+
+        uiManager.showAlert({
+
+            type: "error",
+
+            message: "Phản hồi từ server không hợp lệ!",
+
+        });
+
+        HideLoadingByClassOrID("#sp_FormEmployee");
+
+    }
+
+}
+
+
+
+//hàm load danh sách người duyệt
+
+async function loadApprovers() {
+
+    return new Promise((resolve, reject) => {
+
+        AjaxHPAParadise({
+
+            data: {
+
+                name: "sp_getSelectedExpenses_Thong",
+
+                param: ["LanguageID", LanguageID, "LoginID", UserID]
+
+            },
+
+            success: async function (result) {
+
+                try {
+
+                    const approvers = JSON.parse(result).data[1];
+
+                    //LuongNQ cmt gọi bên dưới
+
+                    //getTimelineqlbeta("",1,"container_approver")
+
+
+
+                    resolve();
+
+                } catch (e) {
+
+                    console.error("L?i parse JSON:", e, result);
+
+
+
+                    uiManager.showAlert({
+
+                        type: "error",
+
+                        message: "Phản hồi từ server không hợp lệ"
+
+                    });
+
+                    reject(e);
+
+                }
+
+            },
+
+            error: function (err) {
+
+                console.error("L?i khi load danh sách ngư?i duy?t:", err);
+
+
+
+                uiManager.showAlert({
+
+                    type: "error",
+
+                    message: "Phản hồi từ server không hợp lệ"
+
+                })
+
+                reject(err);
+
+            }
+
+        });
+
+    });
+
+}
+
+
+
+//hàm renderApproverHistoryList để lưu requestorEmployeeID khi click vào đơn
+
+function renderApproverHistoryList(list) {
+
+    const $container = $("#historyList");
+
+    $container.empty();
+
+
+
+
+
+    if (!list || !Array.isArray(list) || list.length === 0) {
+
+        $container.html("<div>Không có đơn nghỉ phép nào cần duyệt.</div>");
+
+        console.log("Danh sách đơn cần duyệt rỗng:", list);
+
+        return;
+
+    }
+
+
+
+    list.forEach(item => {
+
+        if (!item.IdentityID) {
+
+            console.warn("Dữ liệu thiếu IdentityID:", item);
+
+            return;
+
+        }
+
+
+
+        const { IdentityID, EmployeeID, FullName, LeaveFromDate, LeaveToDate, LeaveCode, Reason, CreateTime, Approve_Status, ApproveStatusDescription, Files } = item;
+
+
+
+        // Hàm hiển thị trạng thái (giữ nguyên như cũ)
+
+        function viewStatus(approveStatus, approveStatusText) {
+
+            switch (approveStatus) {
+
+                case 0: return `<span class="request-draft-btn">${approveStatusText}</span>`;
+
+                case 1: return `<span class="request-thisApproved-btn">${approveStatusText || "Đang duyệt"}</span>`;
+
+                case 2: return `<span class="request-approved-btn">${approveStatusText || "Đã duyệt"}</span>`;
+
+                case 3: return `<span class="request-rejected-btn">${approveStatusText || "Từ chối"}</span>`;
+
+                case 4: return `<span class="request-approved-btn">${approveStatusText || "Hủy thành công"}</span>`;
+
+                case 5: return `<span class="request-draft-btn">${approveStatusText || "Xin hủy đăng ký"}</span>`;
+
+                default: return `<span class="request-draft-btn">${approveStatusText || "Không xác định"}</span>`;
+
+            }
+
+        }
+
+
+
+        // Tạo file block (giữ nguyên như cũ)
+
+        let fileBlock = "";
+
+        if (Files && Array.isArray(Files)) {
+
+            Files.forEach((file, i) => {
+
+                const fileName = file.UrlFile ? file.UrlFile.split("\\").pop() : file.fileName;
+
+                const extension = fileName.split(".").pop().toLowerCase();
+
+                let iconClass = "bi bi-file-earmark";
+
+                let coloricon = "rgb(156, 163, 175)";
+
+
+
+                if (["jpg", "jpeg", "png", "gif", "bmp", "webp"].includes(extension)) {
+
+                    iconClass = "bi bi-image";
+
+                    coloricon = "rgb(59, 130, 246)";
+
+                } else if (["mp4", "mov", "avi", "mkv", "webm"].includes(extension)) {
+
+                    iconClass = "fa-file-video";
+
+                    coloricon = "rgb(220, 38, 38)";
+
+                } else if (extension === "pdf") {
+
+                    iconClass = "bi bi-filetype-pdf";
+
+                    coloricon = "rgb(220, 38, 38)";
+
+                }
+
+
+
+                fileBlock += `
+
+<div data-index="${i}">
+
+    <div class="hr-employee-item" style="border-left-color: #ffffff;">
+
+        <span class="hr-badge" style="font-size:15px;">
+
+            <i class="fas ${iconClass}" style="font-size:20px;color:${coloricon};"></i>
+
+        </span>
+
+        <div class="hr-employee-content">
+
+            <div class="hr-employee-name preview-image" style="cursor:pointer">${fileName}</div>
+
+        </div>
+
+    </div>
+
+</div>
+
+                                `;
+
+            });
+
+        }
+
+
+
+        const $item = $(`
+
+<div class="oa-card" data-identity-id="${IdentityID}" data-employee-id="${EmployeeID}">
+
+    <div class="card containers pt-2 pb-2">
+
+        <div class="request-titleName">${FullName} (${EmployeeID})</div>
+
+        <div class="request-subtitle mt-2">
+
+            <b>%DateOf%:</b> ${formatDateTime(LeaveFromDate)}${LeaveToDate == LeaveFromDate ? "" : " - " + formatDateTime(LeaveToDate)}
+
+        </div>
+
+        <div class="request-subtitle">
+
+            <b>%LeaveType%:</b> ${LeaveCode || "N/A"}
+
+        </div>
+
+        <div class="request-subtitle">
+
+            <b>%Reason%:</b> ${Reason || "N/A"}
+
+        </div>
+
+        <div class="request-subtitle">
+
+            <b>%CreateTime%:</b> ${formatDateTime(CreateTime)}
+
+        </div>
+
+        <span data-content="${ApproveStatusDescription}">${viewStatus(Approve_Status, ApproveStatusDescription)}</span>
+
+        <div class="mt-3">${fileBlock}</div>
+
+    </div>
+
+</div>
+
+                        `);
+
+
+
+        $item.find(".preview-image").off("click").on("click", function (e) {
+
+            e.stopPropagation();
+
+            showLoadingByClassOrID("#sp_FormEmployee");
+
+            const index = $(this).closest("[data-index]").data("index");
+
+            const file = Files[index];
+
+            const fileName = file.UrlFile ? file.UrlFile.split("\\").pop() : file.fileName;
+
+            const isImage = ["jpg", "jpeg", "png", "gif", "bmp", "webp"].includes(fileName.split(".").pop().toLowerCase());
+
+            getFileQlbeta(file.UrlFile || file.data, fileName, isImage, 1);
+
+            HideLoadingByClassOrID("#sp_FormEmployee");
+
+        });
+
+
+
+        $container.append($item);
+
+    });
+
+
+
+    //XỬ LÝ CLICK VÀO ĐƠN
+
+    $container.find(".oa-card").off("click").on("click", async function () {
+
+        showLoadingByClassOrID("#sp_ResignationLeave")
+
+        const identityId = $(this).data("identity-id");
+
+
+
+        const employeeId = $(this).data("employee-id"); // Lấy EmployeeID của người làm đơn
+
+        console.log("Click vào đơn cần duyệt - IdentityID:", identityId, "EmployeeID:", employeeId);
+
+
+
+        selectedIdentityID = identityId;
+
+        // *** LƯU EMPLOYEEID CỦA NGƯỜI LÀM ĐƠN NGAY KHI CLICK ***
+
+        requestorEmployeeID = employeeId;
+
+        console.log("Đã lưu requestorEmployeeID từ danh sách đơn cần duyệt:", requestorEmployeeID);
+
+
+
+        await loadLeaveDetail(identityId);
+
+        //LuongNQ
+
+        //getTimelineqlbeta(selectedIdentityID, 1, "container_approver", "employeeInfo"); LuongNQ
+
+        $("#sp_ResignationLeave .btnReject")
+
+            .prop("disabled", !identityId)
+
+            .css({ "opacity": identityId ? "1" : "0.5", "pointer-events": identityId ? "auto" : "none" });
+
+        //luongnql
+
+        showTab("register")
+
+        await getTimelineqlbeta(identityId, 1, "container_approver", "employeeInfo");
+
+        HideLoadingByClassOrID()
+
+    });
+
+
+
+
+
+}
+
+//hàm load lịch sử đơn
+
+async function loadHistory() {
+
+    showLoadingByClassOrID("#sp_FormEmployee");
+
+    try {
+
+        const result = await AjaxHPAParadiseAsync({
+
+            data: {
+
+                name: "sp_GetLeaveRegisteredList",
+
+                param: ["LoginID", UserID, "LanguageID", LanguageID]
+
+            }
+
+        });
+
+        const parsedResult = JSON.parse(result);
+
+        console.log("Parsed result:", parsedResult);
+
+        historyData = parsedResult.data && parsedResult.data[0] ? parsedResult.data[0] : [];
+
+        console.log("historyData sau khi parse:", historyData);
+
+        renderHistoryList(historyData);
+
+    } catch (e) {
+
+        console.error("L?i parse JSON:", e, result);
+
+
+
+        uiManager.showAlert({
+
+            type: "error",
+
+            message: "Phản hồi từ server không hợp lệ"
+
+        })
+
+    }
+
+    HideLoadingByClassOrID("#sp_FormEmployee");
+
+}
+
+
+
+// render ra lịch sử đơn
+
+function renderHistoryList(list) {
+
+    const $container = $("#historyList");
+
+    $container.empty();
+
+
+
+    if (!list || !Array.isArray(list) || list.length === 0) {
+
+        $container.html("<div>Không có đơn nghỉ phép nào.</div>");
+
+        console.log("Danh sách lịch sử rỗng hoặc không hợp lệ:", list);
+
+        return;
+
+    }
+
+
+
+    list.forEach(item => {
+
+        if (!item.IdentityID) {
+
+            console.warn("Dữ liệu thiếu IdentityID:", item);
+
+            return;
+
+        }
+
+
+
+        const { IdentityID, LeaveFromDate, LeaveToDate, LeaveCode, Reason, CreateTime, Approve_Status, ApproveStatusDescription, Files } = item;
+
+
+
+        // Hàm hiển thị trạng thái
+
+        function viewStatus(approveStatus, approveStatusText) {
+
+            switch (approveStatus) {
+
+                case 0: return `<span class="request-draft-btn">${approveStatusText}</span>`;
+
+                case 1: return `<span class="request-thisApproved-btn">${approveStatusText || "Đang duyệt"}</span>`;
+
+                case 2: return `<span class="request-approved-btn">${approveStatusText || "Đã duyệt"}</span>`;
+
+                case 3: return `<span class="request-rejected-btn">${approveStatusText || "Từ chối"}</span>`;
+
+                case 4: return `<span class="request-approved-btn">${approveStatusText || "Hủy thành công"}</span>`; // Màu xanh cho hủy thành công
+
+                case 5: return `<span class="request-draft-btn">${approveStatusText || "Xin hủy đăng ký"}</span>`; // Màu gray cho xin hủy
+
+                default: return `<span class="request-draft-btn">${approveStatusText || "Không xác định"}</span>`;
+
+            }
+
+        }
+
+
+
+        // Tạo danh sách file
+
+        let fileBlock = "";
+
+        if (Files && Array.isArray(Files)) {
+
+            Files.forEach((file, i) => {
+
+                const fileName = file.UrlFile ? file.UrlFile.split("\\").pop() : file.fileName;
+
+                const extension = fileName.split(".").pop().toLowerCase();
+
+                let iconClass = "bi bi-file-earmark";
+
+                let coloricon = "rgb(156, 163, 175)";
+
+                let isImage = false;
+
+
+
+                if (["jpg", "jpeg", "png", "gif", "bmp", "webp"].includes(extension)) {
+
+                    iconClass = "bi bi-image";
+
+                    coloricon = "rgb(59, 130, 246)";
+
+                    isImage = true;
+
+                } else if (["mp4", "mov", "avi", "mkv", "webm"].includes(extension)) {
+
+                    iconClass = "fa-file-video";
+
+                    coloricon = "rgb(220, 38, 38)";
+
+                } else if (extension === "pdf") {
+
+                    iconClass = "bi bi-filetype-pdf";
+
+                    coloricon = "rgb(220, 38, 38)";
+
+                } else if (["doc", "docx"].includes(extension)) {
+
+                    iconClass = "bi bi-file-word";
+
+                    coloricon = "rgb(30, 64, 175)";
+
+                } else if (["xls", "xlsx", "csv"].includes(extension)) {
+
+                    iconClass = "bi bi-file-earmark-spreadsheet-fill";
+
+                    coloricon = "rgb(25, 135, 84)";
+
+                } else if (["txt", "md", "log"].includes(extension)) {
+
+                    iconClass = "bi bi-file-text";
+
+                    coloricon = "rgb(107, 114, 128)";
+
+                }
+
+
+
+                fileBlock += `
+
+<div data-index="${i}">
+
+    <div class="hr-employee-item" style="border-left-color: #ffffff;">
+
+        <span class="hr-badge" style="font-size:15px;">
+
+            <i class="fas ${iconClass}" style="font-size:20px;color:${coloricon};"></i>
+
+        </span>
+
+        <div class="hr-employee-content">
+
+            <div class="hr-employee-name preview-image" style="cursor:pointer">${fileName}</div>
+
+        </div>
+
+    </div>
+
+</div>
+
+                       `;
+
+            });
+
+        }
+
+
+
+        const $item = $(`
+
+<div class="oa-card" data-identity-id="${IdentityID}">
+
+    <div class="card containers pt-2 pb-2">
+
+        <div class="request-subtitle mt-2">
+
+            <b>%DateOf%:</b> ${formatDateTime(LeaveFromDate)}${LeaveToDate == LeaveFromDate ? "" : " - " + formatDateTime(LeaveToDate)}
+
+        </div>
+
+        <div class="request-subtitle">
+
+            <b>%LeaveType%:</b> ${LeaveCode || "N/A"}
+
+        </div>
+
+        <div class="request-subtitle">
+
+            <b>%Reason%:</b> ${Reason || "N/A"}
+
+        </div>
+
+        <div class="request-subtitle">
+
+            <b>%CreateTime%:</b> ${formatDateTime(CreateTime)}
+
+        </div>
+
+        <span data-content="${ApproveStatusDescription}">${viewStatus(Approve_Status, ApproveStatusDescription)}</span>
+
+        <div class="mt-3">${fileBlock}</div>
+
+    </div>
+
+</div>
+
+                        `);
+
+
+
+        $item.find(".preview-image").off("click").on("click", function (e) {
+
+            e.stopPropagation();
+
+            showLoadingByClassOrID("#sp_FormEmployee");
+
+            const index = $(this).closest("[data-index]").data("index");
+
+            const file = Files[index];
+
+            const fileName = file.UrlFile ? file.UrlFile.split("\\").pop() : file.fileName;
+
+            const isImage = ["jpg", "jpeg", "png", "gif", "bmp", "webp"].includes(fileName.split(".").pop().toLowerCase());
+
+            getFileQlbeta(file.UrlFile || file.data, fileName, isImage, 1);
+
+            HideLoadingByClassOrID("#sp_FormEmployee");
+
+        });
+
+
+
+        $container.append($item);
+
+    });
+
+
+
+    $container.find(".oa-card").off("click").on("click", async function () {
+
+        showLoadingByClassOrID("#sp_ResignationLeave")
+
+        const identityId = $(this).data("identity-id");
+
+        console.log("Xem chi tiết đơn:", identityId);
+
+        selectedIdentityID = identityId;
+
+        await loadLeaveDetail(identityId);
+
+        $("#sp_ResignationLeave .btnReject")
+
+            .prop("disabled", !identityId)
+
+            .css({ "opacity": identityId ? "1" : "0.5", "pointer-events": identityId ? "auto" : "none" });
+
+        showTab("register")
+
+        await getTimelineqlbeta(identityId, 1, "container_approver", "employeeInfo");
+
+        HideLoadingByClassOrID()
+
+    });
+
+
+
+}
+
+
+
+// Xử lý khi click vào file
+
+$(".file-link").off("click").on("click", function (e) {
+
+    e.preventDefault();
+
+    const fileUrl = $(this).data("url");
+
+    const fileName = fileUrl.split("\\").pop();
+
+    const isImage = fileName.match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i);
+
+    showLoadingByClassOrID("#sp_FormEmployee");
+
+    getFileQlbeta(fileUrl, fileName, isImage, 0, function (base64) {
+
+        if (base64) {
+
+            $("#leave-image-modal-img").attr("src", base64);
+
+            $("#leaveImageModal").fadeIn();
+
+        } else {
+
+
+
+            uiManager.showAlert({
+
+                type: "error",
+
+                message: "Không thể tải file: " + fileName, icon: "bi-exclamation-circle text-danger"
+
+            })
+
+        }
+
+        HideLoadingByClassOrID("#sp_FormEmployee");
+
+    });
+
+});
+
+
+
+// Xử lý khi xem chi tiết
+
+$(".view-detail").off("click").on("click", function () {
+
+    const identityId = $(this).data("id");
+
+    console.log("Xem chi ti?t đơn:", identityId); // Debug
+
+    loadLeaveDetail(identityId);
+
+});
+
+
+
+// Hàm ẩn modal và reset trạng thái
+
+function HideModalRemake() {
+
+    if ($("#btnActionModalRemake").hasClass("btn-success")) {
+
+        $("#btnActionModalRemake").removeClass("btn-success")
+
+    } else {
+
+        $("#btnActionModalRemake").removeClass("btn-danger")
+
+    }
+
+
+
+    if ($("#btnActionModalCancel").hasClass("btn-success")) {
+
+        $("#btnActionModalCancel").removeClass("btn-success")
+
+    } else {
+
+        $("#btnActionModalCancel").removeClass("btn-danger")
+
+    }
+
+
+
+    $("#modalApproveLeaveRequest").modal("hide");
+
+    $("#modalCancelLeaveRequest").modal("hide");
+
+    $("#ghiChuNguoiDuyet2").val("");
+
+    $("#ghiChuNguoiDuyet3").val("");
+
+}
+
+
+
+// Hàm xử lí nút phê duyệt cho đơn thường
+
+async function HandleApproveLeaveRequest() {
+
+    var dataaction = $("#btnActionModalRemake").attr("data-action");
+
+    var remark = $("#ghiChuNguoiDuyet2").val();
+
+    $("#btnActionModalRemake").prop("disabled", true);
+
+    if (dataaction === "reject") {
+
+        await RejectLeaveRequest(selectedIdentityID, remark);
+
+    } else {
+
+        await ApproveLeaveRequest(selectedIdentityID, remark);
+
+    }
+
+    $("#btnActionModalRemake").prop("disabled", false);
+
+}
+
+
+
+// Hàm xử lí nút phê duyệt cho đơn hủy
+
+function HandleCancelLeaveRequest() {
+
+    var dataaction = $("#btnActionModalCancel").attr("data-action");
+
+    var cancelReason = $("#ghiChuNguoiDuyet3").val().trim();
+
+
+
+    // Kiểm tra lý do hủy không rỗng
+
+    if (!cancelReason) {
+
+
+
+        uiManager.showAlert({
+
+            type: "error",
+
+            message: "Vui lòng nhập lý do hủy đơn!",
+
+        })
+
+        return;
+
+    }
+
+
+
+    if (dataaction === "reject") {
+
+        RejectCancelLeaveRequest(selectedIdentityID, cancelReason);
+
+    } else {
+
+        ApproveCancelLeaveRequest(selectedIdentityID, cancelReason);
+
+    }
+
+}
+
+//hàm load chi tiết đơn
+
+async function loadLeaveDetail(identityID) {
+
+    if (!identityID || !selectedIdentityID) {
+
+        return;
+
+    }
+
+    console.log("employeeId:", employeeId, "selectedIdentityID:", selectedIdentityID);
+
+    if (!employeeId) {
+
+        console.error("employeeId chưa được khởi tạo!");
+
+
+
+        uiManager.showAlert({
+
+            type: "error",
+
+            message: "Không tìm thấy mã nhân viên!",
+
+        })
+
+        return;
+
+    }
+
+
+
+    isViewingDetail = true;
+
+    await AjaxHPAParadiseAsync({
+
+        data: {
+
+            name: "sp_GetLeaveRegisteredDetail",
+
+            param: ["LoginID", UserID, "LanguageID", LanguageID, "IdentityID", selectedIdentityID]
+
+        },
+
+        success: async function (result) {
+
+            const data = JSON.parse(result).data;
+
+            const leaveData = data[0][0];
+
+
+
+            const fileList = data[1] || [];
+
+            const approverList = data[2] || [];
+
+
+
+
+
+            // *** LƯU EMPLOYEEID CỦA NGƯỜI LÀM ĐƠN ***
+
+            requestorEmployeeID = leaveData.EmployeeID;
+
+            console.log("Đã lưu requestorEmployeeID của người làm đơn:", requestorEmployeeID);
+
+            $("#divAdvAL").attr("style", "display: none !important;");
+
+            // Hiển thị thông tin chi tiết đơn
+
+            //await getTimelineqlbeta(selectedIdentityID, 1, "container_approver"); LuongNQ
+
+            //showTab("register"); LuongNQ
+
+            $("#register-tab-label").text("%SeeDetail%");
+
+
+
+            // Hiển thị thông tin nhân viên
+
+            //getTimelineqlbeta(selectedIdentityID, 1, "container_approver", "employeeInfo"); LuongNQ
+
+
+
+            // Điền thông tin đơn
+
+            $("#loaiNghi").dxSelectBox("instance").option("value", leaveData.LeaveCode || "");
+
+            $("#tuNgay").val(leaveData.LeaveFromDate ? formatDateTimeInput(leaveData.LeaveFromDate) : "");
+
+            $("#denNgay").val(leaveData.LeaveToDate ? formatDateTimeInput(leaveData.LeaveToDate) : "");
+
+            $("#lyDo").val(leaveData.Reason || "");
+
+
+
+            // Xử lý danh sách file
+
+            console.log("fileList trước khi ánh xạ:", fileList); // Log dữ liệu đầu vào
+
+            leaveJsonFilesSelected = fileList.map(file => ({
+
+                RowID: file.RowID,
+
+                IdentityID: file.IdentityID,
+
+                UrlFile: file.UrlFile,
+
+                HttpFile: file.data
+
+            }));
+
+            console.log("leaveJsonFilesSelected sau khi ánh xạ:", leaveJsonFilesSelected); // Log dữ liệu sau ánh xạ
+
+            QlbetaAddFileUI(leaveJsonFilesSelected, 1);
+
+
+
+            // Đặt form thành readonly và ẩn nút chọn file
+
+            setFormReadOnly(true);
+
+            $("#qlbeta-customchosefileExpenses").addClass("d-none");
+
+            $("#lblChoseFile").removeClass("d-none");
+
+
+
+            // Tải lịch sử đơn của nhân viên NGƯỜI LÀM ĐƠN
+
+            $("#employeeLeaveHistory").show();
+
+            //loadEmployeeLeaveHistory(requestorEmployeeID); LuongNQ
+
+
+
+            // *** ẨN TẤT CẢ NÚT TRƯỚC ***
+
+            $("#sp_ResignationLeave .btnApprove").addClass("d-none").prop("disabled", true);
+
+            $("#sp_ResignationLeave .btnReject").addClass("d-none").prop("disabled", true);
+
+            $("#sp_ResignationLeave .btnDestroy").addClass("d-none").prop("disabled", true);
+
+            $("#sp_ResignationLeave .btnRegister").addClass("d-none").prop("disabled", true);
+
+
+
+            console.log("=== DEBUG NÚT DUYỆT ===");
+
+            console.log("Trạng thái đơn:", leaveData.Approve_Status);
+
+            console.log("EmployeeID người làm đơn:", leaveData.EmployeeID);
+
+            console.log("EmployeeID hiện tại:", employeeId);
+
+            console.log("Danh sách approver:", approverList);
+
+
+
+            // *** KIỂM TRA NÚT HỦY (chỉ người tạo đơn mới được hủy khi đã duyệt) ***
+
+            if (String(leaveData.EmployeeID).trim() === String(employeeId).trim() &&
+
+                Number(leaveData.Approve_Status) === 2) {
+
+                console.log("Hiển thị nút hủy cho đơn:", selectedIdentityID);
+
+                $("#sp_ResignationLeave .btnDestroy")
+
+                    .removeClass("d-none")
+
+                    .prop("disabled", false)
+
+                    .css({ "opacity": "1", "pointer-events": "auto" })
+
+                    .off("click")
+
+                    .on("click", function () {
+
+                        console.log("Nút hủy được nhấn, gọi cancelLeave với IdentityID:", selectedIdentityID);
+
+                        cancelLeave(selectedIdentityID);
+
+                    });
+
+            }
+
+
+
+            // *** KIỂM TRA NÚT DUYỆT/TỪ CHỐI - SỬ DỤNG LOGIC CŨ ***
+
+            const isApprover = Array.isArray(approverList) &&
+
+                approverList.some(i =>
+
+                    String(i?.ApproverID).trim() === String(employeeId).trim() &&
+
+                    (Number(i?.Approve_Status) === 1 || Number(i?.Approve_Status) === 5)
+
+                );
+
+
+
+
+
+
+
+            if (isApprover) {
+
+                console.log("Hiển thị nút duyệt/từ chối cho ApproverID:", employeeId);
+
+                $("#container-penddingrequest").removeClass("d-none")
+
+                //LuongNQ
+
+                await initPendingRequestLeave()
+
+
+
+                // Hiển thị nút duyệt
+
+                $("#sp_ResignationLeave .btnApprove")
+
+                    .removeClass("d-none")
+
+                    .prop("disabled", false)
+
+                    .css({ "opacity": "1", "pointer-events": "auto" })
+
+                    .off("click")
+
+                    .on("click", function () {
+
+
+
+                        approveLeave(selectedIdentityID);
+
+                    });
+
+
+
+                // Hiển thị nút từ chối
+
+                $("#sp_ResignationLeave .btnReject").removeClass("d-none")
+
+                    .prop("disabled", false)
+
+                    .off("click")
+
+                    .on("click", function () {
+
+
+
+                        rejectLeave(selectedIdentityID);
+
+                    });
+
+            } else {
+
+
+
+            }
+
+            HideLoadingByClassOrID("#sp_ResignationLeave");
+
+        },
+
+        error: function (err) {
+
+            console.error("Lỗi khi tải chi tiết đơn:", err);
+
+
+
+            uiManager.showAlert({
+
+                type: "error",
+
+                message: "Không thể tải chi tiết đơn nghỉ phép!",
+
+            })
+
+        }
+
+    });
+
+}
+
+//hàm xử lý xin hủy đơn
+
+async function cancelLeave(identityID) {
+
+    if (!identityID || identityID.trim() === "") {
+
+        console.error("Lỗi: identityID không hợp lệ:", identityID);
+
+
+
+        uiManager.showAlert({
+
+            type: "error",
+
+            message: "Không thể hủy đơn do thiếu thông tin định danh!",
+
+        })
+
+        return;
+
+    }
+
+
+
+    // Hiển thị modal yêu cầu nhập lý do hủy
+
+    $("#btnActionModalCancel").attr("data-action", "approve");
+
+    $("#btnActionModalCancel").text("Xác nhận hủy");
+
+    $("#btnActionModalCancel").addClass("btn btn-success");
+
+    $("#ghiChuNguoiDuyet3").val(""); // Reset textarea
+
+    $("#modalCancelLeaveRequest").modal("show");
+
+}
+
+// Xóa hàm rejectLeave thứ 2 (từ dòng 1025-1095) và chỉ giữ lại hàm này:
+
+async function rejectLeave(identityID) {
+
+    if (!identityID || identityID.trim() === "") {
+
+        console.error("Lỗi: identityID không hợp lệ:", identityID);
+
+
+
+        uiManager.showAlert({
+
+            type: "error",
+
+            message: "Vui lòng chọn một đơn nghỉ phép trước khi từ chối!",
+
+        })
+
+        return;
+
+    }
+
+    console.log("Gọi rejectLeave với identityID:", identityID);
+
+
+
+    // Hiển thị modal để nhập lý do từ chối
+
+    $("#btnActionModalRemake").attr("data-action", "reject");
+
+    $("#btnActionModalRemake").text("%Deny%");
+
+    $("#btnActionModalRemake").removeClass("btn-success").addClass("btn-danger");
+
+    $("#modalApproveLeaveRequest").modal("show");
+
+}
+
+// Hàm xử lý phê duyệt đơn với remark
+
+async function ApproveLeaveRequest(identityID, remark) {
+
+    await AjaxHPAParadiseAsync({
+
+        data: {
+
+            name: "sp_ApproverLeaveRequest",
+
+            param: [
+
+                "LoginID", UserID,
+
+                "LanguageID", LanguageID,
+
+                "Remark", remark,
+
+                "Identity_ID", identityID
+
+            ]
+
+        },
+
+        success: async function (result) {
+
+            console.log("Kết quả duyệt đơn:", result);
+
+            const parsedResult = JSON.parse(result);
+
+
+
+            if (parsedResult.data && parsedResult.data[0] && parsedResult.data[0][0]) {
+
+                const errorData = parsedResult.data[0][0];
+
+                if (errorData.ErrorType === "error") {
+
+
+
+                    uiManager.showAlert({
+
+                        type: "error",
+
+                        message: errorData.Detail || "Không thể duyệt đơn nghỉ phép!",
+
+                    })
+
+                    return;
+
+                }
+
+            }
+
+
+
+
+
+            showNotification("Thành công", "Đơn nghỉ phép đã được duyệt thành công!", "success");
+
+            HideModalRemake();
+
+            //LuonNQ nếu có đơn pending thì load đơn pending còn ko có thì chạy bình thường
+
+            var requestpendding = await GetLeaveRequestPendding()
+
+            if (requestpendding.length != 0) {
+
+                showLoadingByClassOrID("#sp_ResignationLeave")
+
+                selectedIdentityID = requestpendding[0].IdentityID
+
+                await Promise.all([
+
+                    loadLeaveDetail(requestpendding[0].IdentityID),
+
+                    await getTimelineqlbeta(selectedIdentityID, 1, "container_approver", "employeeInfo")
+
+                ]);
+
+                HideLoadingByClassOrID()
+
+
+
+            }
+
+            else {
+
+                // Load lại chi tiết đơn để cập nhật trạng thái và timeline
+
+                loadLeaveDetail(selectedIdentityID);
+
+                await getTimelineqlbeta(selectedIdentityID, 1, "container_approver");
+
+
+
+            }
+
+
+
+        },
+
+        error: function (err) {
+
+            console.error("Lỗi khi duyệt đơn:", err);
+
+
+
+            uiManager.showAlert({
+
+                type: "error",
+
+                message: "Không thể duyệt đơn nghỉ phép!",
+
+            })
+
+        }
+
+    });
+
+}
+
+
+
+// Hàm xử lý từ chối đơn với remark
+
+async function RejectLeaveRequest(identityID, remark) {
+
+    await AjaxHPAParadiseAsync({
+
+        data: {
+
+            name: "sp_ApproverLeaveRequest_Reject",
+
+            param: [
+
+                "LoginID", UserID,
+
+                "LanguageID", LanguageID,
+
+                "ApproverRemark", remark,
+
+                "Identity_ID", identityID
+
+            ]
+
+        },
+
+        success: async function (result) {
+
+            console.log("Kết quả từ chối đơn:", result);
+
+            let fixedResult = result;
+
+
+
+            // Sửa JSON không hợp lệ
+
+            if (fixedResult.includes(`"data":,`)) {
+
+                fixedResult = fixedResult.replace(`"data":,`, `"data":null,`);
+
+            }
+
+
+
+            const parsedResult = JSON.parse(fixedResult);
+
+
+
+            if (parsedResult.data && parsedResult.data[0] && parsedResult.data[0][0]) {
+
+                const responseData = parsedResult.data[0][0];
+
+                if (responseData.ErrorType === "error") {
+
+
+
+                    uiManager.showAlert({
+
+                        type: "error",
+
+                        message: responseData.Detail || "Không thể từ chối đơn nghỉ phép!",
+
+                    })
+
+                    return;
+
+                }
+
+            }
+
+            //LuonNQ
+
+            //LuonNQ nếu có đơn pending thì load đơn pending còn ko có thì chạy bình thường
+
+            var requestpendding = await GetLeaveRequestPendding()
+
+            if (requestpendding.length != 0) {
+
+                showLoadingByClassOrID("#sp_ResignationLeave")
+
+                selectedIdentityID = requestpendding[0].IdentityID
+
+                await Promise.all([
+
+                    loadLeaveDetail(requestpendding[0].IdentityID),
+
+                    await getTimelineqlbeta(selectedIdentityID, 1, "container_approver", "employeeInfo")
+
+                ]);
+
+                HideLoadingByClassOrID()
+
+            }
+
+            else {
+
+                // Load lại chi tiết đơn để cập nhật trạng thái và timeline
+
+                loadLeaveDetail(selectedIdentityID);
+
+                await getTimelineqlbeta(selectedIdentityID, 1, "container_approver");
+
+            }
+
+            showNotification("Thành công", "Đơn nghỉ phép đã bị từ chối!", "success");
+
+            HideModalRemake();
+
+
+
+
+
+        },
+
+        error: function (err) {
+
+            console.error("Lỗi khi từ chối đơn:", err);
+
+
+
+            uiManager.showAlert({
+
+                type: "error",
+
+                message: "Không thể từ chối đơn nghỉ phép!",
+
+            })
+
+        }
+
+    });
+
+}
+
+
+
+// hàm xin hủy đăng ký
+
+function ApproveCancelLeaveRequest(identityID, cancelReason) {
+
+    AjaxHPAParadise({
+
+        data: {
+
+            name: "sp_ApproverLeaveRequest_CancelRequest",
+
+            param: [
+
+                "LoginID", UserID,
+
+                "Identity_ID", identityID,
+
+                "CancelReason", cancelReason, // Sử dụng CancelReason thay vì Remark
+
+                "LanguageID", LanguageID
+
+            ]
+
+        },
+
+        success: function (result) {
+
+            console.log("Kết quả duyệt hủy đơn:", result);
+
+            const parsedResult = JSON.parse(result);
+
+
+
+            if (parsedResult.data && parsedResult.data[0] && parsedResult.data[0][0]) {
+
+                const responseData = parsedResult.data[0][0];
+
+                if (responseData.ErrorType === "error") {
+
+
+
+                    uiManager.showAlert({
+
+                        type: "error",
+
+                        message: responseData.Detail || "Không thể duyệt hủy đơn nghỉ phép!",
+
+                    })
+
+                    return;
+
+                }
+
+            }
+
+
+
+            showNotification("Thành công", "Đơn hủy nghỉ phép đã được gửi thành công!", "success");
+
+            HideModalRemake();
+
+
+
+            // Load lại chi tiết đơn để cập nhật trạng thái và timeline
+
+            if (selectedIdentityID) {
+
+                loadLeaveDetail(selectedIdentityID);
+
+            }
+
+        },
+
+        error: function (err) {
+
+            console.error("Lỗi khi duyệt hủy đơn:", err);
+
+
+
+            uiManager.showAlert({
+
+                type: "error",
+
+                message: "Không thể duyệt hủy đơn nghỉ phép!",
+
+            })
+
+        }
+
+    });
+
+}
+
+// Hàm từ chối hủy đơn với remark(không có api)
+
+function RejectCancelLeaveRequest(identityID, rejectReason) {
+
+    AjaxHPAParadise({
+
+        data: {
+
+            name: "sp_RejectCancelLeaveRequest",
+
+            param: [
+
+                "LoginID", UserID,
+
+                "Identity_ID", identityID,
+
+                "RejectReason", rejectReason || "Từ chối hủy bởi " + UserID,
+
+                "LanguageID", LanguageID
+
+            ]
+
+        },
+
+        success: async function (result) {
+
+            console.log("Kết quả từ chối hủy đơn:", result);
+
+            const parsedResult = JSON.parse(result);
+
+
+
+            if (parsedResult.data && parsedResult.data[0] && parsedResult.data[0][0]) {
+
+                const responseData = parsedResult.data[0][0];
+
+                if (responseData.ErrorType === "error") {
+
+
+
+                    uiManager.showAlert({
+
+                        type: "error",
+
+                        message: responseData.Detail || "Không thể từ chối hủy đơn nghỉ phép!",
+
+                    })
+
+                    return;
+
+                }
+
+            }
+
+
+
+            showNotification("Thành công", "Đã từ chối yêu cầu hủy đơn!", "success");
+
+            HideModalRemake();
+
+
+
+            // Load lại chi tiết đơn để cập nhật trạng thái và timeline
+
+            if (selectedIdentityID) {
+
+                loadLeaveDetail(selectedIdentityID);
+
+                await getTimelineqlbeta(selectedIdentityID, 1, "container_approver");
+
+            }
+
+        },
+
+        error: function (err) {
+
+            console.error("Lỗi khi từ chối hủy đơn:", err);
+
+
+
+            uiManager.showAlert({
+
+                type: "error",
+
+                message: "Không thể từ chối hủy đơn nghỉ phép!",
+
+            })
+
+        }
+
+    });
+
+}
+
+
+
+async function approveLeave(selectedIdentityID) {
+
+    if (!selectedIdentityID || selectedIdentityID.trim() === "") {
+
+
+
+        uiManager.showAlert({
+
+            type: "error",
+
+            message: "Không thể duyệt đơn do thiếu thông tin định danh!",
+
+        })
+
+        return;
+
+    }
+
+
+
+    // Hiển thị modal thay vì confirm popup
+
+    $("#btnActionModalRemake").attr("data-action", "approve");
+
+    $("#btnActionModalRemake").text("%IsApproval%");
+
+    $("#btnActionModalRemake").addClass("btn btn-success");
+
+    $("#modalApproveLeaveRequest").modal("show");
+
+}
+
+
+
+
+
+
+
+async function fetchImageAsBase64(url) {
+
+
+
+    try {
+
+        if (!url || url === "") {
+
+            return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
+        }
+
+        if (!url.startsWith("http") && !url.startsWith("data:image")) {
+
+            return `data:image/jpeg;base64,${url}`;
+
+        }
+
+        if (url.startsWith("http")) {
+
+            const response = await fetch(url, { method: "GET" });
+
+            if (!response.ok) {
+
+                console.error(`L?i khi l?y ?nh t? ${url}: ${response.statusText}`);
+
+                return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
+            }
+
+            const blob = await response.blob();
+
+
+
+            return new Promise((resolve, reject) => {
+
+                const reader = new FileReader();
+
+                reader.onloadend = () => resolve(reader.result);
+
+                reader.onerror = reject;
+
+                reader.readAsDataURL(blob);
+
+            });
+
+        }
+
+        return url;
+
+    } catch (err) {
+
+        console.error(`L?i khi x? l? ?nh t? ${url}:`, err);
+
+        return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
+    }
+
+}
+
+
+
+
+
+
+
+//hàm load thông tin nhân viên
+
+async function loadEmployee() { //LuongNQ đổi thành async
+
+    await AjaxHPAParadiseAsync({
+
+        data: {
+
+            name: "sp_getEmployeResignationLeave",
+
+            param: ["LoginID", UserID, "Year", new Date().getFullYear()]
+
+        },
+
+        success: function (result) {
+
+            try {
+
+                const data = JSON.parse(result).data[0][0];
+
+                const leaveCode = JSON.parse(result).data[1];
+
+                const anualCode = JSON.parse(result).data[2][0];
+
+
+
+                if (!data || !data.EmployeeID) {
+
+
+
+                    uiManager.showAlert({
+
+                        type: "error",
+
+                        message: "Không tìm thấy thông tin nhân viên!",
+
+                    })
+
+                    return;
+
+                }
+
+
+
+                employeeId = data.EmployeeID;
+
+                console.log("employeeId được gán:", employeeId);
+
+                //LuongNQ cmt lại gọi bên dưới
+
+                //getTimelineqlbeta("", 1, "container_approver", "employeeInfo");
+
+
+
+                // Gán dữ liệu chi tiết cho modal
+
+                $("#detailThisYear").text(anualCode.ThisYear || "0");
+
+                $("#detailTaken").text(anualCode.Taken || "0");
+
+                $("#detailDayOff").text(anualCode.DayOff || "0");
+
+                $("#detailRemain").text(anualCode.Remain || "0");
+
+
+
+                // Hiển thị số ngày nghỉ còn lại
+
+                $("#AdvAL").text(anualCode.Remain || "0");
+
+
+
+                // Hàm xử lý ẩn/hiện divAdvAL
+
+
+
+                function toggleAdvALDisplay(value) {
+
+                    console.log("Toggle divAdvAL with LeaveCode:", value);
+
+                    if (value === "AL") {
+
+                        console.log("Hiển thị divAdvAL");
+
+                        $("#divAdvAL").removeClass("d-none");
+
+                    } else {
+
+                        console.log("Ẩn divAdvAL");
+
+                        $("#divAdvAL").addClass("d-none");
+
+                    }
+
+                }
+
+
+
+                // Khởi tạo dxSelectBox
+
+                $("#loaiNghi").dxSelectBox({
+
+                    dataSource: leaveCode,
+
+                    displayExpr: "Description",
+
+                    valueExpr: "LeaveCode",
+
+                    placeholder: ""
+
+                });
+
+
+
+                // Lấy instance của dxSelectBox và attach event valueChanged
+
+                const selectBoxInstance = $("#loaiNghi").dxSelectBox("instance");
+
+
+
+                // Attach event valueChanged
+
+                selectBoxInstance.on("valueChanged", function (e) {
+
+                    toggleAdvALDisplay(e.value);
+
+                });
+
+
+
+                // Kiểm tra giá trị ban đầu
+
+                const initialValue = selectBoxInstance.option("value") || null;
+
+                console.log("Initial LeaveCode:", initialValue);
+
+                toggleAdvALDisplay(initialValue);
+
+
+
+                // Set ngày giờ mặc định LuongNQ cmt 4 dòng dưới
+
+                //const now = new Date();
+
+                //const today = now.toISOString().split("T")[0];
+
+                //$("#tuNgay").val(`${today}T08:00`);
+
+                //$("#denNgay").val(`${today}T17:00`);
+
+
+
+                // Tải chi tiết đơn nếu có IdentityID
+
+                //LuongNQ cmt xử lý lúc có identityID đem xún init()
+
+                //if (selectedIdentityID) {
+
+                //loadLeaveDetail(selectedIdentityID);
+
+                //}
+
+
+
+                if (!leaveCode || leaveCode.length === 0) {
+
+
+
+                    uiManager.showAlert({
+
+                        type: "error",
+
+                        message: "Không tìm thấy trạng thái nghỉ phép!",
+
+                    })
+
+                    return;
+
+                }
+
+            } catch (e) {
+
+                console.error("Lỗi parse JSON:", e, result);
+
+                uiManager.showAlert({
+
+                    type: "error",
+
+                    message: "Phản hồi từ server không hợp lệ!",
+
+                })
+
+            }
+
+        },
+
+        error: function (err) {
+
+            console.error("Lỗi khi load thông tin:", err);
+
+            uiManager.showAlert({
+
+                type: "error",
+
+                message: "Không thể tải thông tin nhân viên!",
+
+            })
+
+        }
+
+    });
+
+}
+
+
+
+function getMobileOperatingSystem() {
+
+    var userAgent = navigator.userAgent || navigator.vendor || window.opera;
+
+    if (/windows phone/i.test(userAgent)) {
+
+        return "Windows Phone";
+
+    }
+
+    if (/android/i.test(userAgent)) {
+
+        return "Android";
+
+    }
+
+    if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
+
+        return "iOS";
+
+    }
+
+    return "unknown";
+
+}
+
+
+
+$("#qlbeta-customchosefileExpenses").dxButton({
+
+    icon: "upload",
+
+    stylingMode: "contained",
+
+    text: "%ChoseFile%",
+
+    type: "normal",
+
+    width: 150,
+
+    onClick: async function () {
+
+        if (ParadiseOption.AppInfoVersionString.length > 0 && getMobileOperatingSystem() === "Android") {
+
+            try {
+
+                showLoadingByClassOrID("#sp_FormEmployee");
+
+                const result = await apimobileAjaxAsync({}, { MethodName: "MobileFilePickerMultipleAsync", prs: [] });
+
+
+
+                if (!Array.isArray(result)) throw new Error("Dữ liệu file không hợp lệ");
+
+                const promises = result.map(async (file, i) => {
+
+                    if (!file.fileName || !file.data) return null;
+
+                    const optimized = await optimizeImageBase64IfNeeded({ fileName: file.fileName, data: file.data });
+
+                    if (!optimized) return null;
+
+                    optimized.uid = Date.now() + "_" + i;
+
+                    return optimized;
+
+                });
+
+                const arrFileNew = (await Promise.all(promises)).filter(file => file);
+
+                leaveJsonFilesSelected.push(...arrFileNew);
+
+                QlbetaAddFileUI(leaveJsonFilesSelected);
+
+                HideLoadingByClassOrID("#sp_FormEmployee");
+
+            } catch (err) {
+
+                uiManager.showAlert({
+
+                    type: "error",
+
+                    message: "Không thể chọn file: " + err.message,
+
+                })
+
+
+
+                HideLoadingByClassOrID("#sp_FormEmployee");
+
+            }
+
+        } else {
+
+            $("#qlbeta-fileForExpenses").trigger("click");
+
+        }
+
+    }
+
+});
+
+
+
+$("#qlbeta-fileForExpenses").off("change").on("change", async function (e) {
+
+    const files = e.target.files;
+
+    showLoadingByClassOrID("#sp_FormEmployee");
+
+    const promises = Array.from(files).map((file, i) => new Promise(resolve => {
+
+        const reader = new FileReader();
+
+        reader.onload = async function (e) {
+
+            const base64Data = e.target.result.split(",")[1];
+
+            const optimized = await optimizeImageBase64IfNeeded({ fileName: file.name, data: base64Data });
+
+            optimized.uid = Date.now() + "_" + i;
+
+            leaveJsonFilesSelected.push(optimized);
+
+            resolve();
+
+        };
+
+        reader.readAsDataURL(file);
+
+    }));
+
+    await Promise.all(promises);
+
+    QlbetaAddFileUI(leaveJsonFilesSelected);
+
+    HideLoadingByClassOrID("#sp_FormEmployee");
+
+});
+
+
+
+// X? l? nút ch?n file
+
+$("#leave-customchosefileExpenses").dxButton({
+
+    text: "%ChooseFile%",
+
+    icon: "dx-icon-upload",
+
+    stylingMode: "contained",
+
+    type: "default",
+
+    onClick: async function (e) {
+
+        if (getMobileOperatingSystem() === "Android") {
+
+            try {
+
+                showLoadingByClassOrID("#sp_FormEmployee");
+
+                const files = await MobileFilePickerMultipleAsync();
+
+                $.each(files, async function (i, file) {
+
+                    const optimized = await optimizeImageBase64IfNeeded({
+
+                        fileName: file.fileName,
+
+                        data: file.data
+
+                    });
+
+                    optimized.uid = Date.now() + "_" + i;
+
+                    leaveJsonFilesSelected.push(optimized);
+
+                });
+
+                leaveAddFileUI(leaveJsonFilesSelected);
+
+            } catch (err) {
+
+                console.error("L?i ch?n file trên Android:", err);
+
+            } finally {
+
+                HideLoadingByClassOrID();
+
+            }
+
+        } else {
+
+            $("#leave-fileForExpenses").click();
+
+        }
+
+    }
+
+});
+
+
+
+// Hàm load lịch sử đơn của nhân viên dựa trên EmployeeID
+
+async function loadEmployeeLeaveHistory(employeeID) {
+
+    if (!employeeID) {
+
+        console.error("Lỗi: EmployeeID không hợp lệ:", employeeID);
+
+        return;
+
+    }
+
+    showLoadingByClassOrID("#sp_FormEmployee");
+
+    try {
+
+        const result = await AjaxHPAParadiseAsync({
+
+            data: {
+
+                name: "sp_GetEmployeeLeaveHistory",
+
+                param: ["EmployeeID", employeeID, "LanguageID", LanguageID]
+
+            }
+
+        });
+
+        const parsedResult = JSON.parse(result);
+
+        const employeeHistoryData = parsedResult.data && parsedResult.data[0] ? parsedResult.data[0] : [];
+
+        console.log("employeeHistoryData:", employeeHistoryData);
+
+        renderEmployeeLeaveHistoryList(employeeHistoryData);
+
+    } catch (e) {
+
+        console.error("Lỗi parse JSON:", e, result);
+
+
+
+        uiManager.showAlert({
+
+            type: "error",
+
+            message: "Phản hồi từ server không hợp lệ!",
+
+        })
+
+    }
+
+    HideLoadingByClassOrID("#sp_FormEmployee");
+
+}
+
+
+
+// Hàm hiển thị danh sách lịch sử đơn của nhân viên
+
+function renderEmployeeLeaveHistoryList(list) {
+
+    const $container = $("#employeeLeaveHistoryList");
+
+    $container.empty();
+
+
+
+    if (!list || !Array.isArray(list) || list.length === 0) {
+
+        $container.html("<div>Nhân viên này chưa có đơn nghỉ phép nào.</div>");
+
+        console.log("Danh sách lịch sử đơn của nhân viên rỗng hoặc không hợp lệ:", list);
+
+        return;
+
+    }
+
+
+
+    list.forEach(item => {
+
+        if (!item.IdentityID) {
+
+            console.warn("Dữ liệu thiếu IdentityID:", item);
+
+            return;
+
+        }
+
+
+
+        const { IdentityID, LeaveFromDate, LeaveToDate, LeaveCode, Reason, CreateTime, Approve_Status, ApproveStatusDescription, Files } = item;
+
+
+
+        function viewStatus(approveStatus, approveStatusText) {
+
+            let colorClass = "";
+
+            switch (approveStatus) {
+
+                case 0: colorClass = "gray"; break;
+
+                case 1: colorClass = "yellow"; break;
+
+                case 2: colorClass = "green"; break;
+
+                case 3: colorClass = "red"; break;
+
+                case 4: colorClass = "green"; break;
+
+                case 5: colorClass = "gray"; break;
+
+                default: colorClass = "gray";
+
+            }
+
+            return `<span class="hr-badge text-status ${colorClass}" style="padding: 8px;">${approveStatusText || "Không xác định"}</span>`;
+
+        }
+
+
+
+        let fileBlock = "";
+
+        if (Files && Array.isArray(Files)) {
+
+            Files.forEach((file, i) => {
+
+                const fileName = file.UrlFile ? file.UrlFile.split("\\").pop() : file.fileName;
+
+                const extension = fileName.split(".").pop().toLowerCase();
+
+                let iconClass = "bi bi-file-earmark";
+
+                let coloricon = "rgb(156, 163, 175)";
+
+                let isImage = false;
+
+
+
+                if (["jpg", "jpeg", "png", "gif", "bmp", "webp"].includes(extension)) {
+
+                    iconClass = "bi bi-image";
+
+                    coloricon = "rgb(59, 130, 246)";
+
+                    isImage = true;
+
+                } else if (["mp4", "mov", "avi", "mkv", "webm"].includes(extension)) {
+
+                    iconClass = "fa-file-video";
+
+                    coloricon = "rgb(220, 38, 38)";
+
+                } else if (extension === "pdf") {
+
+                    iconClass = "bi bi-filetype-pdf";
+
+                    coloricon = "rgb(220, 38, 38)";
+
+                } else if (["doc", "docx"].includes(extension)) {
+
+                    iconClass = "bi bi-file-word";
+
+                    coloricon = "rgb(30, 64, 175)";
+
+                } else if (["xls", "xlsx", "csv"].includes(extension)) {
+
+                    iconClass = "bi bi-file-earmark-spreadsheet-fill";
+
+                    coloricon = "rgb(25, 135, 84)";
+
+                } else if (["txt", "md", "log"].includes(extension)) {
+
+                    iconClass = "bi bi-file-text";
+
+                    coloricon = "rgb(107, 114, 128)";
+
+                }
+
+
+
+                fileBlock += `
+
+<div data-index="${i}">
+
+    <div class="hr-employee-item" style="border-left-color: #ffffff;">
+
+        <span class="hr-badge" style="font-size:15px;">
+
+            <i class="fas ${iconClass}" style="font-size:20px;color:${coloricon};"></i>
+
+        </span>
+
+        <div class="hr-employee-content">
+
+            <div class="hr-employee-name preview-image" style="cursor:pointer">${fileName}</div>
+
+        </div>
+
+    </div>
+
+</div>
+
+                                `;
+
+            });
+
+        }
+
+
+
+        const $item = $(`
+
+<div class="oa-card" data-identity-id="${IdentityID}">
+
+    <div class="card containers pt-2 pb-2">
+
+        <div class="request-subtitle mt-2">
+
+            <b>%DateOf%:</b> ${formatDateTime(LeaveFromDate)}${LeaveToDate == LeaveFromDate ? "" : " - " + formatDateTime(LeaveToDate)}
+
+        </div>
+
+        <div class="request-subtitle">
+
+            <b>%LeaveType%:</b> ${LeaveCode || "N/A"}
+
+        </div>
+
+        <div class="request-subtitle">
+
+            <b>%Reason%:</b> ${Reason || "N/A"}
+
+        </div>
+
+        <div class="request-subtitle">
+
+            <b>%CreateTime%:</b> ${formatDateTime(CreateTime)}
+
+        </div>
+
+        <span data-content="${ApproveStatusDescription}">${viewStatus(Approve_Status, ApproveStatusDescription)}</span>
+
+        <div class="mt-3">${fileBlock}</div>
+
+    </div>
+
+</div>
+
+                        `);
+
+
+
+        $item.find(".preview-image").off("click").on("click", function (e) {
+
+            e.stopPropagation();
+
+            showLoadingByClassOrID("#sp_FormEmployee");
+
+            const index = $(this).closest("[data-index]").data("index");
+
+            const file = Files[index];
+
+            const fileName = file.UrlFile ? file.UrlFile.split("\\").pop() : file.fileName;
+
+            const isImage = ["jpg", "jpeg", "png", "gif", "bmp", "webp"].includes(fileName.split(".").pop().toLowerCase());
+
+            getFileQlbeta(file.UrlFile || file.data, fileName, isImage, 1);
+
+            HideLoadingByClassOrID("#sp_FormEmployee");
+
+        });
+
+
+
+        $container.append($item);
+
+    });
+
+}
+
+
+
+
+
+function optimizeImageBase64IfNeeded(fileObj, maxWidth = 1280, maxHeight = 1280, quality = 0.8) {
+
+    return new Promise((resolve, reject) => {
+
+        const extension = fileObj.fileName.split(".").pop().toLowerCase();
+
+        const isImage = ["jpg", "jpeg", "png", "bmp", "webp"].includes(extension);
+
+
+
+        if (!isImage) {
+
+            return resolve(fileObj);
+
+        }
+
+
+
+        const img = new Image();
+
+        img.src = "data:image/*;base64," + fileObj.data;
+
+
+
+        img.onload = function () {
+
+            let width = img.width;
+
+            let height = img.height;
+
+
+
+            if (width > maxWidth || height > maxHeight) {
+
+                const ratio = Math.min(maxWidth / width, maxHeight / height);
+
+                width = width * ratio;
+
+                height = height * ratio;
+
+            }
+
+
+
+            const canvas = document.createElement("canvas");
+
+            canvas.width = width;
+
+            canvas.height = height;
+
+            const ctx = canvas.getContext("2d");
+
+            ctx.drawImage(img, 0, 0, width, height);
+
+
+
+            const compressedDataUrl = canvas.toDataURL("image/jpeg", quality);
+
+            const base64Data = compressedDataUrl.split(",")[1];
+
+
+
+            resolve({
+
+                fileName: fileObj.fileName,
+
+                data: base64Data
+
+            });
+
+        };
+
+
+
+        img.onerror = function () {
+
+            console.error("L?i t?i ?nh:", fileObj.fileName);
+
+            resolve(fileObj); // Tr? v? file g?c n?u l?i
+
+        };
+
+    });
+
+}
+
+function QlbetaAddFileUI(files, sender = 0) {
+
+    const previewContainer = $("#qlbeta-filePreviewContainer");
+
+    previewContainer.empty();
+
+    const isHidenRemoveFile = sender === 1 ? "d-none" : "";
+
+    files.forEach((file, index) => {
+
+        const fileName = file.fileName || (file.UrlFile ? file.UrlFile.split("\\").pop() : "");
+
+        if (!fileName) return;
+
+        const extension = fileName.split(".").pop().toLowerCase();
+
+        let iconClass = "bi bi-file-earmark", coloricon = "rgb(156, 163, 175)", isImage = false;
+
+        if (["jpg", "jpeg", "png", "gif", "bmp", "webp"].includes(extension)) {
+
+            iconClass = "bi bi-image"; coloricon = "rgb(59, 130, 246)"; isImage = true;
+
+        } else if (["mp4", "mov", "avi", "mkv", "webm"].includes(extension)) {
+
+            iconClass = "fa-file-video"; coloricon = "rgb(220, 38, 38)";
+
+        } else if (extension === "pdf") {
+
+            iconClass = "bi bi-filetype-pdf"; coloricon = "rgb(220, 38, 38)";
+
+        }
+
+        const fileItem = $(`
+
+<div class="delete-file" data-index="${index}">
+
+    <div class="hr-employee-item" style="border-left-color: #ffffff;">
+
+        <span class="hr-badge" style="font-size:15px;">
+
+            <i class="fas ${iconClass}" style="font-size:20px;color:${coloricon};"></i>
+
+        </span>
+
+        <div class="hr-employee-content">
+
+            <div class="hr-employee-name preview-image" style="cursor:pointer">${fileName}</div>
+
+        </div>
+
+        <span class="hr-badge btn-remove-file ${isHidenRemoveFile}" style="font-size:15px;background-color: #e3f2fd; color: #2196f3; cursor:pointer;">
+
+            <i class="bi bi-trash"></i>
+
+        </span>
+
+    </div>
+
+</div>
+
+                        `);
+
+        fileItem.find(".btn-remove-file").on("click", function () {
+
+            leaveJsonFilesSelected.splice(index, 1);
+
+            QlbetaAddFileUI(leaveJsonFilesSelected);
+
+        });
+
+        fileItem.find(".preview-image").on("click", function () {
+
+            showLoadingByClassOrID("#sp_FormEmployee");
+
+            const base64 = file.data || file.HttpFile || file.UrlFile;
+
+            getFileQlbeta(base64, fileName, isImage, sender);
+
+            HideLoadingByClassOrID("#sp_FormEmployee");
+
+        });
+
+        previewContainer.append(fileItem);
+
+    });
+
+}
+
+
+
+//hàm thêm dữ liệu
+
+async function api_adddata() {
+
+    const dateFrom = $("#tuNgay").val();
+
+    const dateTo = $("#denNgay").val();
+
+    const reason = $("#lyDo").val().trim();
+
+    const leaveTypeSelect = $("#loaiNghi").dxSelectBox("instance").option("value");
+
+    const files = leaveJsonFilesSelected;
+
+
+
+    console.log("leaveJsonFilesSelected trước khi gửi:", files);
+
+
+
+    if (!dateFrom || !dateTo) {
+
+
+
+        uiManager.showAlert({
+
+            type: "error",
+
+            message: "Vui lòng chọn ngày nghỉ!",
+
+        })
+
+        return;
+
+    }
+
+
+
+    if (new Date(dateTo) < new Date(dateFrom)) {
+
+
+
+
+
+        uiManager.showAlert({
+
+            type: "error",
+
+            message: "Ngày kết thúc phải sau hoặc bằng ngày bắt đầu!",
+
+        })
+
+        return;
+
+    }
+
+
+
+    if (!reason) {
+
+        uiManager.showAlert({
+
+            type: "error",
+
+            message: "Lý do không được để trống!",
+
+        })
+
+
+
+        return;
+
+    }
+
+
+
+    if (!leaveTypeSelect) {
+
+
+
+        uiManager.showAlert({
+
+            type: "error",
+
+            message: "Vui lòng chọn loại nghỉ!",
+
+        })
+
+        return;
+
+    }
+
+
+
+    if (!employeeId) {
+
+
+
+        uiManager.showAlert({
+
+            type: "error",
+
+            message: "Không tìm thấy mã nhân viên hiện tại.",
+
+        })
+
+        return;
+
+    }
+
+
+
+    // Kiểm tra file hợp lệ
+
+    if (files.length > 0) {
+
+        for (let file of files) {
+
+            if (!file.fileName || !file.data) {
+
+
+
+                uiManager.showAlert({
+
+                    type: "error",
+
+                    message: `File "${file.fileName || "không xác định"}" không hợp lệ! Vui lòng kiểm tra lại.`,
+
+                })
+
+                return;
+
+            }
+
+        }
+
+    }
+
+
+
+    const formatDateTime = (dateStr) => {
+
+        if (!dateStr) return null;
+
+        const date = new Date(dateStr);
+
+        const year = date.getFullYear();
+
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+
+        const day = String(date.getDate()).padStart(2, "0");
+
+        const hours = String(date.getHours()).padStart(2, "0");
+
+        const minutes = String(date.getMinutes()).padStart(2, "0");
+
+        const seconds = String(date.getSeconds()).padStart(2, "0");
+
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
+    };
+
+
+
+    const formattedDateFrom = formatDateTime(dateFrom);
+
+    const formattedDateTo = formatDateTime(dateTo);
+
+
+
+    const params = [
+
+        "EmployeeID", employeeId,
+
+        "LeaveFromDate", formattedDateFrom,
+
+        "LeaveToDate", formattedDateTo,
+
+        "LeaveCode", leaveTypeSelect,
+
+        "ShiftCode", "",
+
+        "Reason", reason,
+
+        "JsonFile", JSON.stringify(files),
+
+        "IsSubmit", 1,
+
+        "ErrorMessage", ""
+
+    ];
+
+
+
+    console.log("Params gửi đi:", params);
+
+
+
+    showLoadingByClassOrID("#sp_FormEmployee");
+
+    AjaxHPAParadise({
+
+        data: {
+
+            name: "sp_InsertRegisteredLeave",
+
+            param: params
+
+        },
+
+        success: async function (result) {
+
+            let data;
+
+            try {
+
+                data = JSON.parse(result);
+
+                const responseData = data.data[0][0];
+
+
+
+                if (responseData.returnValue === 0) {
+
+                    HideLoadingByClassOrID("#sp_ResignationLeave");
+
+                    showNotification("Thành công", responseData.ErrorMessage || "Đơn xin nghỉ phép được gửi thành công!", "success");
+
+
+
+                    // Gọi loadLeaveDetail với IdentityID vừa tạo và cập nhật giao diện
+
+                    if (responseData.IdentityID) {
+
+                        selectedIdentityID = responseData.IdentityID;
+
+                        console.log("Gọi loadLeaveDetail với IdentityID:", selectedIdentityID);
+
+                        isViewingDetail = true;
+
+                        $("#register-tab-label").text("%SeeDetail%");
+
+                        $("#sp_ResignationLeave .btnRegister").addClass("d-none").prop("disabled", true);
+
+                        $("#qlbeta-customchosefileExpenses").addClass("d-none");
+
+                        $("#lblChoseFile").removeClass("d-none");
+
+                        setFormReadOnly(true);
+
+                        loadLeaveDetail(selectedIdentityID); // Gọi để hiển thị chi tiết đơn và timeline người duyệt
+
+                        await getTimelineqlbeta(selectedIdentityID, 1, "container_approver");
+
+                    } else {
+
+                        console.warn("Không tìm thấy IdentityID trong response");
+
+                        // Reset form nếu không có IdentityID
+
+                        $("#loaiNghi").dxSelectBox("instance").option("value", null);
+
+                        $("#tuNgay").val("");
+
+                        $("#denNgay").val("");
+
+                        $("#lyDo").val("");
+
+                        leaveJsonFilesSelected = [];
+
+                        QlbetaAddFileUI(leaveJsonFilesSelected);
+
+                        getTimelineqlbeta("", 1, "container_approver", "employeeInfo");
+
+                        $("#sp_ResignationLeave .btnRegister").addClass("d-none").prop("disabled", true);
+
+                        setTimeout(() => {
+
+                            $("#sp_ResignationLeave .btnRegister").removeClass("d-none").prop("disabled", false).text("Đăng ký");
+
+                        }, 3000);
+
+                    }
+
+                } else {
+
+                    uiManager.showAlert({
+
+                        type: "error",
+
+                        message: responseData.ErrorMessage || "Không thể gửi đơn xin nghỉ phép!"
+
+                    });
+
+                }
+
+            } catch (e) {
+
+                console.error("Lỗi parse JSON:", e, result);
+
+                uiManager.showAlert({
+
+                    type: "error",
+
+                    message: "Phản hồi từ server không hợp lệ: " + e.message,
+
+                });
+
+
+
+            }
+
+            HideLoadingByClassOrID("#sp_FormEmployee");
+
+        },
+
+        error: function (err) {
+
+            console.error("Lỗi khi gửi API:", err);
+
+
+
+            uiManager.showAlert({
+
+                type: "error",
+
+                message: "Không thể gửi đơn xin nghỉ phép! Lỗi: " + (err.responseText || err.statusText),
+
+            });
+
+            HideLoadingByClassOrID("#sp_FormEmployee");
+
+        }
+
+    });
+
+}
+
+
+
+//LuongNQ
+
+async function initsp_ResignationLeave() {
+
+    await loadEmployee();
+
+    await loadApprovers().then(() => {
+
+        console.log("Danh sách người duyệt đã được tải.");
+
+    }).catch((err) => {
+
+        console.error("Lỗi khi khởi tạo danh sách người duyệt:", err);
+
+    });
+
+    if (selectedIdentityID) {
+
+        await getTimelineqlbeta(selectedIdentityID, 1, "container_approver", "employeeInfo");
+
+        loadLeaveDetail(selectedIdentityID);
+
+
+
+    }
+
+    else {
+
+        $("#container-penddingrequest").addClass("d-none")
+
+        await getTimelineqlbeta("", 1, "container_approver", "employeeInfo");
+
+    }
+
+
+
+    showTab("register");
+
+    HideLoadingByClassOrID("#sp_ResignationLeave")
+
+}
+
+
+
+initsp_ResignationLeave()
+
+
+
+
+
+$("#sp_ResignationLeave .btnRegister").click(function (e) {
+
+    e.preventDefault();
+
+    showConfirmPopup({
+
+        title: "Xác nhận gửi đơn",
+
+        message: "Bạn có chắc chắn muốn gửi đơn nghỉ phép này?",
+
+        icon: "bi-check-circle",
+
+        YesText: "%ConfirmYes%",
+
+        NoText: "%cancelBtn%",
+
+        onYes: function () {
+
+            api_adddata();
+
+        }
+
+    });
+
+});
+
+
+
+$("#leaveImageModal").off("click").on("click", function () {
+
+    $(this).fadeOut();
+
+});
+
+$("#leave-image-modal-img").off("click").on("click", function (e) {
+
+    e.stopPropagation();
+
+});
+
+
+
+$("#contentContainer_sp_ResignationLeave").css("height", "calc(100vh - 65px)")
+
+HideLoadingByClassOrID("#sp_ResignationLeave")
+
+
+
+//LuongNQ thêm tính lăng
+
+async function GetLeaveRequestPendding() {
+
+    var result = await AjaxHPAParadiseAsync({
+
+        data: {
+
+            name: "sp_Leave_pendingRequest",
+
+            param: ["LanguageID", LanguageID, "LoginID", UserID]
+
+        },
+
+        success: function (result) {
+
+
+
+        }
+
+
+
+    });
+
+    return JSON.parse(result).data[0]
+
+
+
+}
+
+async function initPendingRequestLeave(arr) {
+
+    var requestpendding;
+
+    if (arr) {
+
+        requestpendding = arr
+
+    }
+
+    var requestpendding = await GetLeaveRequestPendding()
+
+
+
+    var dataRequest = requestpendding.filter(x => x.IdentityID != selectedIdentityID);
+
+    RenderHtmlLeaveRequest(dataRequest)
+
+}
+
+function RenderHtmlLeaveRequest(arr) {
+
+    if (!arr || arr.length == 0) {
+
+        $("#container-penddingrequest").addClass("d-none")
+
+    }
+
+    else {
+
+
+
+        $("#leaveRequestPendding").empty()
+
+        var html = ""
+
+        arr.forEach(e => {
+
+            html += `<div class="d-flex align-items-center gap-3 pb-3 pt-3 border-bottom">
+
+    <img _param='' ${e.PhotoImage}'' loading="lazy" class="avatar-img">
+
+    <div class="heheeh">
+
+        <div style="font-size:18px;">${e.FullName}</div>
+
+        <div class="d-flex align-items-center gap-1 text-primary fw-bold">
+
+            ${e.LeaveType}
+
+        </div>
+
+        <div class="d-flex align-items-center gap-1">
+
+            ${e.DateView}
+
+        </div>
+
+    </div>
+
+</div>
+
+                                `
+
+
+
+        });
+
+        $("#leaveRequestPendding").append(html)
+
+        LoadImageleaveRequestPendding()
+
+    }
+
+
+
+}
+
+async function LoadImageleaveRequestPendding() {
+
+    if ($("#leaveRequestPendding img").length === 0) return
+
+    $("#leaveRequestPendding img").each(function () {
+
+        let self = $(this)
+
+        let aaa = `["FilePath","${self.attr("_param")}"]`
+
+        let param = JSON.parse(aaa);
+
+        AjaxHPAParadise({
+
+            data: { name: "paradisefilesp_GetFileAPI", param: param },
+
+            xhrFields: { responseType: "blob" },
+
+            success: function (blob, status, xhr) {
+
+                var url = URL.createObjectURL(blob);
+
+                self.attr("src", url);
+
+            }
+
+        })
+
+    });
+
+}
+
+'
+
+set @html=N'
+
+<style>
+    /* Scope under root menu */
+    #sp_ResignationLeave {
+        --vc-green-transparent005: var(--paradise-bg-success-subtle);
+        --vc-green-transparent02: var(--paradise-bg-success-subtle);
+        --vc-red-transparent005: var(--paradise-bg-danger-subtle);
+        --vc-red-transparent02: var(--paradise-bg-danger-subtle);
+        --bs-green: var(--paradise-color-success);
+        --vc-red: var(--paradise-color-danger);
+    }
+
+    #sp_FormEmployee {
+        max-width: 768px !important;
+        margin: 0 auto !important;
+        background-color: transparent !important;
+    }
+
+    #sp_FormEmployee #divAdvAL {
+        align-items: center;
+    }
+    #sp_FormEmployee #divAdvAL .col-form-label {
+        display: flex;
+        align-items: center;
+    }
+    #sp_FormEmployee #AdvAL {
+        margin-right: 8px;
+    }
+
+    /* Modal styling */
+    #sp_FormEmployee .modal-body p {
+        margin-bottom: 0.75rem;
+        font-size: 1rem;
+    }
+    #sp_FormEmployee .modal-body strong {
+        color: var(--paradise-text-body);
+    }
+    #sp_FormEmployee .modal-content {
+        background-color: var(--paradise-card-bg) !important;
+        color: var(--paradise-text-body) !important;
+        border: 1px solid var(--paradise-border-color) !important;
+        border-radius: var(--paradise-border-radius-md) !important;
+        box-shadow: var(--paradise-shadow-md) !important;
+    }
+    #sp_FormEmployee .modal-header {
+        background-color: var(--paradise-bg-2) !important;
+        border-bottom: 1px solid var(--paradise-border-color) !important;
+        color: var(--paradise-text-body) !important;
+    }
+
+    /* Main card */
+    #sp_FormEmployee .card {
+        background-color: var(--paradise-card-bg) !important;
+        border: 1px solid var(--paradise-border-color) !important;
+        border-radius: var(--paradise-border-radius-lg) !important;
+        box-shadow: var(--paradise-shadow-sm) !important;
+        overflow: visible !important;
+        height: auto !important;
+        margin: var(--paradise-space-3) 0 !important;
+    }
+    #sp_FormEmployee .card-body {
+        padding: var(--paradise-space-4);
+        min-height: calc(100vh - 100px);
+    }
+
+    #sp_FormEmployee #register-tab {
+        overflow: visible !important;
+        height: auto !important;
+    }
+
+    #sp_FormEmployee #historyList {
+        padding-bottom: var(--paradise-space-4);
+    }
+
+    /* Media queries for responsive layouts */
+    @media (min-width: 992px) {
+        #sp_FormEmployee {
+            max-width: 900px !important;
+        }
+    }
+    @media (min-width: 1200px) {
+        #sp_FormEmployee {
+            max-width: 1000px !important;
+        }
+    }
+    @media (max-width: 576px) {
+        #sp_FormEmployee #history-tab {
+            height: calc(100vh - 120px) !important;
+        }
+    }
+
+    #sp_FormEmployee .col-form-label, 
+    #sp_FormEmployee .form-label {
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: var(--paradise-text-muted);
+    }
+
+    #sp_FormEmployee .from_day, 
+    #sp_FormEmployee .to_day {
+        width: 50%;
+    }
+
+    /* Inputs & Form Controls */
+    #sp_FormEmployee .form-control {
+        background-color: var(--paradise-bg-surface) !important;
+        color: var(--paradise-text-body) !important;
+        border: 1px solid var(--paradise-border-color) !important;
+        border-radius: var(--paradise-input-border-radius, var(--paradise-border-radius-md)) !important;
+        padding: var(--paradise-space-2) var(--paradise-space-3) !important;
+        font-size: 0.95rem;
+        transition: border-color var(--paradise-transition-fast), box-shadow var(--paradise-transition-fast);
+    }
+    #sp_FormEmployee .form-control:focus {
+        border-color: var(--paradise-color-primary) !important;
+        box-shadow: 0 0 0 3px var(--paradise-bg-primary-subtle) !important;
+        outline: none !important;
+    }
+    #sp_FormEmployee .form-control[readonly],
+    #sp_FormEmployee .form-control:disabled {
+        background-color: var(--paradise-bg-surface) !important;
+        opacity: 0.7;
+        cursor: not-allowed;
+    }
+    #sp_FormEmployee .dx-selectbox-readonly {
+        background-color: var(--paradise-bg-surface) !important;
+        opacity: 0.7;
+        cursor: not-allowed;
+    }
+
+    /* Checkbox & Radio Labels cursor: pointer */
+    #sp_FormEmployee .form-check {
+        display: inline-flex;
+        align-items: center;
+        padding: var(--paradise-space-2) var(--paradise-space-3);
+        border-radius: var(--paradise-border-radius-md);
+        border: 2px solid transparent;
+        transition: border-color var(--paradise-transition-fast), background-color var(--paradise-transition-fast);
+        cursor: pointer;
+    }
+    #sp_FormEmployee .form-check.active {
+        border-color: var(--paradise-color-primary);
+        background-color: var(--paradise-bg-primary-subtle);
+    }
+    #sp_FormEmployee .form-check-group {
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        gap: var(--paradise-space-4);
+    }
+    #sp_FormEmployee .form-check-input {
+        margin-right: var(--paradise-space-2);
+        cursor: pointer;
+    }
+    #sp_FormEmployee .form-check-label {
+        font-size: 0.95rem;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    /* Section Titles */
+    #sp_FormEmployee .section-title {
+        font-size: 0.95rem;
+        color: var(--paradise-text-muted);
+        margin-bottom: var(--paradise-space-3);
+        display: flex;
+        align-items: center;
+        gap: var(--paradise-space-2);
+    }
+    #sp_FormEmployee .section-title.detail-title {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: var(--paradise-color-primary);
+        border-bottom: 2px solid var(--paradise-color-primary);
+        padding-bottom: var(--paradise-space-2);
+    }
+
+    /* Back button */
+    #sp_FormEmployee .back-btn {
+        background: none;
+        border: none;
+        color: var(--paradise-color-primary);
+        font-size: 1.5rem;
+        margin-right: var(--paradise-space-3);
+        padding: var(--paradise-space-2);
+        border-radius: 50%;
+        transition: background-color var(--paradise-transition-fast);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    #sp_FormEmployee .back-btn:hover {
+        background-color: var(--paradise-bg-primary-subtle);
+    }
+
+    /* Tabs */
+    #sp_FormEmployee #tabs {
+        display: flex;
+        border-bottom: 1px solid var(--paradise-border-color);
+        margin-bottom: var(--paradise-space-4);
+    }
+    #sp_FormEmployee .tab {
+        flex: 1;
+        text-align: center;
+        padding: var(--paradise-space-3);
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: var(--paradise-text-muted);
+        cursor: pointer;
+        transition: color var(--paradise-transition-fast), border-bottom var(--paradise-transition-fast);
+    }
+    #sp_FormEmployee .tab.active {
+        color: var(--paradise-color-primary) !important;
+        border-bottom: 2px solid var(--paradise-color-primary) !important;
+        font-weight: 600;
+    }
+
+    /* Employee info container */
+    #sp_FormEmployee .employee-info {
+        margin-bottom: var(--paradise-space-4);
+        padding: var(--paradise-space-4);
+        border: 1px solid var(--paradise-border-color);
+        border-radius: var(--paradise-border-radius-md);
+        background-color: var(--paradise-bg-surface);
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--paradise-space-3);
+    }
+    #sp_FormEmployee .employee-info .avatar-container {
+        margin-right: var(--paradise-space-3);
+    }
+    #sp_FormEmployee .employee-info .info-container {
+        text-align: left;
+    }
+    #sp_FormEmployee .employee-info label {
+        font-weight: 600;
+        color: var(--paradise-text-body);
+        margin-right: var(--paradise-space-2);
+    }
+    #sp_FormEmployee .employee-info span {
+        color: var(--paradise-text-body);
+    }
+
+    /* History and Pending list Cards */
+    #historyList .oa-card .card,
+    #sp_FormEmployee #employeeLeaveHistoryList .oa-card .card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        background-color: var(--paradise-card-bg) !important;
+        border: 1px solid var(--paradise-border-color) !important;
+        border-radius: var(--paradise-border-radius-md) !important;
+        padding: var(--paradise-space-3) var(--paradise-space-4) !important;
+        box-shadow: var(--paradise-shadow-sm) !important;
+        transition: transform var(--paradise-transition-normal), box-shadow var(--paradise-transition-normal);
+        margin-bottom: var(--paradise-space-3);
+        cursor: pointer;
+    }
+    #historyList .oa-card:hover .card,
+    #sp_FormEmployee #employeeLeaveHistoryList .oa-card:hover .card {
+        transform: translateY(-2px);
+        box-shadow: var(--paradise-shadow-md) !important;
+        border-color: var(--paradise-color-primary) !important;
+    }
+
+    /* Status badges as beautiful pills */
+    .request-draft-btn,
+    .request-thisApproved-btn,
+    .request-approved-btn,
+    .request-rejected-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 28px !important;
+        padding: var(--paradise-space-1) var(--paradise-space-3) !important;
+        border-radius: var(--paradise-border-radius-pill) !important;
+        font-weight: 600 !important;
+        font-size: 12px !important;
+        border: 1px solid transparent !important;
+        position: absolute !important;
+        bottom: 12px !important;
+        right: 16px !important;
+        cursor: pointer;
+        width: fit-content;
+    }
+    .request-draft-btn {
+        color: var(--paradise-text-muted) !important;
+        background-color: var(--paradise-bg-secondary-subtle) !important;
+        border-color: var(--paradise-border-color) !important;
+    }
+    .request-thisApproved-btn {
+        color: var(--paradise-color-info) !important;
+        background-color: var(--paradise-bg-info-subtle) !important;
+        border-color: var(--paradise-bg-info-subtle) !important;
+    }
+    .request-approved-btn {
+        color: var(--paradise-color-success) !important;
+        background-color: var(--paradise-bg-success-subtle) !important;
+        border-color: var(--paradise-bg-success-subtle) !important;
+    }
+    .request-rejected-btn {
+        color: var(--paradise-color-danger) !important;
+        background-color: var(--paradise-bg-danger-subtle) !important;
+        border-color: var(--paradise-bg-danger-subtle) !important;
+    }
+
+    /* Timeline approvals styling */
+    #sp_FormEmployee .timeline {
+        display: flex;
+        align-items: flex-start;
+        justify-content: flex-start;
+        position: relative;
+        margin: var(--paradise-space-4) auto;
+        max-width: max-content;
+        overflow-x: auto;
+        white-space: nowrap;
+        gap: var(--paradise-space-3);
+    }
+    #sp_FormEmployee .timeline-step {
+        text-align: center;
+        position: relative;
+        z-index: 2;
+        display: inline-block;
+        min-width: 120px;
+    }
+    #sp_FormEmployee .timeline-step .circle {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+        color: #fff;
+        font-weight: bold;
+        position: relative;
+        border: 2px solid var(--paradise-card-bg);
+        box-shadow: var(--paradise-shadow-sm);
+    }
+    #sp_FormEmployee .text-status.blue { background-color: var(--paradise-bg-info-subtle); color: var(--paradise-color-info); }
+    #sp_FormEmployee .text-status.gray { background-color: var(--paradise-bg-secondary-subtle); color: var(--paradise-text-muted); }
+    #sp_FormEmployee .text-status.yellow { background-color: var(--paradise-bg-warning-subtle); color: var(--paradise-color-warning); }
+    #sp_FormEmployee .text-status.green { background-color: var(--paradise-bg-success-subtle); color: var(--paradise-color-success); }
+    #sp_FormEmployee .text-status.red { background-color: var(--paradise-bg-danger-subtle); color: var(--paradise-color-danger); }
+
+    #sp_FormEmployee .timeline-step small {
+        font-size: 11px;
+        color: var(--paradise-text-muted);
+    }
+    #sp_FormEmployee .timeline-step .note {
+        margin-top: var(--paradise-space-1);
+        font-size: 12px;
+        color: var(--paradise-text-body);
+        line-height: 1.4;
+        text-align: center;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    #sp_FormEmployee .input-box {
+        width: 47%;
+    }
+
+    /* File List Items */
+    #sp_FormEmployee .hr-employee-item {
+        display: flex;
+        align-items: center;
+        padding: var(--paradise-space-3);
+        margin-bottom: var(--paradise-space-2);
+        background-color: var(--paradise-bg-surface);
+        border-radius: var(--paradise-border-radius-md);
+        border: 1px solid var(--paradise-border-color);
+        border-left: 4px solid var(--paradise-color-primary);
+        box-shadow: var(--paradise-shadow-sm);
+        transition: transform var(--paradise-transition-fast);
+    }
+    #sp_FormEmployee .hr-employee-item:hover {
+        transform: translateX(4px);
+    }
+    #sp_FormEmployee .hr-badge {
+        font-size: 15px;
+    }
+    #sp_FormEmployee .hr-employee-content {
+        flex-grow: 1;
+        margin-left: var(--paradise-space-3);
+    }
+    #sp_FormEmployee .hr-employee-name {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--paradise-text-body);
+    }
+    #sp_FormEmployee .hr-employee-name.preview-image {
+        color: var(--paradise-color-primary) !important;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    #sp_FormEmployee .btn-remove-file {
+        cursor: pointer;
+        background-color: var(--paradise-bg-primary-subtle);
+        color: var(--paradise-color-primary);
+        padding: var(--paradise-space-1) var(--paradise-space-2);
+        border-radius: var(--paradise-border-radius-sm);
+    }
+
+    /* Image Modal view */
+    #sp_FormEmployee #leaveImageModal {
+        background-color: rgba(0, 0, 0, 0.85);
+    }
+    @media (max-width: 991.98px) {
+        #sp_FormEmployee .input-box {
+            width: 100%;
+        }
+    }
+
+    #sp_FormEmployee #leaveImageModal .modal-dialog {
+        max-width: 95vw;
+        width: 100%;
+        margin: 0 auto;
+        min-height: 100vh;
+    }
+    #sp_FormEmployee #leaveImageModal .modal-content {
+        background-color: transparent;
+        border: none;
+    }
+    #sp_FormEmployee #leaveImageModal .modal-body {
+        padding: 10px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+    }
+    #sp_FormEmployee #leaveImageModal img {
+        max-width: 100%;
+        max-height: 80vh;
+        border-radius: var(--paradise-border-radius-lg);
+        box-shadow: var(--paradise-shadow-lg);
+        object-fit: contain;
+    }
+
+    /* Mobile overrides */
+    @media (max-width: 576px) {
+        #sp_FormEmployee #leaveImageModal .modal-dialog {
+            max-width: 100vw;
+        }
+        #sp_FormEmployee .history-card {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        #sp_FormEmployee .history-card .avatar-img,
+        #sp_FormEmployee .history-card .fas.fa-user-circle {
+            margin-bottom: 8px;
+            margin-right: 0;
+        }
+        #sp_FormEmployee .history-card .info-section {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        #sp_FormEmployee .history-card .card-title {
+            text-align: center;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        #sp_FormEmployee .history-card .employee-id {
+            font-size: 0.8rem;
+        }
+        #sp_FormEmployee .history-card .details-section {
+            font-size: 0.8rem;
+        }
+        #sp_FormEmployee .history-card .status-container {
+            text-align: left;
+            margin-top: 8px;
+        }
+        #sp_FormEmployee .timeline-step small {
+            font-size: 10px;
+        }
+        #sp_FormEmployee .timeline-step .note {
+            font-size: 11px;
+        }
+        #sp_FormEmployee .action-buttons {
+            flex-direction: column;
+            align-items: center;
+        }
+        #sp_FormEmployee .employee-info {
+            flex-direction: column;
+            align-items: center;
+        }
+        #sp_FormEmployee .employee-info .avatar-container {
+            margin-right: 0;
+            margin-bottom: 15px;
+        }
+        #sp_FormEmployee .employee-info .info-container {
+            padding-top: 5px;
+            text-align: center;
+        }
+        #sp_FormEmployee .employee-info .info-container .fullname {
+            padding-left: 0;
+        }
+        #sp_FormEmployee .employee-info .info-container .status {
+            padding-left: 0;
+        }
+    }
+
+    /* dxButton custom file chooser style */
+    #sp_FormEmployee #qlbeta-customchosefileExpenses .dx-button {
+        background-color: var(--paradise-color-primary) !important;
+        color: var(--paradise-text-on-primary, #fff) !important;
+        border-radius: var(--paradise-border-radius-pill) !important;
+        padding: var(--paradise-space-2) var(--paradise-space-4) !important;
+        font-size: 0.9rem !important;
+        border: none !important;
+    }
+
+    /* Approver timeline styles */
+    #container_approver .timeline {
+        display: flex;
+        align-items: flex-start;
+        justify-content: flex-start;
+        position: relative;
+        margin: var(--paradise-space-4) auto;
+        max-width: 100%;
+        overflow-x: auto;
+        white-space: nowrap;
+        gap: var(--paradise-space-3);
+    }
+    #container_approver .timeline-step {
+        text-align: center;
+        position: relative;
+        z-index: 2;
+        display: inline-block;
+        min-width: 120px;
+    }
+    #container_approver .timeline-step .circle {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+        color: #fff;
+        font-weight: bold;
+        position: relative;
+        border: 2px solid var(--paradise-card-bg);
+        box-shadow: var(--paradise-shadow-sm);
+    }
+    #container_approver .timeline-step .circle.blue { background-color: var(--paradise-color-info); }
+    #container_approver .timeline-step .circle.gray { background-color: var(--paradise-text-muted); }
+    #container_approver .timeline-step .circle.yellow { background-color: var(--paradise-color-warning); }
+    #container_approver .timeline-step .circle.green { background-color: var(--paradise-color-success); }
+    #container_approver .timeline-step .circle.red { background-color: var(--paradise-color-danger); }
+
+    #container_approver .timeline-step .circle img,
+    #container_approver .timeline-step .circle i {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        object-fit: cover;
+    }
+    #container_approver .timeline-step .name {
+        font-size: 12px;
+        color: var(--paradise-text-body);
+        margin-top: var(--paradise-space-2);
+    }
+    #container_approver .timeline-step .note {
+        margin-top: var(--paradise-space-2);
+        font-size: 13px;
+        color: var(--paradise-text-muted);
+        line-height: 1.5;
+        text-align: center;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .employeeid-badge-green {
+        text-align: center;
+        padding: 5px 10px;
+        border-radius: 15px;
+        font-weight: bold;
+        background-color: var(--paradise-bg-success-subtle);
+        color: var(--paradise-color-success);
+    }
+    #sp_FormEmployee .avatar-img {
+        width: 56px;
+        height: 56px;
+    }
+
+    /* Request CardList */
+    .request-CardList .card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        background-color: var(--paradise-card-bg) !important;
+        border: 1px solid var(--paradise-border-color) !important;
+        border-radius: var(--paradise-border-radius-md) !important;
+        padding: var(--paradise-space-3) var(--paradise-space-4) !important;
+        box-shadow: var(--paradise-shadow-sm) !important;
+        margin-bottom: var(--paradise-space-3);
+        cursor: pointer;
+        transition: transform var(--paradise-transition-normal), box-shadow var(--paradise-transition-normal);
+    }
+    .request-CardList .card:hover {
+        box-shadow: var(--paradise-shadow-md) !important;
+        transform: translateY(-2px);
+        border-color: var(--paradise-color-primary) !important;
+    }
+    .request-CardList {
+        max-height: 900px;
+        overflow-y: auto;
+        padding-right: 8px;
+    }
+    .request-subtitle {
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 22px;
+        color: var(--paradise-text-body);
+    }
+    .request-titleName {
+        text-align: center;
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--paradise-text-body);
+    }
+
+    /* Action Buttons in GroupButton & Modals Override */
+    #sp_FormEmployee .btnRegister,
+    #sp_FormEmployee .btnApprove,
+    #sp_FormEmployee .btnReject,
+    #sp_FormEmployee .btnDestroy {
+        border-radius: var(--paradise-border-radius-pill) !important;
+        padding: var(--paradise-space-2) var(--paradise-space-4) !important;
+        font-weight: 600 !important;
+        transition: all var(--paradise-transition-fast) !important;
+        border: 1px solid transparent !important;
+    }
+    #sp_FormEmployee .btnRegister,
+    #sp_FormEmployee .btnApprove {
+        background-color: var(--paradise-color-primary) !important;
+        color: var(--paradise-text-on-primary, #fff) !important;
+        border-color: var(--paradise-color-primary) !important;
+    }
+    #sp_FormEmployee .btnRegister:hover,
+    #sp_FormEmployee .btnApprove:hover {
+        opacity: 0.9 !important;
+        transform: translateY(-1px);
+    }
+    #sp_FormEmployee .btnReject,
+    #sp_FormEmployee .btnDestroy {
+        background-color: var(--paradise-color-danger) !important;
+        color: var(--paradise-text-on-danger, #fff) !important;
+        border-color: var(--paradise-color-danger) !important;
+    }
+    #sp_FormEmployee .btnReject:hover,
+    #sp_FormEmployee .btnDestroy:hover {
+        opacity: 0.9 !important;
+        transform: translateY(-1px);
+    }
+
+    /* Modal buttons styling */
+    #sp_FormEmployee .modal-footer .btn {
+        border-radius: var(--paradise-border-radius-pill) !important;
+        padding: var(--paradise-space-2) var(--paradise-space-4) !important;
+        font-weight: 600 !important;
+    }
+    #sp_FormEmployee .modal-footer .btn-success {
+        background-color: var(--paradise-color-primary) !important;
+        border-color: var(--paradise-color-primary) !important;
+        color: var(--paradise-text-on-primary, #fff) !important;
+    }
+    #sp_FormEmployee .modal-footer .btn-secondary {
+        background-color: var(--paradise-bg-surface) !important;
+        border-color: var(--paradise-border-color) !important;
+        color: var(--paradise-text-body) !important;
+    }
+</style>
+
+<div id="sp_ResignationLeave">
+
+    <div class="w-100 m-0 content" style="position: relative" id="sp_FormEmployee">
+
+        <div class="card">
+
+            <div class="card-body">
+
+                <div id="tabs">
+
+                    <button class="back-btn" id="backBtn" onclick="backMenuFromStack()">
+
+                        <i class="bi bi-arrow-left"></i>
+
+                    </button>
+
+                    <div class="tab active" id="register-tab-label" onclick="showTab(''register'')">%MnuWPT315%</div>
+
+                    <div class="tab" id="history-tab-label" onclick="showTab(''history'')">%History%</div>
+
+                </div>
+
+
+
+                <div id="register-tab">
+
+                    <div id="employeeInfo"></div>
+
+                    <form style="display: none">
+
+                        <fieldset class="form-group">
+
+                            <legend class="col-form-label">
+
+                                <span class="bi bi-patch-check me-1"></span>
+
+                                <span class="select-option-text">Ch?n tùy ch?n</span>
+
+                            </legend>
+
+                            <div class="group_formcheck" style="display: flex; justify-content: space-around">
+
+                                <div class="form-check">
+
+                                    <input class="form-check-input" type="radio" name="option" id="nghi-phep"
+
+                                        value="nghi-phep" />
+
+                                    <label class="form-check-label onleave-t" for="nghi-phep">Ngh? phép</label>
+
+                                </div>
+
+                                <div class="form-check">
+
+                                    <input class="form-check-input" type="radio" name="option" id="dang-ky-ca"
+
+                                        value="dang-ky-ca" />
+
+                                    <label class="form-check-label register-shift-text" for="dang-ky-ca">Đăng k?
+
+                                        ca</label>
+
+                                </div>
+
+                            </div>
+
+                        </fieldset>
+
+                    </form>
+
+                    <div id="employeeInfo"></div>
+
+                    <div class="mb-3 row" id="divLoaiNghi">
+
+                        <label for="loaiNghi" class="col-sm-2 col-form-label">
+
+                            <span class="bi bi-clipboard me-1"></span>
+
+                            <span class="leave-type-text">%LeaveType%</span>
+
+                            <span style="color: red">(*)</span>
+
+                        </label>
+
+                        <div class="col-sm-10">
+
+                            <div id="loaiNghi"></div>
+
+                        </div>
+
+                    </div>
+
+
+
+                    <div class="mb-3 d-flex" id="divAdvAL" class="d-none">
+
+                        <label for="AdvAL" class="col-form-label">
+
+                            <span class="bi bi-person-plus me-1"></span>
+
+                            <span class="AdvAL-text">Số ngày nghỉ còn lại:</span>
+
+                        </label>
+
+                        <div class="ms-2 col-form-label">
+
+                            <span id="AdvAL"></span>
+
+                            <button type="button" class="btn btn-outline-info rounded-circle ms-2 p-1"
+
+                                data-bs-toggle="modal" data-bs-target="#leaveDetailModal">
+
+                                <i class="bi bi-question"></i>
+
+                            </button>
+
+                        </div>
+
+                    </div>
+
+
+
+                    <!-- Modal chi tiết ngày nghỉ -->
+
+                    <div class="modal fade" id="leaveDetailModal" tabindex="-1" aria-labelledby="leaveDetailModalLabel"
+
+                        aria-hidden="true">
+
+                        <div class="modal-dialog modal-dialog-centered" style="padding-top: 40px;">
+
+                            <div class="modal-content" style="padding: 7px;">
+
+                                <div class="modal-header">
+
+                                    <h5 class="modal-title" id="leaveDetailModalLabel">Chi tiết ngày nghỉ</h5>
+
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"
+
+                                        aria-label="Close"></button>
+
+                                </div>
+
+                                <div class="modal-body">
+
+                                    <p><strong>Tổng phép năm:</strong> <span id="detailThisYear">3</span></p>
+
+                                    <p><strong>Đã sử dụng:</strong> <span id="detailTaken">0</span></p>
+
+                                    <p><strong>Chờ duyệt:</strong> <span id="detailDayOff">0</span></p>
+
+                                    <p><strong>Chưa dùng:</strong> <span id="detailRemain">3</span></p>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+
+
+
+                    <div class="mb-3" id="fromtoday">
+
+                        <div class="row gy-2">
+
+                            <!-- FROM -->
+
+                            <div class="col-12 col-md-6 d-flex align-items-center">
+
+                                <label for="tuNgay" class="me-2 mb-0" style="white-space: nowrap; min-width: 100px;">
+
+                                    <span class="bi bi-calendar3 me-1"></span>
+
+                                    <span class="from-date-text">%FromDate%</span>
+
+                                    <span style="color: red">(*)</span>
+
+                                </label>
+
+                                <input type="datetime-local" class="form-control" style="max-width: 220px;" id="tuNgay"
+
+                                    oninput="validateField(''tuNgay'')" value="2025-07-24T08:00" />
+
+                            </div>
+
+
+
+                            <!-- TO -->
+
+                            <div class="col-12 col-md-6 d-flex align-items-center">
+
+                                <label for="denNgay" class="me-2 mb-0" style="white-space: nowrap; min-width: 100px;">
+
+                                    <span class="bi bi-calendar3 me-1"></span>
+
+                                    <span class="to-date-text">%ToDate%</span>
+
+                                    <span style="color: red">(*)</span>
+
+                                </label>
+
+                                <input type="datetime-local" class="form-control" style="max-width: 220px;" id="denNgay"
+
+                                    oninput="validateField(''denNgay'')" value="2025-07-24T17:00" />
+
+                            </div>
+
+
+
+                            <!-- Validation -->
+
+                            <div class="col-12">
+
+                                <div class="validate_error_date0"></div>
+
+                                <div class="validate_error_date"><span class="validate-error-date-text"></span></div>
+
+                                <div class="validate_error_date1"></div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+
+
+
+                    <div class="mb-3" id="divLyDo">
+
+                        <label for="lyDo" class="form-label">
+
+                            <span class="bi bi-emoji-smile me-1"></span>
+
+                            <span class="reason-text">%Reason%</span>
+
+                            <span style="color: red">(*)</span>
+
+                        </label>
+
+                        <textarea class="form-control" id="lyDo" rows="3" oninput="validateField(''lyDo'')"></textarea>
+
+                    </div>
+
+
+
+                    <div class="mb-3 row">
+
+                        <label id="lblChoseFile" class="col-sm-2 col-form-label d-none">%ChoseFile%</label>
+
+                        <div class="col-sm-10">
+
+                            <input type="file" id="qlbeta-fileForExpenses" multiple style="display: none;" />
+
+                            <div id="qlbeta-customchosefileExpenses"></div>
+
+                            <div class="mt-3" id="qlbeta-filePreviewContainer"></div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="mb-3">
+
+                        <h3 class="section-title"><i class="fas fa-user-check"></i>%ApprovalProcess%</h3>
+
+                        <div class="timeline" id="container_approver"></div>
+
+                    </div>
+
+                    @GroupButton
+
+                    <div id="container-penddingrequest" class="d-none">
+
+                        <label class="form-label fw-bold border-bottom pb-1 d-block text-warning mt-4"
+
+                            style="font-size: 20px;">Đơn chờ duyệt</label>
+
+                        <div id="leaveRequestPendding">
+
+
+
+
+
+                        </div>
+
+                    </div>
+
+
+
+                </div>
+
+
+
+                <div id="history-tab" style="display: none;">
+
+                    <div id="historyList"></div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Modal hiển thị hình ảnh -->
+
+    <div class="modal fade" id="qlbetaImageModal" tabindex="-1" aria-hidden="true"
+
+        style="background-color: rgba(0, 0, 0, 0.85);">
+
+        <div class="modal-dialog modal-dialog-centered d-flex justify-content-center align-items-center m-0"
+
+            style="min-height: 100vh;">
+
+            <div class="modal-content border-0 bg-transparent">
+
+                <div class="modal-body p-2 text-center">
+
+                    <img id="qlbeta-image-modal-img" src="" class="img-fluid mx-auto" style="
+
+                                max-height: 80vh;
+
+                                border-radius: 12px;
+
+                                box-shadow: 0 0 10px rgba(0,0,0,0.5);
+
+                                object-fit: contain;
+
+                            " />
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Modal cho Phê duyệt/Từ chối đơn thường -->
+
+    <div class="modal fade shadow" id="modalApproveLeaveRequest" data-bs-backdrop="static" data-bs-keyboard="false"
+
+        tabindex="-1" aria-labelledby="staticBackdropLabel" aria-hidden="true">
+
+        <div class="modal-dialog modal-dialog-centered">
+
+            <div class="modal-content">
+
+                <div class="modal-body">
+
+                    <div class="mb-3">
+
+                        <label for="ghiChuNguoiDuyet2" class="form-label">%colNote%</label>
+
+                        <textarea class="form-control" id="ghiChuNguoiDuyet2" rows="3" style="height: 127px"
+
+                            placeholder="Nhập ghi chú..."></textarea>
+
+                    </div>
+
+                </div>
+
+                <div class="modal-footer">
+
+                    <button type="button" class="btn btn-success" onClick="HandleApproveLeaveRequest()"
+
+                        id="btnActionModalRemake">%Approved%</button>
+
+                    <button type="button" class="btn btn-secondary" onClick="HideModalRemake()"
+
+                        data-bs-dismiss="modal">%btnClose%</button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- Modal cho Phê duyệt/Từ chối đơn hủy -->
+
+    <div class="modal fade shadow" id="modalCancelLeaveRequest" data-bs-backdrop="static" data-bs-keyboard="false"
+
+        tabindex="-1" aria-labelledby="staticBackdropLabel" aria-hidden="true">
+
+
+
+        <div class="modal-dialog modal-dialog-centered">
+
+            <div class="modal-content">
+
+
+
+                <div class="modal-body">
+
+                    <div class="mb-3">
+
+                        <label for="ghiChuNguoiDuyet3" class="form-label">%colNote%</label>
+
+                        <textarea class="form-control" id="ghiChuNguoiDuyet3" rows="3" style="height: 127px"
+
+                            placeholder="Nhập ghi chú..."></textarea>
+
+                    </div>
+
+                </div>
+
+                <div class="modal-footer">
+
+
+
+                    <button type="button" class="btn" onClick="HandleCancelLeaveRequest()"
+
+                        id="btnActionModalCancel">%Approved%</button>
+
+                    <button type="button" class="btn btn-secondary" onClick="HideModalRemake()"
+
+                        data-bs-dismiss="modal">%btnClose%</button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+';
+
+set @html= replace(@html,'@GroupButton',@GroupButton)
+
+set @html+='
+
+<script>
+
+'+@script+N'
+
+</script>'
+
+select @html as html;
+
+/*
+
+exec sp_GenerateHTMLScript 'sp_ResignationLeave_Mobile'
+
+exec sp_GenerateHTMLScript @ProcName='sp_ResignationLeave_Mobile',@TableName='sp_ResignationLeave'
+
+*/
+
+

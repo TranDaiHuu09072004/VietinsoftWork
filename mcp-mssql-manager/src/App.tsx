@@ -1,16 +1,18 @@
 import { invoke } from '@tauri-apps/api/core';
 import { CheckCircle2, Database, KeyRound, PlugZap, Save, ShieldCheck, Trash2 } from 'lucide-react';
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { applyEnabledTargets } from './lib/applyTargets';
 import { defaultProfileDraft, defaultTargets } from './lib/defaults';
 import { mergeRootMcpConfig, mergeVsCodeMcpConfig } from './lib/mcpConfig';
 import { createProfileFromDraft, validateProfileDraft } from './lib/profile';
-import { canUseNativeSecureStorage, deleteProfilePassword, saveProfilePassword } from './lib/secureStorage';
+import { findDuplicateProfile, loadStoredProfileState, saveStoredProfileState } from './lib/profileStore';
+import { canUseNativeSecureStorage, deleteProfilePassword, readProfilePassword, saveProfilePassword } from './lib/secureStorage';
 import type { ConnectionProfile, ConnectionProfileDraft, TestStatus, ToolTargetId } from './types';
 
 function App() {
   const [draft, setDraft] = useState<ConnectionProfileDraft>(defaultProfileDraft);
-  const [profiles, setProfiles] = useState<ConnectionProfile[]>([]);
-  const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
+  const [profiles, setProfiles] = useState<ConnectionProfile[]>(() => loadStoredProfileState().profiles);
+  const [activeProfileId, setActiveProfileId] = useState<string | null>(() => loadStoredProfileState().activeProfileId);
   const [targets, setTargets] = useState(defaultTargets);
   const [messages, setMessages] = useState<string[]>(['Ready. Create a profile, test it, then preview/apply IDE configuration.']);
 
@@ -18,6 +20,26 @@ function App() {
     () => profiles.find((profile) => profile.id === activeProfileId) ?? profiles[0],
     [activeProfileId, profiles],
   );
+
+  useEffect(() => {
+    saveStoredProfileState(profiles, activeProfileId);
+  }, [activeProfileId, profiles]);
+
+  useEffect(() => {
+    if (!activeProfile) return;
+
+    setDraft((current) => ({
+      ...current,
+      name: activeProfile.name,
+      serverName: activeProfile.serverName,
+      server: activeProfile.server,
+      port: activeProfile.port,
+      database: activeProfile.database,
+      user: activeProfile.user,
+      packageName: activeProfile.packageName,
+      password: '',
+    }));
+  }, [activeProfile]);
 
   const preview = useMemo(() => {
     if (!activeProfile) return 'Create or select a profile to preview MCP config.';
@@ -44,18 +66,33 @@ function App() {
       return;
     }
 
-    const profile = createProfileFromDraft(draft);
+    const nextProfile = createProfileFromDraft(draft);
 
     try {
+      const duplicate = findDuplicateProfile(profiles, nextProfile);
+      const profileToSave: ConnectionProfile = duplicate
+        ? {
+            ...duplicate,
+            name: nextProfile.name,
+            packageName: nextProfile.packageName,
+            updatedAt: new Date().toISOString(),
+          }
+        : nextProfile;
+
       if (draft.password && canUseNativeSecureStorage()) {
-        await saveProfilePassword(profile.passwordSecretKey, draft.password);
+        await saveProfilePassword(profileToSave.passwordSecretKey, draft.password);
       }
 
-      setProfiles((current) => [profile, ...current]);
-      setActiveProfileId(profile.id);
-      setDraft({ ...defaultProfileDraft, password: '' });
+      setProfiles((current) => {
+        const existing = findDuplicateProfile(current, profileToSave);
+        if (!existing) return [profileToSave, ...current];
+
+        return current.map((item) => (item.id === existing.id ? profileToSave : item));
+      });
+      setActiveProfileId(profileToSave.id);
+      setDraft((current) => ({ ...current, password: '' }));
       setMessages([
-        `Profile "${profile.name}" added.`,
+        duplicate ? `Profile "${profileToSave.name}" updated.` : `Profile "${profileToSave.name}" added.`,
         draft.password && !canUseNativeSecureStorage()
           ? 'Password was not saved because native secure storage is available only inside the Tauri app runtime.'
           : 'Password is stored in OS secure storage when running inside Tauri.',
@@ -79,20 +116,33 @@ function App() {
   }
 
   async function testConnection() {
-    if (!activeProfile) {
-      setMessages(['Select a profile before testing.']);
+    const errors = validateProfileDraft(draft);
+    if (errors.length > 0) {
+      setMessages(errors);
       return;
     }
 
-    setProfiles((current) => markProfileTest(current, activeProfile.id, 'testing', 'Testing MCP connection...'));
+    const profileForTest = activeProfile ?? createProfileFromDraft(draft);
+    setMessages(['Testing MCP connection...']);
+    setProfiles((current) => markProfileTest(current, profileForTest.id, 'testing', 'Testing MCP connection...'));
 
     try {
-      const result = await invoke<{ success: boolean; message: string }>('test_mcp_connection');
-      setProfiles((current) => markProfileTest(current, activeProfile.id, result.success ? 'success' : 'failed', result.message));
+      const storedPassword = canUseNativeSecureStorage() && activeProfile ? await readStoredPasswordSafe(activeProfile.passwordSecretKey) : '';
+      const result = await invoke<{ success: boolean; message: string }>('test_mcp_connection', {
+        payload: {
+          server: draft.server,
+          port: draft.port,
+          database: draft.database,
+          user: draft.user,
+          password: draft.password || storedPassword,
+          package_name: draft.packageName,
+        },
+      });
+      setProfiles((current) => markProfileTest(current, profileForTest.id, result.success ? 'success' : 'failed', result.message));
       setMessages([result.message]);
     } catch (error) {
       const message = `MCP test failed: ${String(error)}`;
-      setProfiles((current) => markProfileTest(current, activeProfile.id, 'failed', message));
+      setProfiles((current) => markProfileTest(current, profileForTest.id, 'failed', message));
       setMessages([message]);
     }
   }
@@ -109,11 +159,32 @@ function App() {
 
     const enabledTargets = targets.filter((target) => target.enabled).map((target) => target.label);
     setMessages([
-      'Dry run only: write adapters are not enabled yet.',
+      'Dry run only: preview JSON is shown in the right panel. No file was modified.',
       `Selected profile: ${activeProfile.name}`,
       `Targets: ${enabledTargets.length ? enabledTargets.join(', ') : 'none'}`,
-      'Preview JSON is shown in the right panel. No file was modified.',
     ]);
+  }
+
+  async function applyReal() {
+    if (!activeProfile) {
+      setMessages(['Select a profile before applying configuration.']);
+      return;
+    }
+
+    setMessages(['Applying MCP configuration to selected IDE targets...']);
+
+    try {
+      const storedPassword = canUseNativeSecureStorage() ? await readStoredPasswordSafe(activeProfile.passwordSecretKey) : '';
+      const results = await applyEnabledTargets({ profile: activeProfile, targets, password: draft.password || storedPassword });
+      setMessages(
+        results.flatMap((result) => [
+          `${result.success ? 'OK' : 'FAILED'}: ${result.message}`,
+          result.backupPath ? `Backup: ${result.backupPath}` : '',
+        ]).filter(Boolean),
+      );
+    } catch (error) {
+      setMessages([`Apply failed: ${String(error)}`]);
+    }
   }
 
   return (
@@ -193,6 +264,7 @@ function App() {
               <button type="submit" className="primary"><Save size={16} /> Save profile</button>
               <button type="button" onClick={testConnection}><PlugZap size={16} /> Test</button>
               <button type="button" onClick={dryRunApply}><CheckCircle2 size={16} /> Apply dry run</button>
+              <button type="button" className="primary" onClick={applyReal}><CheckCircle2 size={16} /> Apply</button>
               {activeProfile ? (
                 <button type="button" className="danger" onClick={() => removeProfile(activeProfile)}><Trash2 size={16} /> Delete active</button>
               ) : null}
@@ -253,6 +325,14 @@ function markProfileTest(
         }
       : profile,
   );
+}
+
+async function readStoredPasswordSafe(profileId: string): Promise<string> {
+  try {
+    return await readProfilePassword(profileId);
+  } catch {
+    return '';
+  }
 }
 
 export default App;
