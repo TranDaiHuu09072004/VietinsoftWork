@@ -24,7 +24,11 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "PowerShell($path = 'd:\\\\VTS User\\\\Cuong.vu\\\\Agent work\\\\VietinsoftWork\\\\Knowledge\\\\12_CreateMenu.md'; $lines = Get-Content -LiteralPath $path -Encoding UTF8; $newLines = @\\(\\); $skip = $false; for\\($i=0; $i -lt $lines.Count; $i++\\){ $line = $lines[$i]; if\\($line -eq '<!-- RULE5_OLD_BLOCK_START -->'\\){ $skip = $true; continue }; if\\($skip\\){ if\\($line -match '^Không dùng `\\\\.replace'\\){ $skip = $false; continue } else { continue } }; $newLines += $line }; Set-Content -LiteralPath $path -Value $newLines -Encoding UTF8; \"Done: $\\($newLines.Count\\) lines \\(was $\\($lines.Count\\)\\)\")",
-      "PowerShell($path = 'd:\\\\VTS User\\\\Cuong.vu\\\\Agent work\\\\VietinsoftWork\\\\Knowledge\\\\13_Migrate_Menu.md'; $lines = Get-Content -LiteralPath $path -Encoding UTF8; $newLines = @\\(\\); $skip = $false; for\\($i=0; $i -lt $lines.Count; $i++\\){ $line = $lines[$i]; if\\($line -eq '<!-- RULE5_OLD_BLOCK_START -->'\\){ $skip = $true; continue }; if\\($skip\\){ if\\($line -match '^Đây là 5 rule'\\){ $skip = $false; continue } else { continue } }; $newLines += $line }; Set-Content -LiteralPath $path -Value $newLines -Encoding UTF8; \"Done: $\\($newLines.Count\\) lines \\(was $\\($lines.Count\\)\\)\")"
+      "PowerShell($path = 'd:\\\\VTS User\\\\Cuong.vu\\\\Agent work\\\\VietinsoftWork\\\\Knowledge\\\\13_Migrate_Menu.md'; $lines = Get-Content -LiteralPath $path -Encoding UTF8; $newLines = @\\(\\); $skip = $false; for\\($i=0; $i -lt $lines.Count; $i++\\){ $line = $lines[$i]; if\\($line -eq '<!-- RULE5_OLD_BLOCK_START -->'\\){ $skip = $true; continue }; if\\($skip\\){ if\\($line -match '^Đây là 5 rule'\\){ $skip = $false; continue } else { continue } }; $newLines += $line }; Set-Content -LiteralPath $path -Value $newLines -Encoding UTF8; \"Done: $\\($newLines.Count\\) lines \\(was $\\($lines.Count\\)\\)\")",
+      "mcp__Paradise_Dev__execute_query",
+      "PowerShell($file = 'd:\\\\VTS User\\\\Cuong.vu\\\\Agent work\\\\VietinsoftWork\\\\SQL script\\\\migrate_menu_ComplaintForm_20260523.sql'; $info = Get-Item -LiteralPath $file; \"Size: $\\([math]::Round\\($info.Length/1024,1\\)\\) KB \\($\\($info.Length\\) bytes\\)\"; \"Last modified: $\\($info.LastWriteTime\\)\"; \"First line: $\\(\\(Get-Content -LiteralPath $file -TotalCount 1\\)\\)\"; \"Last 3 lines:\"; Get-Content -LiteralPath $file -Tail 3)",
+      "mcp__mssql-vietinsoft__execute_query",
+      "mcp__Paradise_Dev__test_connection"
     ]
   }
 }

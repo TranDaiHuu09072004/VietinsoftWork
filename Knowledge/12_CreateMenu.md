@@ -1,4 +1,4 @@
-﻿# 12 — Skill: Quy trình tạo menu Web mới trong ParadiseHR
+# 12 — Skill: Quy trình tạo menu Web mới trong ParadiseHR
 
 > **Skill file** — hướng dẫn lập trình viên mới triển khai trọn vẹn 1 menu Web kiểu HTML-rendered (kiểu duy nhất ParadiseHR hiện dùng — kiểu ASPX-style đã lỗi thời, xem [99_deprecated.md §5](99_deprecated.md) và [99_deprecated.md §7](99_deprecated.md)).
 >
@@ -10,7 +10,7 @@
 
 ---
 
-## ⚠️ 2 QUY TẮC BẮT BUỘC (đọc trước tiên)
+## ⚠️ 6 QUY TẮC BẮT BUỘC (đọc trước tiên)
 
 ### Rule 1 — Cấp quyền
 
@@ -21,23 +21,32 @@ Mọi script tạo menu mới **PHẢI** tuân thủ:
 3. ➡️ Sau khi script chạy xong, **user tự cấp quyền** cho các user/group khác bằng giao diện phân quyền trong app, hoặc **tự viết script riêng** để cấp quyền hàng loạt cho `tblSC_Right_Stored` / `tblSC_GroupRight`.
 4. ✅ Phase H chỉ chạy `EXEC sp_Men_Menu_AfterSave_Simple @ClassName = N'<ClassName>'` để refresh cache layout. **KHÔNG** thêm bất kỳ proc nào khác.
 
-### Rule 2 — Pattern cờ cho menu HTML-rendered (rất dễ sai)
+### Rule 2 — Cấu hình cờ menu cho Web Portal (Cách 1 vs Cách 2)
 
-Tất cả menu Web HTML-rendered đang chạy thực tế trong DB (`MnuKPI007` Sales Pipeline, `MnuTM022` Xếp hạng nhân viên, `MnuWPT037` Danh sách phê duyệt) đều dùng **CÙNG MỘT PATTERN** sau, **KHÔNG** có ngoại lệ:
+Hệ thống Web Portal hỗ trợ **2 cơ chế** cấu hình cờ hiển thị menu HTML-rendered. Khi triển khai menu mới, **luôn ưu tiên Cách 2 (Pure HTML)**.
 
-| Cờ trong `MEN_Menu` | Giá trị BẮT BUỘC | Lý do |
-|---|---|---|
-| `IsVisible` | `1` | Cho phép hiển thị trong cây |
-| `IsWeb` | **`0`** | Không phải ASPX-style cũ (đã deprecated) — wrapper chạy server-side, không có URL static |
-| `ViewOnWeb` | **`0`** | **KHÔNG** phải `1` — đây là sai lầm phổ biến |
-| `isShowLayOutWeb` | **`0`** | **KHÔNG** phải `1` |
-| `isShowInMobileLayOut` | **`0`** | **KHÔNG** phải `1` |
-| `IsUseMobileDevice` | `1` | Bật cho cả Web HTML-rendered (qua ParadiseWebView2) lẫn Mobile |
-| `glyphicon` | tuỳ chọn | Icon hiển thị |
-| `Priority` | tuỳ chọn (vd 99) | Vị trí trong cây |
-| `ParentMenuID` | tuỳ chọn | **PHẢI có `IsVisible=1`** — xem Rule 3 |
+#### Cách 1: WebView qua Mobile Engine (Legacy)
+Cơ chế này sử dụng lại bộ máy Mobile Device của hệ thống để render WebView.
+* **Cờ bắt buộc trong `MEN_Menu`:**
+  - `IsVisible = 1`
+  - `IsWeb = 0` (Bypass cờ web portal truyền thống)
+  - `ViewOnWeb = 0` (Sai lầm phổ biến là đặt bằng 1)
+  - `isShowLayOutWeb = 0`
+  - `isShowInMobileLayOut = 0`
+  - `IsUseMobileDevice = 1` (Bắt buộc bật để chạy qua Mobile Engine)
+* **Đặc điểm:** Yêu cầu đầy đủ cấu hình metadata layout ở Rule 4.
 
-> ⚠️ **Sai lầm điển hình**: nghĩ rằng "menu Web" = `ViewOnWeb=1` + `isShowLayOutWeb=1`. **SAI**. Các cờ này phải = 0. Hệ thống quyết định "menu Web HTML-rendered" qua `AssemblyName='DataSetting'` + `ClassName` trỏ tới cặp wrapper/renderer + có cache trong `tblHtmlScriptCache`.
+#### Cách 2: Pure HTML Render (Hiện đại - KHUYẾN NGHỊ)
+Cơ chế này bỏ qua Mobile Engine cũ, kết xuất HTML trực tiếp từ Stored Procedure.
+* **Cờ bắt buộc trong `MEN_Menu`:**
+  - `IsVisible = 1`
+  - **`IsWeb = 1`** (Khai báo là ứng dụng Web Portal HTML)
+  - `ViewOnWeb = 0`
+  - **`isShowLayOutWeb = 1`** (Bật hiển thị layout cho Web Portal)
+  - `isShowInMobileLayOut = 0`
+  - `IsUseMobileDevice = 0` (Không cần thiết bị di động)
+* **Đặc điểm:** Không cần cấu hình metadata `tblDataSetting` và `tblDataSettingLayout`. Hệ thống tự động chạy stored procedure wrapper (ClassName) và lấy cột `html` để render thẳng lên trang. Cách này sạch sẽ hơn và hoàn toàn không bị lỗi white screen do thiếu cấu hình.
+* **Menu mẫu thực tế:** `MnuAT009` (Danh sách đơn khiếu nại), `MnuSCR605` (Nhật ký người dùng mới), `MnuSCR010` (Phân quyền truy cập mới).
 
 ### Rule 3 — Parent menu PHẢI `IsVisible = 1`
 
@@ -58,11 +67,11 @@ Parent visible đã verify (an toàn dùng cho menu HTML-rendered mới):
 
 ❌ KHÔNG nên dùng làm parent: `MnuHEP000` (Trợ giúp — `IsVisible=0` ở DB thực tế).
 
-### Rule 4 — BẮT BUỘC tạo `tblDataSetting` + `tblDataSettingLayout` cho mỗi menu HTML-rendered
+### Rule 4 — Cấu hình Metadata Bảng `tblDataSetting` + `tblDataSettingLayout`
 
-Đây là rule **dễ bỏ sót nhất**, gây triệu chứng "click menu thấy màn hình trắng" (menu hiển thị trong cây + có quyền + có cache HTML, nhưng app không biết kiểu render).
+Việc nạp metadata chỉ áp dụng khi bạn cấu hình menu theo **Cách 1 (Legacy)**. Nếu sử dụng **Cách 2 (Pure HTML - Khuyến nghị)**, bạn **hoàn toàn có thể bỏ qua** các cấu hình này (bảng `tblDataSetting` và `tblDataSettingLayout` được giữ sạch).
 
-Mỗi menu HTML-rendered **PHẢI** có **3 bảng metadata** sau (verify từ `MnuKPI447` Doanh số, `MnuTM022` Xếp hạng, `MnuWPT037` Danh sách phê duyệt — tất cả đều đầy đủ 3 bảng):
+Đối với **Cách 1**, mỗi menu HTML-rendered **PHẢI** có cấu hình ở **3 bảng** sau để tránh lỗi màn hình trắng:
 
 | Bảng | Số dòng cần | Vai trò |
 |---|---|---|
@@ -70,14 +79,37 @@ Mỗi menu HTML-rendered **PHẢI** có **3 bảng metadata** sau (verify từ `
 | `tblDataSettingLayout` | **2 dòng**: `root` + `lblhtml` | Định nghĩa container `ParadiseWebView2` chiếm 100% chiều rộng. Thiếu 2 dòng này → app render menu thành màn hình trắng. |
 | `tblHtmlScriptCache` | ≥ 1 dòng / language | HTML/CSS/JS thực do renderer sinh ra |
 
-**Triệu chứng nếu thiếu `tblDataSetting`/`tblDataSettingLayout`**: menu xuất hiện trong cây → click vào → màn hình trắng (no content). Đầy đủ quyền, cờ Web đúng, cache HTML có sẵn → vẫn không hiển thị.
-
-Đây là rule **không có ngoại lệ** — kể cả khi user chỉ nói "tạo menu mới" mà không nhắc đến cờ/parent/DataSetting, vẫn áp dụng đúng cả 4 rule này.
+**Triệu chứng nếu thiếu (ở Cách 1)**: menu xuất hiện trong cây → click vào → màn hình trắng (no content). Đầy đủ quyền, cờ Web đúng, cache HTML có sẵn → vẫn không hiển thị.
 
 ### Rule 5 — Renderer HTML/JS phải an toàn (xem skill riêng)
 
 Khi viết renderer `<ClassName>_html` build HTML/CSS/JS trong chuỗi `NVARCHAR(MAX)`, **bắt buộc đọc** [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md) — file skill này tổng hợp 7 quy tắc escape T-SQL → JS, pattern MERGE `tblHtmlScriptCache` 8 cột, xử lý cột varbinary (Msg 257), dynamic SQL config-driven, polyfill global helper, template copy-paste ready và checklist 15 điểm trước khi export. **KHÔNG** tự suy đoán pattern escape khi viết script.
 
+### Rule 6 — Grid PHẢI dùng Infinite Loop Scroll (CẤM phân trang truyền thống)
+
+Mọi menu HTML-rendered có **`dxDataGrid`** (DevExtreme) hiển thị danh sách dữ liệu **BẮT BUỘC** dùng cơ chế **infinite loop scroll** (`scrolling.mode = "infinite"`) thay vì phân trang truyền thống (pager số trang). Đây là chuẩn nhất quán giữa 3 nền tảng Desktop/Web/Mobile ParadiseHR và giảm tải server qua cache temp table.
+
+| Yêu cầu | Giá trị BẮT BUỘC | Ghi chú |
+|---|---|---|
+| `scrolling.mode` | `"infinite"` | Cuộn cận đáy → tự fetch page tiếp theo |
+| `scrolling.rowRenderingMode` | `"virtual"` | Chỉ render row trong viewport (tiết kiệm DOM) |
+| `scrolling.preloadEnabled` | `false` | Tránh prefetch quá đà |
+| `paging.enabled` | `true` | Cần bật để DevExtreme tính `skip`/`take` |
+| `paging.pageSize` | `50` (mặc định) | Chunk size mỗi lần fetch — không nên < 30 hoặc > 100 |
+| `pager.visible` | **`false`** | **ẨN pager truyền thống** — đây là chìa khoá thay thế phân trang |
+| `remoteOperations` | `{ paging:true, filtering:true, sorting:true, searching:true }` | Delegate toàn bộ paging/filter/sort về server (SP `sp_LoadGridUsingAPI`) |
+| `dataSource` | `DevExpress.data.CustomStore` với `key` + `load(loadOptions)` | KHÔNG dùng array tĩnh; KHÔNG dùng `ODataStore` |
+| Data SP (`sp_<Tên>List`) | Có param `@TempTableAPIName varchar(100)='`'' | Để orchestrator `sp_LoadGridUsingAPI` materialize cache temp `##<TableName><LoginID><LanguageID>` |
+
+❌ **CẤM:**
+- `scrolling.mode = "standard"` / `"virtual"` đơn thuần / không set → mặc định = phân trang số trang.
+- `pager.visible = true` cho menu danh sách dữ liệu thông thường.
+- Set `dataSource` thẳng là array (load 1 lần toàn bộ data).
+- Tự viết SP paging riêng (`@PageNumber`, `@PageSize`) thay vì gọi `sp_LoadGridUsingAPI` qua `AjaxHPAParadise` với `@Skip`/`@Take`.
+
+✅ **Template chuẩn** + giải thích cơ chế 3 lớp (UI → `sp_LoadGridUsingAPI` orchestrator → Data SP) + menu mẫu **`sp_CRM_ProductType_html`** (Loại Sản phẩm CRM): xem [§9. Grid + Infinite Loop Scroll](#9-grid--infinite-loop-scroll-bắt-buộc-rule-6) bên dưới.
+
+> **Why**: ≥30 menu hiện tại trong DB Vietinsoft_Pay đã dùng pattern này (verify từ `OBJECT_DEFINITION LIKE '%scrolling.mode%infinite%'`) — `sp_CRM_CustomerList_html`, `sp_KPIContentPost_html`, `sp_Adjustment_html`, `sp_EditSubject_html`, `sp_DataFilter_html`, `sp_REC_PopupAddNewJob_html`, `sp_Sub_SubQuotation_html`… Menu mới phải nhất quán với chuẩn hiện hành.
 
 ---
 
@@ -643,6 +675,7 @@ Khi cần ảnh nhân viên hoặc file binary — gọi `paradisefile_sp_GetFil
 10. ☐ Phase G — chỉ `INSERT tblSC_Right_Stored(ObjectID, LoginID = 3, FullAccess = '32')`.
 11. ☐ Phase H — chỉ `EXEC sp_Men_Menu_AfterSave_Simple @ClassName = '<ClassName>'`. **KHÔNG** gọi `sp_UpdateMenuInUserRight`.
 12. ☐ Đã verify: logout/login (LoginID = 3) → menu hiển thị → click vào → giao diện render → mở DevTools → check Network tab xem `AjaxHPAParadise` POST đúng `name` + `param`. Cấp quyền cho user/group khác sau (qua app hoặc script riêng).
+13. ☐ **(Rule 6) Nếu menu có `dxDataGrid`**: đã set `scrolling.mode="infinite"`, `scrolling.rowRenderingMode="virtual"`, `pager.visible=false`, `remoteOperations` đủ 4 cờ, `dataSource` là `CustomStore` gọi `sp_LoadGridUsingAPI` với `@Skip`/`@Take`. Data SP có param `@TempTableAPIName`. Xem template [§9](#9-grid--infinite-loop-scroll-bắt-buộc-rule-6).
 
 ---
 
@@ -674,3 +707,216 @@ Khi cần ảnh nhân viên hoặc file binary — gọi `paradisefile_sp_GetFil
 | Phân quyền: `FullAccess` map, data scope, inheritance | [11_permissions.md](11_permissions.md) |
 | Cờ tách 3 nền tảng Desktop/Web/Mobile | [01_architecture.md](01_architecture.md) |
 | Bảng `tblEmployee` + cấu trúc hồ sơ NV | [02_db_employee.md](02_db_employee.md) |
+
+---
+
+## 9. Grid + Infinite Loop Scroll (BẮT BUỘC — Rule 6)
+
+> Section này là **chuẩn duy nhất** ParadiseHR dùng cho mọi danh sách dữ liệu trong menu HTML-rendered. Bất kỳ menu mới nào có `dxDataGrid` đều phải copy template + chỉnh params theo nghiệp vụ.
+
+### 9.1 Kiến trúc 3 lớp
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│ Lớp 1 — UI Browser (renderer JS)                                   │
+│ ─────────────────────────────────────                              │
+│ dxDataGrid + DevExpress.data.CustomStore                           │
+│  • scrolling.mode = "infinite"                                     │
+│  • pager.visible  = false                                          │
+│  • load(loadOptions) → DevExtreme tự cấp { skip, take, ... }       │
+└───────────────────────────────┬────────────────────────────────────┘
+                                │ AjaxHPAParadise (POST)
+                                │ name = "sp_LoadGridUsingAPI"
+                                ▼
+┌────────────────────────────────────────────────────────────────────┐
+│ Lớp 2 — Orchestrator (universal grid loader)                       │
+│ ─────────────────────────────────────                              │
+│ sp_LoadGridUsingAPI                                                │
+│  • Lần đầu  : EXEC <@ProcName> @TempTableAPIName='##<X><LoginID><LangID>'│
+│  • Lần sau  : SELECT * FROM ##<table> + WHERE + ORDER BY           │
+│               + OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY       │
+│  • Trả về   : { data, totalCount?, summary? }                      │
+└───────────────────────────────┬────────────────────────────────────┘
+                                │ EXEC … @TempTableAPIName=…
+                                ▼
+┌────────────────────────────────────────────────────────────────────┐
+│ Lớp 3 — Data SP (nghiệp vụ)                                        │
+│ ─────────────────────────────────────                              │
+│ sp_<Tên>List                                                       │
+│  • PHẢI có param @TempTableAPIName varchar(100)=''                 │
+│  • SELECT data vào #tmpTableData                                   │
+│  • Dynamic: SELECT * INTO @TempTableAPIName FROM #tmpTableData     │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.2 Menu mẫu — "Loại Sản phẩm CRM" (`sp_CRM_ProductType_html`)
+
+Đây là menu **đơn giản nhất** trong DB Vietinsoft_Pay dùng cơ chế này (19 KB source, 2 cột data, 1 grid). Dùng làm khung copy-paste cho menu mới.
+
+**Data SP — `sp_CRM_ProductTypeList`** (lớp 3):
+
+```sql
+CREATE PROCEDURE sp_CRM_ProductTypeList
+(
+    @LoginID            int           = 3,
+    @LanguageID         varchar(5)    = 'VN',
+    @TempTableAPIName   varchar(100)  = ''     -- ← BẮT BUỘC param này
+)
+AS
+BEGIN
+    SELECT
+        ROW_NUMBER() OVER (ORDER BY ProductTypeID) AS STT,
+        ProductTypeID,
+        ProductTypeName,
+        CASE WHEN @LanguageID = 'VN' THEN cd.ContractDetailTypeName
+             ELSE cd.ContractDetailTypeNameEN END AS ContractDetailTypeName,
+        cd.ContractDetailType
+    INTO #tmpTableData
+    FROM tblWH_ProductType pt
+    LEFT JOIN tblCRM_Contact_Detail_Type cd ON pt.ContractDetailType = cd.ContractDetailType;
+
+    DECLARE @sql nvarchar(max);
+    IF (@TempTableAPIName = '')
+        SET @sql = N'SELECT * FROM #tmpTableData';
+    ELSE
+        SET @sql = N'SELECT * INTO ' + QUOTENAME(@TempTableAPIName) + N' FROM #tmpTableData';
+    EXEC sp_executesql @sql;
+    DROP TABLE #tmpTableData;
+END
+```
+
+**Renderer JS — `sp_CRM_ProductType_html`** (lớp 1, đã rút gọn):
+
+```javascript
+// 1. DataStore (KHÔNG dùng array tĩnh)
+const dataStore_GridCRMProductType = new DevExpress.data.CustomStore({
+    key: "ProductTypeID",
+    load: function (loadOptions) {
+        const deferred = $.Deferred();
+
+        let params = [];
+        // SP nghiệp vụ (lớp 3)
+        params.push("@ProcName", "sp_CRM_ProductTypeList");
+        // Param đẩy vào SP nghiệp vụ (chuỗi key=value, dấu phẩy)
+        params.push("@ProcParam", "@LoginID = " + window.LoginID + ", @LanguageID = " + window.LanguageID);
+
+        // Paging — DevExtreme tự cấp dựa trên scroll position
+        params.push("@Take", loadOptions.take || 50);
+        params.push("@Skip", loadOptions.skip || 0);
+
+        // TotalCount (chỉ lần đầu / khi cần summary)
+        if (loadOptions.requireTotalCount) params.push("@RequireTotalCount", 1);
+
+        // Sort
+        const sort = loadOptions.sort
+            ? loadOptions.sort.map(s => s.selector + (s.desc ? " DESC" : " ASC")).join(",")
+            : "STT";
+        params.push("@Sort", "ORDER BY " + sort);
+
+        // Search
+        if (_currentKeyword) {
+            params.push("@SearchValue", _currentKeyword);
+            params.push("@ColumnSearch", "ProductTypeName,ContractDetailTypeName");
+        }
+
+        // Filter (DevExtreme filter expression → SQL WHERE)
+        if (loadOptions.filter) {
+            params.push("@Filters", createConditionQuery(loadOptions.filter));
+        }
+
+        // Summary
+        if (loadOptions.totalSummary) {
+            const summary = loadOptions.totalSummary.map(item =>
+                `${item.summaryType}([${item.selector}]) as ${item.selector}_${item.summaryType.toUpperCase()}`
+            );
+            params.push("@TotalSummary", summary.join(", "));
+        }
+
+        AjaxHPAParadise({
+            data: { name: "sp_LoadGridUsingAPI", param: params },
+            success: function (res) {
+                const json = typeof res === "string" ? JSON.parse(res) : res;
+                const results = Array.isArray(json?.data?.[0]) ? json.data[0] : [];
+                let result = { data: results };
+                if (loadOptions.requireTotalCount) {
+                    result.totalCount = json?.data?.[1]?.[0]?.TotalCount ?? 0;
+                }
+                deferred.resolve(result);
+            },
+            error: () => deferred.reject("Data Loading Error")
+        });
+        return deferred.promise();
+    }
+});
+
+// 2. Grid options BẮT BUỘC (Rule 6)
+gridInstance.beginUpdate();
+gridInstance.option("remoteOperations", {
+    paging: true, filtering: true, sorting: true, searching: true
+});
+gridInstance.option({
+    "scrolling.mode": "infinite",              // ← chìa khoá
+    "scrolling.rowRenderingMode": "virtual",
+    "scrolling.preloadEnabled": false,
+    "paging.enabled": true,
+    "paging.pageSize": 50,
+    "pager.visible": false,                    // ← ẨN pager truyền thống
+    "dataSource": dataStore_GridCRMProductType,
+    "height": getGridHeight()
+});
+// 3. Reset cache khi đổi keyword search
+gridInstance.option("onOptionChanged", function (e) {
+    if (e.name === "searchPanel" && e.fullName === "searchPanel.text") {
+        _currentKeyword = (e.value || "").trim();
+        _pageCache = {};
+    }
+});
+gridInstance.endUpdate();
+
+// 4. Reload helper
+function ReloadData(pageNumber, pageSize, keyword = null) {
+    if (keyword !== null) _currentKeyword = keyword.trim();
+    _pageCache = {};
+    gridInstance.refresh();   // ← refresh() trigger CustomStore.load() lại từ skip=0
+}
+ReloadData();
+```
+
+### 9.3 Cơ chế cache temp table (lớp 2)
+
+`sp_LoadGridUsingAPI` tự đặt tên temp table theo công thức:
+
+```
+@TableDataName = '##' + @ProcName + cast(@LoginID as nvarchar) + @LanguageID
+-- vd: ##sp_CRM_ProductTypeList3VN
+```
+
+- **Lần load đầu** (`OBJECT_ID(@TableDataName) IS NULL` hoặc `@RequireTotalCount=1 AND @Filters=''`): EXEC Data SP để materialize toàn bộ data vào global temp table.
+- **Các page tiếp theo** (cùng user, cùng SP, cùng filter): chỉ chạy `SELECT * FROM ##... WHERE <Search/Filter> ORDER BY <Sort> OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY` trên temp table.
+- **Khi user đổi search/filter**: JS clear `_pageCache` → `gridInstance.refresh()` → load lại từ `skip=0`.
+
+Lợi ích: data SP chỉ chạy 1 lần/user/session/lang; mỗi page tiếp theo là 1 query rất nhẹ trên temp table đã có sẵn.
+
+### 9.4 Lỗi thường gặp khi triển khai sai
+
+| Triệu chứng | Nguyên nhân | Fix |
+|---|---|---|
+| Grid hiển thị toàn bộ data 1 lần, có pager số trang ở dưới | Không set `scrolling.mode="infinite"` + `pager.visible=false` | Bổ sung 2 option theo Rule 6 |
+| Cuộn xuống không load thêm | Thiếu `remoteOperations.paging=true` HOẶC dataSource là array tĩnh thay vì `CustomStore` | Wrap data trong `new DevExpress.data.CustomStore({ key, load })` |
+| Mỗi lần cuộn lại re-run Data SP đầy đủ | Data SP không có param `@TempTableAPIName` → orchestrator không cache được | Thêm `@TempTableAPIName varchar(100)=''` + dynamic `SELECT INTO @TempTableAPIName` |
+| Search/Filter không reset về đầu | Thiếu `onOptionChanged` clear `_pageCache` + `gridInstance.refresh()` | Copy block onOptionChanged từ template §9.2 |
+| TotalCount sai (= 0 hoặc undefined) | Không push `@RequireTotalCount=1` trong loadOptions | Push `@RequireTotalCount=1` khi `loadOptions.requireTotalCount` true |
+| Lỗi khi sort cột tên có dấu / space | `@Sort` không quote selector | DevExtreme tự xử lý; nếu lỗi → wrap `[${s.selector}]` |
+
+### 9.5 Menu thực tế đang dùng pattern này (verified từ DB)
+
+≥ 30 procedure, trải đều các module:
+
+- **CRM**: `sp_CRM_ProductType_html`, `sp_CRM_CustomerList_html`, `sp_CRM_ContractType_html`, `sp_CRM_ContractDetailTypeList_Menu_html`
+- **KPI**: `sp_KPIContentPost_html`, `sp_KPIListEmailManual_html`, `sp_KPIProcessCustomer_html`
+- **Đào tạo**: `sp_TrainNew_KnowLedgeGroup_html`, `sp_SubjectManagement_html`, `sp_Train_SubjectList_New_html`, `sp_EditSubject_html`, `sp_Train_Dashboard_New_html`
+- **Tuyển dụng**: `sp_REC_PopupAddNewJob_html`
+- **Sản phẩm/Quotation**: `sp_Sub_SubProduct_html`, `sp_Sub_SubQuotation_html`
+- **Khác**: `sp_Adjustment_html`, `sp_DataFilter_html`, `sp_UserHunryTask_html`, `sp_CollectingDataGoogleMap_html`, `sp_zalo_autoSendMessage_html`
+
+Có thể `SELECT name FROM sys.objects WHERE OBJECT_DEFINITION(object_id) LIKE '%scrolling.mode%infinite%'` để lấy full list khi cần tham chiếu.

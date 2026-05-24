@@ -129,17 +129,36 @@ Logic auto-sinh ID đọc từ source:
 - **Hành vi**: `IsModal`, `showDialog`, `URL` (web menu), `ShortcutKeys` (desktop), `superForm`, `LinkMenuID`, `DefaultParam`, `OptionAuthentication`.
 - **Liên quan**: `ClassName_Audit`, `ClassName_CT` (class phụ trợ), `ProcessDataForNotifyProc`, `InstructionID`.
 
-### Pattern cờ ĐÚNG cho menu HTML-rendered (rất dễ sai)
+### Hai cơ chế cấu hình menu HTML-rendered (Rất quan trọng)
 
-> ⚠️ Verified từ DB thực tế cho `MnuKPI007`, `MnuTM022`, `MnuWPT037` (3 menu Web HTML-rendered đang chạy): tất cả đều có `IsWeb=0`, `ViewOnWeb=0`, `isShowLayOutWeb=0`, `isShowInMobileLayOut=0`, chỉ bật `IsUseMobileDevice=1`. Bật `ViewOnWeb=1` hoặc `isShowLayOutWeb=1` sẽ làm menu **KHÔNG hiển thị**. Xem [12_CreateMenu.md §Rule 2](12_CreateMenu.md) để biết chi tiết.
+Hiện tại, hệ thống Web Portal hỗ trợ **2 cơ chế** thiết lập và hiển thị menu HTML-rendered. Khi tạo hoặc cập nhật menu, **luôn ưu tiên sử dụng Cách 2**.
+
+#### Cách 1: WebView qua Mobile Engine (Legacy)
+* **Các cờ trên `MEN_Menu`:** `IsWeb=0`, `ViewOnWeb=0`, `isShowLayOutWeb=0`, `IsUseMobileDevice=1`, `isShowInMobileLayOut=0` (hoặc con `1` parent `1`).
+* **Yêu cầu Metadata:** **BẮT BUỘC** cấu hình 3 bảng metadata đầy đủ:
+  - `tblDataSetting`: 1 dòng (`TableName = <ClassName>`, `IsProcedure=1`, `IsShowLayout=1`, `ColumnDataType='html&ViewHtml'`, `ColumnOrderBy='html&0'`).
+  - `tblDataSettingLayout`: 2 dòng (`root` container + item `lblhtml` trỏ tới `ControlType='ParadiseWebView2'`).
+  - `tblHtmlScriptCache`: Chứa nội dung HTML/CSS/JS từ renderer.
+* **Đặc điểm:** Tận dụng bộ máy kết xuất di động cũ. Nhược điểm: Phức tạp, dễ gặp lỗi phân biệt chữ hoa/thường (case-sensitive) giữa ClassName và cấu hình TableName trong DataSetting, và phụ thuộc hoàn toàn vào cờ hiển thị di động của menu cha.
+* **Menu mẫu:** `MnuKPI007` (Sales Pipeline), `MnuTM022` (Xếp hạng nhân viên), `MnuWPT037` (Danh sách phê duyệt).
+
+#### Cách 2: Pure HTML Render (Hiện đại - KHUYẾN NGHỊ)
+* **Các cờ trên `MEN_Menu`:** **`IsWeb=1`**, **`isShowLayOutWeb=1`**, `IsUseMobileDevice=0`, `isShowInMobileLayOut=0`.
+* **Yêu cầu Metadata:** **KHÔNG CẦN** cấu hình `tblDataSetting` và `tblDataSettingLayout` (chỉ cần cache HTML trong `tblHtmlScriptCache`).
+* **Đặc điểm:** Web Portal khi thấy cờ `IsWeb=1` sẽ bỏ qua toàn bộ Mobile Engine cũ, tự động chạy trực tiếp stored procedure wrapper (ClassName) và lấy giá trị cột `html` trả về để render thẳng lên trang. Cách làm này vô cùng đơn giản, sạch sẽ, không phụ thuộc cờ menu cha và hoàn toàn loại bỏ nguy cơ lỗi màn hình trắng do thiếu cấu hình layout.
+* **Menu mẫu:** `MnuAT009` (Danh sách đơn khiếu nại), `MnuSCR605` (Nhật ký người dùng mới), `MnuSCR010` (Phân quyền truy cập mới).
+
+---
 
 ### Parent menu PHẢI `IsVisible = 1`
 
 Trước khi chọn `ParentMenuID` cho menu mới, **kiểm tra parent có `IsVisible = 1`**. Parent không visible thì menu con không hiển thị (ngay cả khi đầy đủ quyền). Đặc biệt **TRÁNH `MnuHEP000`** (Trợ giúp — `IsVisible = 0` ở DB thực tế).
 
-### BẮT BUỘC tạo `tblDataSetting` + `tblDataSettingLayout` (dễ bỏ sót)
+---
 
-Mỗi menu HTML-rendered cần **3 bảng metadata** đầy đủ (verify từ `MnuKPI447`, `MnuTM022`, `MnuWPT037`):
+### BẮT BUỘC tạo `tblDataSetting` + `tblDataSettingLayout` (Chỉ áp dụng cho Cách 1)
+
+Nếu cấu hình theo **Cách 1**, mỗi menu HTML-rendered cần **3 bảng metadata** đầy đủ (verify từ `MnuKPI447`, `MnuTM022`, `MnuWPT037`):
 
 | Bảng | Số dòng | Cờ chính |
 |---|---|---|
@@ -147,7 +166,7 @@ Mỗi menu HTML-rendered cần **3 bảng metadata** đầy đủ (verify từ `
 | `tblDataSettingLayout` | 2 | Row `root` (`Type='g'`) + row `lblhtml` (`Type='i'`, `ControlType='ParadiseWebView2'`, `ControlName='html'`, `NamePa='root'`) |
 | `tblHtmlScriptCache` | ≥ 1 / lang | HTML/CSS/JS từ renderer |
 
-**Triệu chứng nếu thiếu**: menu xuất hiện trong cây + có quyền + có cache HTML → click vào → **màn hình TRẮNG** (không content). Xem [12_CreateMenu.md Rule 4 + Phase D2/D3](12_CreateMenu.md).
+**Triệu chứng nếu thiếu (khi chạy Cách 1)**: menu xuất hiện trong cây + có quyền + có cache HTML → click vào → **màn hình TRẮNG** (không content). Xem [12_CreateMenu.md Rule 4 + Phase D2/D3](12_CreateMenu.md).
 
 ## 8. Giao diện desktop app lưu ở đâu
 

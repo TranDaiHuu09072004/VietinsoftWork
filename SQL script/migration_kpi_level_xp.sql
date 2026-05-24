@@ -1,5 +1,29 @@
---exec sp_PerformanceKPI_Working_Process '2026-04-10','2026-05-10','-1',3,1
-ALTER PROCEDURE [dbo].[sp_PerformanceKPI_Working_Process]
+-- =================================================================================
+-- MIGRATION SCRIPT: REDESIGN XP POINT CALCULATION BASED ON EMPLOYEE LEVEL
+-- Target Database: Vietinsoft_Pay (Production)
+-- Date: 2026-05-22
+-- =================================================================================
+
+-- STEP 1: Add OrgXP_Point column to tblRank_PersonalRating_Detail if it does not exist
+IF NOT EXISTS (
+    SELECT 1 
+    FROM INFORMATION_SCHEMA.COLUMNS 
+    WHERE TABLE_NAME = 'tblRank_PersonalRating_Detail' AND COLUMN_NAME = 'OrgXP_Point'
+)
+BEGIN
+    PRINT 'Adding OrgXP_Point column to tblRank_PersonalRating_Detail...';
+    ALTER TABLE tblRank_PersonalRating_Detail ADD OrgXP_Point INT NULL;
+END
+ELSE
+BEGIN
+    PRINT 'OrgXP_Point column already exists in tblRank_PersonalRating_Detail.';
+END
+GO
+
+-- STEP 2: Compile/Deploy sp_PerformanceKPI_Working_Process
+PRINT 'Deploying stored procedure sp_PerformanceKPI_Working_Process...';
+GO
+CREATE OR ALTER PROCEDURE [dbo].[sp_PerformanceKPI_Working_Process]
 	@FromDate datetime = null,
 	@ToDate datetime = null,
 	@EmployeeID varchar(20) = '-1',
@@ -571,5 +595,6 @@ Vui lòng làm thủ tục bổ sung nhé ' + isnull(te.FullName,'') , @Now
 	if @isDebug = 0 EXEC sp_releaseapplock @Resource = @Lock_Resource, @LockOwner = 'Session';
 	print 'eof sp_PerformanceKPI_Working_Process'
 END
-go
-exec sp_PerformanceKPI_Working_Process '2026-05-10','2026-06-10','008',3,1
+GO
+PRINT 'Stored procedure sp_PerformanceKPI_Working_Process deployed successfully.';
+GO

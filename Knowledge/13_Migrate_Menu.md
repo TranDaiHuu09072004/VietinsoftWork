@@ -70,6 +70,36 @@ WHERE TableName = '<ClassName>_html';
 
 Khi migrate/update renderer `sp_X_html`, **bắt buộc đọc** [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md) — gồm: pattern escape quote boundary T-SQL/JS, xử lý cột `varbinary(max)` của `tblDataSetting`/`tblDataSettingLayout` (tránh lỗi Msg 257), pattern dynamic SQL `tblCommonControlType_Signed`, MERGE `tblHtmlScriptCache` 8 cột notnull, polyfill global helper, template copy-paste ready, và checklist 15 điểm trước khi export. **Đây là rule bắt buộc cho mọi script migrate/update menu có renderer.**
 
+### Rule 6 — Schema-aware idempotent (chống Msg 8106 và họ lỗi tương tự)
+
+Khi script dùng pattern `IF OBJECT_ID('dbo.X','U') IS NULL CREATE TABLE ... <schema mong muốn>`, **các thao tác phía sau phụ thuộc schema BẮT BUỘC defensively check schema thực tế ở DB đích**, không được giả định bảng đã có khớp schema vừa CREATE.
+
+Lý do: DB đích có thể đã có bảng cùng tên với schema CŨ / KHÁC (từ migrate trước, từ phiên bản khác, từ developer tạo tay). Pattern `IF NULL CREATE` skip CREATE khi bảng đã tồn tại → schema cũ giữ nguyên → câu lệnh phía sau giả định IDENTITY / FK / cột mới → fail runtime.
+
+**Pattern bắt buộc cho từng thao tác nhạy schema:**
+
+| Thao tác | Pattern defensive bắt buộc |
+|---|---|
+| `SET IDENTITY_INSERT dbo.X ON/OFF` | `IF COLUMNPROPERTY(OBJECT_ID('dbo.X'), '<col>', 'IsIdentity') = 1 SET IDENTITY_INSERT dbo.X ON;` (lặp lại cho OFF) |
+| `INSERT explicit ID khi cần` | Check IDENTITY trước; nếu không có IDENTITY thì INSERT không kèm cột ID (DB tự dùng default/manual) |
+| `ALTER COLUMN <type>` | Check kiểu hiện tại qua `INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME=... AND COLUMN_NAME=...` trước khi đổi; chỉ ALTER khi kiểu khác mong muốn |
+| `ADD CONSTRAINT FK_X` | `IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_X')` |
+| `ALTER TABLE ADD <col>` | `IF COL_LENGTH('dbo.X','<col>') IS NULL ALTER TABLE dbo.X ADD <col> ...;` |
+| `CREATE INDEX IX_X` | `IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_X' AND object_id=OBJECT_ID('dbo.X'))` |
+| `DROP CONSTRAINT DF_X` | `IF EXISTS (SELECT 1 FROM sys.default_constraints WHERE name='DF_X')` |
+
+**Tiền lệ ngày 2026-05-23** ([SQL script/migrate_menu_ComplaintForm_20260523.sql](../SQL%20script/migrate_menu_ComplaintForm_20260523.sql)): Script PHASE 1 `IF OBJECT_ID IS NULL CREATE TABLE tblTask_ComplaintTypes (ComplaintTypeID int IDENTITY ...)`. DB đích đã có bảng từ trước với cột `ComplaintTypeID` KHÔNG IDENTITY → skip CREATE → PHASE 2 `SET IDENTITY_INSERT ON` raise `Msg 8106 "Table does not have the identity property"`. Fix: `IF COLUMNPROPERTY(OBJECT_ID('dbo.tblTask_ComplaintTypes'), 'ComplaintTypeID', 'IsIdentity') = 1 SET IDENTITY_INSERT ...`.
+
+**Cách xử lý triệt để hơn** (nếu schema khác biệt là vấn đề thực sự): script migrate có thể detect schema mismatch và RAISERROR yêu cầu user manually align schema, thay vì silent skip. Ví dụ:
+
+```sql
+IF OBJECT_ID('dbo.tblTask_ComplaintTypes','U') IS NOT NULL
+   AND COLUMNPROPERTY(OBJECT_ID('dbo.tblTask_ComplaintTypes'),'ComplaintTypeID','IsIdentity') <> 1
+BEGIN
+    RAISERROR(N'Bảng tblTask_ComplaintTypes tồn tại nhưng ComplaintTypeID không phải IDENTITY. Script kỳ vọng IDENTITY — vui lòng align schema trước khi chạy.', 16, 1);
+END
+```
+
 
 ---
 
@@ -795,6 +825,50 @@ ELSE
 
 Theo rule, **không** insert/update bất kỳ row nào trong `tblSC_GroupRight` qua script migrate. Nếu user yêu cầu cấp cho group sau khi script chạy → hướng dẫn user dùng giao diện phân quyền trong app, hoặc Agent build **script cấp quyền riêng** (không trộn với script migrate menu).
 
+### 11.10. Seed bảng master data với schema-aware IDENTITY_INSERT
+
+Khi script migrate phải seed bảng master data (vd `tblTask_ComplaintTypes`, `tblMST_*`) với explicit ID, phải tuân Rule 6 — chỉ `SET IDENTITY_INSERT` khi cột PK thực sự là IDENTITY ở DB đích:
+
+```sql
+-- Tạo bảng nếu chưa có
+IF OBJECT_ID('dbo.tblTask_ComplaintTypes', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.tblTask_ComplaintTypes (
+        ComplaintTypeID     int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        ComplaintTypeName   nvarchar(255) NOT NULL,
+        ComplaintTypeNameEN nvarchar(255) NULL
+    );
+END
+GO
+
+-- Seed với explicit ID — wrap IDENTITY_INSERT bằng COLUMNPROPERTY check (Rule 6)
+-- Lý do: DB đích có thể đã có bảng cùng tên với schema cũ (cột PK KHÔNG khai báo IDENTITY) →
+-- SET IDENTITY_INSERT sẽ raise Msg 8106 "Table does not have the identity property".
+IF COLUMNPROPERTY(OBJECT_ID('dbo.tblTask_ComplaintTypes'), 'ComplaintTypeID', 'IsIdentity') = 1
+    SET IDENTITY_INSERT dbo.tblTask_ComplaintTypes ON;
+GO
+
+MERGE dbo.tblTask_ComplaintTypes AS tgt
+USING (VALUES
+    (1, N'Gia hạn thời gian hoàn thành', N'Extend Deadline'),
+    (2, N'Khiếu nại từ chối duyệt',      N'Appeal Rejection')
+) AS src(ComplaintTypeID, ComplaintTypeName, ComplaintTypeNameEN)
+   ON tgt.ComplaintTypeID = src.ComplaintTypeID
+WHEN MATCHED THEN UPDATE SET
+    tgt.ComplaintTypeName   = src.ComplaintTypeName,
+    tgt.ComplaintTypeNameEN = src.ComplaintTypeNameEN
+WHEN NOT MATCHED BY TARGET THEN
+    INSERT (ComplaintTypeID, ComplaintTypeName, ComplaintTypeNameEN)
+    VALUES (src.ComplaintTypeID, src.ComplaintTypeName, src.ComplaintTypeNameEN);
+GO
+
+IF COLUMNPROPERTY(OBJECT_ID('dbo.tblTask_ComplaintTypes'), 'ComplaintTypeID', 'IsIdentity') = 1
+    SET IDENTITY_INSERT dbo.tblTask_ComplaintTypes OFF;
+GO
+```
+
+Nếu schema mismatch là critical (vd script kỳ vọng cột IDENTITY để app runtime auto-gen ID nhưng DB đích không có), phải RAISERROR thay vì silent skip — xem [Rule 6](#rule-6--schema-aware-idempotent-chống-msg-8106-và-họ-lỗi-tương-tự) phần "Cách xử lý triệt để hơn".
+
 ---
 
 ## 12. Phase I — Build cache và refresh sau migrate
@@ -1134,6 +1208,7 @@ Agent phải tự đối chiếu đủ các điểm sau:
 - [ ] Có refresh `sp_Men_Menu_AfterSave_Simple @ClassName = N'<ClassName>'` (BẮT BUỘC truyền tham số). **KHÔNG** gọi `sp_UpdateMenuInUserRight` (rule cấp quyền — chỉ LoginID=3).
 - [ ] Có verify cuối script.
 - [ ] Không tự thực thi script nếu user chỉ yêu cầu tạo script.
+- [ ] **Schema-aware idempotent (Rule 6)**: Mọi `SET IDENTITY_INSERT` đã wrap `IF COLUMNPROPERTY(...,'IsIdentity')=1`; `ALTER COLUMN` đã check kiểu hiện tại; `ADD CONSTRAINT FK` / `CREATE INDEX` / `ALTER TABLE ADD <col>` / `DROP CONSTRAINT DF_*` đều có guard `IF EXISTS` / `IF NOT EXISTS` / `IF COL_LENGTH(...) IS NULL` tương ứng. Không giả định schema thực tế ở DB đích khớp với schema của `CREATE TABLE` ngay phía trên.
 
 ---
 

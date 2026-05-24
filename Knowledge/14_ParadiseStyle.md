@@ -239,3 +239,41 @@ SET @html = N'
             .replace(/\u0027/g, "&#039;");
     }
 })();
+';
+
+### Rule 10 — CHỈ sử dụng Font Icon Bootstrap Icons (bi-...)
+
+Hệ thống ParadiseStyle quy định thống nhất **chỉ sử dụng duy nhất bộ Font Icon mặc định là Bootstrap Icons (`bi bi-...`)** vốn đã được cấu hình và tích hợp sẵn trong toàn bộ hệ thống layout gốc.
+
+- ❌ **TUYỆT ĐỐI KHÔNG** sử dụng các lớp biểu tượng của FontAwesome (như `fa-solid`, `fa-regular`, `fa-folder-open`, `fa-...`) trong bất kỳ file HTML renderer hay stored procedure nào.
+- ❌ **Triệu chứng vi phạm:** Icon hiển thị dưới dạng ô vuông lỗi hoặc biến mất hoàn toàn trên một số môi trường Database/trình duyệt khác.
+- ✅ **Chuyển đổi tương đương phổ biến:**
+  - `fa-regular fa-folder-open` $\rightarrow$ `bi bi-folder2-open`
+  - `fa-regular fa-calendar-days` $\rightarrow$ `bi bi-calendar3`
+  - `fa-regular fa-face-smile` $\rightarrow$ `bi bi-emoji-smile`
+  - `fa-solid fa-hourglass-half` $\rightarrow$ `bi bi-hourglass-split`
+  - `fa-solid fa-circle-check` $\rightarrow$ `bi bi-check-circle-fill`
+  - `fa-solid fa-circle-xmark` $\rightarrow$ `bi bi-x-circle-fill`
+  - `fa-solid fa-magnifying-glass` $\rightarrow$ `bi bi-search`
+  - `fa-solid fa-user-check` $\rightarrow$ `bi bi-person-check`
+  - `fa-solid fa-xmark` $\rightarrow$ `bi bi-x-lg`
+  - `fa-solid fa-plus` $\rightarrow$ `bi bi-plus-lg`
+  - `fa-solid fa-spinner fa-spin` $\rightarrow$ `bi bi-arrow-repeat` kết hợp sử dụng class xoay `.paradise-spin` được định nghĩa bằng CSS keyframes `@keyframes paradise-spin`.
+
+### Rule 11 — Đảm bảo glyphicon của MEN_Menu phải tồn tại trong bảng ParadiseIconSVG
+
+Đối với các menu hiển thị trên thanh điều hướng (sidebar) của Web Portal:
+- ❌ **KHÔNG ĐƯỢC** gán tùy tiện tên icon Bootstrap class (như `bi-...` hay `clock`, `shield-lock`) vào trường `glyphicon` của bảng `MEN_Menu` nếu icon đó chưa được định nghĩa SVG trong DB.
+- ❌ **Triệu chứng vi phạm:** Icon menu trên thanh điều hướng bị biến mất hoặc hiển thị trắng hoàn toàn.
+- ✅ **Nguyên lý hoạt động:** Portal tải hình ảnh SVG động của menu từ bảng `ParadiseIconSVG` theo khóa `IconName = MEN_Menu.glyphicon`.
+- ✅ **Cách xử lý:** 
+  - Luôn kiểm tra sự tồn tại của tên icon trong bảng `ParadiseIconSVG` trước khi gán:
+    ```sql
+    SELECT IconName FROM ParadiseIconSVG WHERE IconName = 'tên_icon'
+    ```
+  - Nếu icon mong muốn chưa có (ví dụ: `clock`, `shield-lock`), hãy thay thế bằng các icon tương tự đã được định nghĩa sẵn trong hệ thống:
+    - Thay `clock` $\rightarrow$ dùng `history` hoặc `Log` hoặc `TimeClock`.
+    - Thay `shield-lock` $\rightarrow$ dùng `UserRight` hoặc `Lock` hoặc `Security`.
+    - Thay `Pencil` $\rightarrow$ dùng `Information` hoặc `Settings`.
+  - Trong trường hợp bắt buộc phải có icon mới, cần viết lệnh `INSERT` dữ liệu SVG của icon đó vào bảng `ParadiseIconSVG`.
+
