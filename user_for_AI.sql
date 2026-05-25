@@ -9,8 +9,8 @@ BEGIN
 END
 GO
 
--- 2. Tạo User cho Database cụ thể (Thay [Vietinsoft_Pay] bằng tên thật)
-USE [Vietinsoft_Pay];
+-- 2. Tạo User cho Database cụ thể (Thay [Paradise_dev] bằng tên thật)
+USE [Paradise_dev];
 GO
 IF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name = 'ai.sa')
 BEGIN

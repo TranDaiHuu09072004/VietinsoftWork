@@ -28,7 +28,9 @@
       "mcp__Paradise_Dev__execute_query",
       "PowerShell($file = 'd:\\\\VTS User\\\\Cuong.vu\\\\Agent work\\\\VietinsoftWork\\\\SQL script\\\\migrate_menu_ComplaintForm_20260523.sql'; $info = Get-Item -LiteralPath $file; \"Size: $\\([math]::Round\\($info.Length/1024,1\\)\\) KB \\($\\($info.Length\\) bytes\\)\"; \"Last modified: $\\($info.LastWriteTime\\)\"; \"First line: $\\(\\(Get-Content -LiteralPath $file -TotalCount 1\\)\\)\"; \"Last 3 lines:\"; Get-Content -LiteralPath $file -Tail 3)",
       "mcp__mssql-vietinsoft__execute_query",
-      "mcp__Paradise_Dev__test_connection"
+      "mcp__Paradise_Dev__test_connection",
+      "mcp__Paradise_STVN_Test__test_connection",
+      "mcp__Paradise_STVN_Test__execute_query"
     ]
   }
 }
