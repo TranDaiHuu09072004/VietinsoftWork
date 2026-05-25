@@ -225,7 +225,7 @@ SELECT MessageID, Language, Content FROM tblMD_Message
 WHERE MessageID = @MenuID ORDER BY Language;
 ```
 
-→ 1 lần `read_query` = đủ 5 bước. Nếu cell HTML quá lớn (> 8KB), xem [17_RendererHtmlJsSafe.md §10.4](17_RendererHtmlJsSafe.md) cho pattern SUBSTRING chunk / `export_query`.
+→ 1 lần `read_query` = đủ 5 bước. Nếu cell HTML quá lớn (> 8KB), xem [17_RendererHtmlJsSafe.md §8.4](17_RendererHtmlJsSafe.md) cho pattern SUBSTRING chunk / `export_query`.
 
 ---
 
@@ -400,8 +400,8 @@ FROM tblDataSetting WHERE TableName = '<ClassName>' OR ViewName = '<ClassName>';
 | Nhu cầu | File hướng dẫn |
 |---|---|
 | Sửa HTML/JS trong renderer `_html` | [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md) (escape T-SQL/JS, MERGE cache 8 cột, Msg 257, polyfill 5 global helper) |
-| Đọc source proc dài (> 8KB) | [17_RendererHtmlJsSafe.md §10.4](17_RendererHtmlJsSafe.md) (SUBSTRING chunk 4000 ký tự / `export_query` ra file) |
-| Extract trọn renderer package để migrate | [17_RendererHtmlJsSafe.md §10.3](17_RendererHtmlJsSafe.md) (combo 8-query) |
+| Đọc source proc dài (> 8KB) | [17_RendererHtmlJsSafe.md §8.4](17_RendererHtmlJsSafe.md) (SUBSTRING chunk 4000 ký tự / `export_query` ra file) |
+| Extract trọn renderer package để migrate | [17_RendererHtmlJsSafe.md §8.3](17_RendererHtmlJsSafe.md) (combo 8-query) |
 | Migrate menu sang DB khác | [13_Migrate_Menu.md](13_Migrate_Menu.md) (script idempotent + 5 rule cấp quyền) |
 | Tạo menu tương tự mới | [12_CreateMenu.md](12_CreateMenu.md) (quy trình 9 phase end-to-end) |
 | Thiết kế UI theo chuẩn ParadiseStyle | [14_ParadiseStyle.md](14_ParadiseStyle.md) (token `--paradise-*`, `.paradise-*`, KHÔNG gọi `sp_MainStyleCSSParadise` trong renderer menu thông thường) |
@@ -430,6 +430,6 @@ FROM tblDataSetting WHERE TableName = '<ClassName>' OR ViewName = '<ClassName>';
 | Migrate/update menu có sẵn | [13_Migrate_Menu.md](13_Migrate_Menu.md) |
 | Chuẩn thiết kế UI ParadiseStyle (4 layout gốc + token CSS) | [14_ParadiseStyle.md](14_ParadiseStyle.md) |
 | Viết renderer HTML/JS an toàn (escape, MERGE cache, Msg 257) | [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md) |
-| MCP query template + extract renderer package | [17_RendererHtmlJsSafe.md §10](17_RendererHtmlJsSafe.md) |
+| MCP query template + extract renderer package | [17_RendererHtmlJsSafe.md §8](17_RendererHtmlJsSafe.md) |
 | Item lỗi thời (table / proc / view / menu / parameter) | [99_deprecated.md](99_deprecated.md) |
 | Quy tắc MCP đọc-only + TOP N + OBJECT_DEFINITION | [CLAUDE.md Bước 3](../CLAUDE.md) |
