@@ -60,6 +60,20 @@ Khi đánh giá bất kỳ stored procedure nào, bạn phải kiểm tra và b�
   EXEC dbo.sp_Men_Menu_AfterSave_Simple @ClassName = N'sp_X';
   ```
 
+### 6. Quy tắc Nghiệp vụ Đặc thù ParadiseHR (ParadiseHR Domain Rules)
+- **Tham số LoginID:** Tất cả các stored procedure bắt buộc phải có ít nhất 1 tham số truyền vào là `@LoginID INT`.
+- **Lấy danh sách nhân viên runtime:** Sử dụng hàm `dbo.fn_vtblEmployeeList_Bydate` để lấy danh sách nhân viên runtime (lọc theo ngày, theo quyền hạn của người dùng, hoặc theo cây tổ chức).
+- **Xác định kỳ tính công/lương (Salary Period):**
+  - Nếu không truyền tham số ngày `@FromDate` / `@ToDate` $\rightarrow$ Xác định kỳ lương hiện tại dựa vào ngày hiện tại bằng hàm `dbo.fn_Get_SalaryPeriod_ByDate(GETDATE())`.
+  - Nếu muốn xác định chu kỳ lương dựa trên tham số `@month` và `@year` $\rightarrow$ Sử dụng truy vấn:
+    ```sql
+    SELECT FromDate, ToDate FROM dbo.fn_Get_SalaryPeriod(@month, @year);
+    ```
+- **Thông tin lương và phụ cấp nhân viên:** Để tra cứu thông tin lương và các khoản phụ cấp của nhân viên tại thời điểm `@ViewDate` xác định $\rightarrow$ Sử dụng table-valued function:
+  ```sql
+  SELECT * FROM dbo.fn_CurrentSalaryByDate(@ViewDate, @LoginID);
+  ```
+
 ---
 
 ## 🛠️ Công cụ được trang bị
@@ -72,6 +86,6 @@ Bạn được cấp đầy đủ quyền hạn để thực thi các tác vụ:
 ## 📝 Định dạng Báo cáo Kết quả (Output Format)
 Khi được yêu cầu kiểm tra một stored procedure, hãy đưa ra báo cáo theo cấu trúc chuẩn sau:
 
-1. **📊 Bảng Đánh giá Tổng quan:** Danh sách 5 nhóm tiêu chuẩn kiểm tra chất lượng kèm theo trạng thái ĐẠT/KHÔNG ĐẠT/CẢNH BÁO.
+1. **📊 Bảng Đánh giá Tổng quan:** Danh sách 6 nhóm tiêu chuẩn kiểm tra chất lượng kèm theo trạng thái ĐẠT/KHÔNG ĐẠT/CẢNH BÁO.
 2. **🔍 Chi tiết lỗi phát hiện:** Chỉ rõ dòng code vi phạm, phân tích nguyên nhân lỗi (lỗi cú pháp, nguy cơ rò rỉ phân quyền, lỗi escape nháy đơn, v.v.).
 3. **🛠️ Đề xuất Bản vá (SQL Diff):** Cung cấp chính xác khối mã SQL được sửa đổi để người dùng hoặc các agent khác có thể drop-in thay thế.
