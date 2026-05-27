@@ -1,0 +1,34 @@
+{
+  "servers": {
+    "mssql-vietinsoft": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@bilims/mcp-sqlserver"
+      ],
+      "env": {
+        "SQLSERVER_HOST": "${env:MSSQL_SERVER}",
+        "SQLSERVER_PORT": "${env:MSSQL_PORT}",
+        "SQLSERVER_USER": "${env:MSSQL_USER}",
+        "SQLSERVER_PASSWORD": "${env:MSSQL_PASSWORD}",
+        "SQLSERVER_DATABASE": "${env:MSSQL_DATABASE}"
+      }
+    },
+    "Paradise_Dev": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@bilims/mcp-sqlserver"
+      ],
+      "env": {
+        "SQLSERVER_HOST": ".\\sqlexpress",
+        "SQLSERVER_PORT": "1433",
+        "SQLSERVER_USER": "sa",
+        "SQLSERVER_PASSWORD": "LuaThieng1@3@2020",
+        "SQLSERVER_DATABASE": "Paradise_HPSF"
+      }
+    }
+  }
+}

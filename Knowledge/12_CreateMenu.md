@@ -26,7 +26,7 @@
 - ❌ **KHÔNG** gọi `sp_UpdateMenuInUserRight` (tự cấp `FullAccess=32` cho **MỌI** LoginID > 0 → mở quyền toàn hệ thống).
 - ➡️ User/group khác: cấp sau qua UI app hoặc script riêng.
 
-### Rule 2 — Cờ menu HTML-rendered (rất dễ sai)
+### Rule 2 — Cờ menu HTML-rendered  và chuẩn giao diện ParadiseStyle.
 
 Tất cả menu HTML-rendered (`MnuKPI007`, `MnuTM022`, `MnuWPT037`...) dùng **CÙNG PATTERN**:
 
@@ -39,6 +39,9 @@ Tất cả menu HTML-rendered (`MnuKPI007`, `MnuTM022`, `MnuWPT037`...) dùng **
 | `isShowInMobileLayOut` | **`0`** | ⚠️ SAI nếu để `1` |
 | `IsUseMobileDevice` | `1` | Bật cho Web HTML-rendered + Mobile |
 
+#### phải thiết kế giao diện theo đúng chuẩn ParadiseStyle 
+- Tham khảo tri thức tại file 14_ParadiseStyle.md
+
 > Hệ thống nhận diện "menu Web HTML-rendered" qua `AssemblyName='DataSetting'` + `ClassName` trỏ cặp wrapper/renderer + có cache `tblHtmlScriptCache`. **KHÔNG** qua các cờ `ViewOnWeb`/`isShowLayOutWeb`.
 
 ### Rule 3 — Parent menu phải `IsVisible = 1`
@@ -48,19 +51,18 @@ SELECT IsVisible FROM MEN_Menu WHERE MenuID = '<ParentMenuID>';
 -- Nếu = 0 → chọn parent khác.
 ```
 
-Parent đã verify an toàn: `MnuKPI000` · `MnuTM000` · `MnuWPT000` · `MnuHRS000`. ❌ Tránh `MnuHEP000` (Trợ giúp — `IsVisible=0`).
+Parent đã verify an toàn: `MnuKPI000` · `MnuTM000` · `MnuWPT000` · `MnuHRS000` · `MnuCSM000` · `MnuMDT000`· `MnuPRL000`· `MnuTAD000` · `MnuTM000`· `MnuSCR000`. ❌ Tránh `MnuHEP000` (Trợ giúp — `IsVisible=0`).
 
-### Rule 4 — BẮT BUỘC `tblDataSetting` + `tblDataSettingLayout`
+### Rule 4 — BẮT BUỘC `tblDataSetting` 
 
 Mỗi menu HTML-rendered phải có **3 bảng metadata**:
 
 | Bảng | Số dòng | Vai trò |
 |---|---|---|
 | `tblDataSetting` | 1 | Báo cho app: procedure HTML-rendered (`IsProcedure=1, IsShowLayout=1, ColumnDataType='html&ViewHtml', ColumnOrderBy='html&0'`) |
-| `tblDataSettingLayout` | 2 | `root` (group) + `lblhtml` (item, `ControlType='ParadiseWebView2'`, `ControlName='html'`, `NamePa='root'`) |
 | `tblHtmlScriptCache` | ≥ 1/lang | HTML/CSS/JS thực |
 
-❌ **Thiếu 2 row `tblDataSettingLayout`** = triệu chứng "click menu → màn hình trắng" (dù menu hiện + có quyền + có cache).
+
 
 ### Rule 5 — Renderer HTML/JS an toàn
 
@@ -144,8 +146,7 @@ Agent cần khảo sát tuần tự các thông tin sau:
 [B] Cặp procedure UI           → <class>_html (renderer) + <class> (wrapper đọc cache)
 [C] Procedure API runtime      → sp_<X>_<Action>: SELECT data từ DB
 [D] Metadata menu              → sp_s_CreateMenu hoặc INSERT thủ công 3 bảng
-[D2] tblDataSetting            → 1 row (IsProcedure=1, IsShowLayout=1, ColumnDataType='html&ViewHtml')
-[D3] tblDataSettingLayout      → 2 row (root + lblhtml/ParadiseWebView2)                       ← BẮT BUỘC
+[D2] tblDataSetting            → 1 row (IsProcedure=1, IsShowLayout=1, ColumnDataType='html&ViewHtml') 
 [E] Cờ nền tảng                → IsWeb=0, ViewOnWeb=0, isShowLayOutWeb=0, isShowInMobileLayOut=0, IsUseMobileDevice=1
 [F] Build cache                → EXEC sp_GenerateHTMLScript '<class>_html'
 [G] Quyền                      → INSERT tblSC_Right_Stored(LoginID=3, FullAccess='32') + group/login từ khảo sát
@@ -373,8 +374,7 @@ Verified từ: `sp_Train_Ranking_Template_html`, `sp_KPIProcessCustomer_html`.
 2. ☐ **`MenuID` không trùng** — `SELECT * FROM MEN_Menu WHERE MenuID='<id>'`.
 3. ☐ **Parent menu** `IsVisible=1` (Rule 3). Né `MnuHEP000`.
 4. ☐ **Cờ Rule 2**: `IsWeb=0, ViewOnWeb=0, isShowLayOutWeb=0, isShowInMobileLayOut=0, IsUseMobileDevice=1`.
-5. ☐ **Phase D2 (Rule 4)** — `tblDataSetting` 1 row đủ `IsProcedure=1, IsShowLayout=1, ColumnOrderBy='html&0', ColumnDataType='html&ViewHtml'`.
-6. ☐ **Phase D3 (Rule 4)** — `tblDataSettingLayout` 2 row (`root` group + `lblhtml` ParadiseWebView2).
+5. ☐ **Phase D2 (Rule 4)** — `tblDataSetting` 1 row đủ `IsProcedure=1, IsShowLayout=1, ColumnOrderBy='html&0', ColumnDataType='html&ViewHtml'`. 
 7. ☐ Renderer UPSERT cache cho **cả VN và EN**.
 8. ☐ Wrapper `SELECT TOP 1 html` lọc `(TableName, ScreenType='-1', LanguageID)`.
 9. ☐ Procedure API có `@LoginID` + `@LanguageID`.
@@ -392,7 +392,6 @@ Verified từ: `sp_Train_Ranking_Template_html`, `sp_KPIProcessCustomer_html`.
 | Triệu chứng | Nguyên nhân | Cách kiểm tra |
 |---|---|---|
 | Menu không hiện trong cây (đã có quyền + logout/login) | (1) Sai cờ Web (Rule 2); (2) parent `IsVisible=0` (vd `MnuHEP000`); (3) menu `IsVisible=0` | `SELECT m.MenuID, m.IsVisible, m.IsWeb, m.ViewOnWeb, m.isShowLayOutWeb, m.IsUseMobileDevice, m.isShowInMobileLayOut, p.IsVisible AS ParentVisible FROM MEN_Menu m LEFT JOIN MEN_Menu p ON p.MenuID=m.ParentMenuID WHERE m.MenuID IN ('<id>','MnuKPI007')` |
-| **Menu hiện + click → màn hình TRẮNG** | **Thiếu D2 + D3** (Rule 4) | `SELECT * FROM tblDataSetting WHERE TableName='<class>'`; `SELECT * FROM tblDataSettingLayout WHERE TableName='<class>'`. Phải có 1 + 2 row. Fix: [fix_menu_HelloWorldVietinsoft_v2_20260520.sql](../SQL%20script/fix_menu_HelloWorldVietinsoft_v2_20260520.sql) |
 | Mở menu thấy "loading..." không kết thúc | Cache chưa build | `SELECT DATALENGTH(html) FROM tblHtmlScriptCache WHERE TableName='<class>_html' AND LanguageID='VN'` → nếu rỗng: `EXEC dbo.sp_GenerateHTMLScript '<class>_html'` |
 | HTML cũ sau khi sửa | Cache chưa rebuild | `DELETE FROM tblHtmlScriptCache WHERE TableName='<class>_html'; EXEC dbo.sp_GenerateHTMLScript '<class>_html'` |
 | JS gọi API lỗi 500 | `param` sai (object thay vì array) / thiếu `@LoginID`/`@LanguageID` | DevTools Network xem body |

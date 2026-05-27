@@ -40,7 +40,27 @@
       "Bash(python \"d:/VTS User/Cuong.vu/Agent work/VietinsoftWork/scratch/fix_userid.py\")",
       "Bash(python \"d:/VTS User/Cuong.vu/Agent work/VietinsoftWork/scratch/fix_userid_v2.py\")",
       "Bash(python \"d:/VTS User/Cuong.vu/Agent work/VietinsoftWork/scratch/compare_js.py\")",
-      "Bash(python \"d:/VTS User/Cuong.vu/Agent work/VietinsoftWork/scratch/compare_v2.py\")"
+      "Bash(python \"d:/VTS User/Cuong.vu/Agent work/VietinsoftWork/scratch/compare_v2.py\")",
+      "Bash(git push *)",
+      "mcp__Paradise_Dev__describe_table",
+      "Bash(sqlcmd -?)",
+      "Bash(sqlcmd -S \"192.168.11.51,2222\" -U \"vts.sa\" -P \"LuaThieng1@3@2020\" -d \"Paradise_Dev\" -i \"x:\\\\VietinsoftWork-main\\\\SQL script\\\\deploy_menu_LeadTrackingForMarketing_20260527.sql\")",
+      "Bash(unix2dos \"x:/VietinsoftWork-main/SQL script/deploy_menu_LeadTrackingForMarketing_20260527.sql\")",
+      "Bash(sed -i 's/$/\\\\r/' \"x:/VietinsoftWork-main/SQL script/deploy_menu_LeadTrackingForMarketing_20260527.sql\")",
+      "Bash(sqlcmd -S \"192.168.11.51,2222\" -U \"vts.sa\" -P \"LuaThieng1@3@2020\" -d \"Paradise_Dev\" -I -Q \"SELECT 1 AS test\")",
+      "Bash(sqlcmd -S 192.168.11.51,2222 -U vts.sa -P LuaThieng1@3@2020 -d Paradise_Dev -I -Q ' *)",
+      "Bash(sqlcmd -S \"192.168.11.51,2222\" -U \"vts.sa\" -P \"LuaThieng1@3@2020\" -d \"Paradise_Dev\" -I -x -i \"x:\\\\VietinsoftWork-main\\\\SQL script\\\\deploy_menu_LeadTrackingForMarketing_20260527.sql\")",
+      "Bash(sqlcmd -S 192.168.11.51,2222 -U vts.sa -P LuaThieng1@3@2020 -d Paradise_Dev -I -x -Q ' *)",
+      "Bash(sqlcmd -S \"192.168.11.51,2222\" -U \"vts.sa\" -P \"LuaThieng1@3@2020\" -d \"Paradise_Dev\" -I -x -i \"x:\\\\VietinsoftWork-main\\\\SQL script\\\\fix_renderer_LeadTrackingForMarketing_20260527.sql\")",
+      "Bash(head -300 \"x:/VietinsoftWork-main/SQL script/fix_renderer_LeadTrackingForMarketing_20260527.sql\" > /tmp/fix_test.sql 2>&1 && echo \"Extracted\")",
+      "Bash(sqlcmd -S \"192.168.11.51,2222\" -U \"vts.sa\" -P \"LuaThieng1@3@2020\" -d \"Paradise_Dev\" -I -x -i /tmp/fix_wrapper.sql)",
+      "Bash(sqlcmd -S \"192.168.11.51,2222\" -U \"vts.sa\" -P \"LuaThieng1@3@2020\" -d \"Paradise_Dev\" -I -x -Q \"DELETE FROM dbo.tblHtmlScriptCache WHERE TableName='sp_LeadTrackingForMarketing'; EXEC dbo.sp_GenerateHTMLScript 'sp_LeadTrackingForMarketing_html';\")",
+      "Bash(sqlcmd -S \"192.168.11.51,2222\" -U \"vts.sa\" -P \"LuaThieng1@3@2020\" -d \"Paradise_Dev\" -I -x -Q \"EXEC dbo.sp_Men_Menu_AfterSave_Simple @ClassName=N'sp_LeadTrackingForMarketing';\")",
+      "Bash(gridElement)",
+      "Bash(\\\\\".datepicker-lead\\\\\")"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
     ]
   }
 }
