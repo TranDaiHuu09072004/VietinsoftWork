@@ -467,73 +467,211 @@ AS BEGIN
 END
 ```
 
-**Renderer JS** (lớp 1, rút gọn):
+**Renderer JS** (lớp 1 - Mẫu cấu trúc chuẩn và tối giản cho Grid được trình bày đầy đủ ở mục 9.2.1 ngay bên dưới).
+
+
+
+### 9.2.1 Cấu trúc JS CustomStore chuẩn và tối giản cho Grid
+
+Dưới đây là cấu trúc Javascript CustomStore và cấu hình đè Grid tối giản (không cần DateBox lọc, không có stats và các nút lọc). Mẫu này tập trung hoàn toàn vào cấu trúc chuẩn của grid và `dataSource` (sử dụng `CustomStore` kết nối API `sp_LoadGridUsingAPI` hỗ trợ phân trang infinite scroll, sắp xếp, tìm kiếm):
+
+> [!IMPORTANT]
+> **Quy chế tích hợp Toolbar & Event của Hệ thống**:
+> Khi cờ hiển thị toolbar hệ thống được bật (ví dụ: `_showtoolbarGrid_<uidGrid>` = true), hệ thống đã tích hợp sẵn nút **Tải lại (Reload)** và nút **Thêm mới (+)**:
+> - Nút **Tải lại** tự động gọi hàm cục bộ tên là `Reload()`.
+> - Nút **Thêm mới (+)** tự động gọi hàm cục bộ theo cú pháp: `add` + `PKColumn` (Ví dụ PKColumn là `ExampleKey` thì hàm là `addExampleKey()`).
+> - Sự kiện mở chi tiết dòng (click/dblclick) tự động gọi hàm cục bộ theo cú pháp: `openDetail` + `PKColumn` (Ví dụ: `openDetailExampleKey(rowData)`).
+>
+> Vì vậy, ta cần đặt tên hàm cục bộ chính xác theo các quy tắc trên. Không cần chèn thủ công các nút này qua sự kiện `onToolbarPreparing`.
+
+1. **Encapsulation (Hàm cục bộ)**: Các hàm callback `add<PKColumn>` và `openDetail<PKColumn>` được khai báo dạng local function bên trong IIFE để tránh xung đột biến toàn cục và khớp với sự kiện tự động từ hệ thống.
+2. **Offline/Local Cache slicing**: Lưu trữ và đọc dữ liệu từ cache cục bộ `DataSource` khi `api = false`.
+3. **Filter Safety Check**: Lọc bỏ các Javascript Function trong điều kiện filter trước khi chuyển thành SQL query.
+4. **Dynamic Total Summary**: Ánh xạ động các summary types của DevExtreme.
+5. **Grid Config Override**: Đè các cấu hình bắt buộc như `scrolling.mode: "infinite"`, `remoteOperations` và gán `dataSource`.
+
+#### Mẫu Javascript tối giản:
 
 ```javascript
-// 1. DataStore — KHÔNG dùng array tĩnh
-const dataStore = new DevExpress.data.CustomStore({
-    key: "ProductTypeID",
-    load: function (loadOptions) {
-        const deferred = $.Deferred();
-        let params = [];
-        params.push("@ProcName",  "sp_CRM_ProductTypeList");
-        params.push("@ProcParam", "@LoginID="+window.LoginID+", @LanguageID="+window.LanguageID);
-        params.push("@Take",      loadOptions.take || 50);
-        params.push("@Skip",      loadOptions.skip || 0);
-        if (loadOptions.requireTotalCount) params.push("@RequireTotalCount", 1);
+        (() => {
+            // Cờ khai báo hiển thị toolbar hệ thống cho Grid (Nạp sẵn reload và +)
+            let _showtoolbarGrid_GridExample = true; // <-- THAY GridExample bằng ID Grid thực tế (ví dụ: GridLeadTracking)
 
-        const sort = loadOptions.sort
-            ? loadOptions.sort.map(s => s.selector + (s.desc ? " DESC" : " ASC")).join(",")
-            : "STT";
-        params.push("@Sort", "ORDER BY " + sort);
+            var api = true;
+            var DataSource = [];
+            var _pageCache = {};
+            var _currentKeyword = "";
+            var dataStore_GridExample = null; // <-- THAY GridExample bằng ID Grid thực tế
+            var ERR = "Lỗi tải dữ liệu";
 
-        if (_currentKeyword) {
-            params.push("@SearchValue",  _currentKeyword);
-            params.push("@ColumnSearch", "ProductTypeName,ContractDetailTypeName");
-        }
-        if (loadOptions.filter)        params.push("@Filters",      createConditionQuery(loadOptions.filter));
-        if (loadOptions.totalSummary)  params.push("@TotalSummary", /* build từ totalSummary */);
+            // Helper escape HTML tránh lỗ hổng XSS
+            function esc(v) {
+                if (v === null || v === undefined) return "";
+                return String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+            }
 
-        AjaxHPAParadise({
-            data: { name: "sp_LoadGridUsingAPI", param: params },
-            success: function (res) {
-                const json = typeof res === "string" ? JSON.parse(res) : res;
-                const results = Array.isArray(json?.data?.[0]) ? json.data[0] : [];
-                let result = { data: results };
-                if (loadOptions.requireTotalCount)
-                    result.totalCount = json?.data?.[1]?.[0]?.TotalCount ?? 0;
-                deferred.resolve(result);
-            },
-            error: () => deferred.reject("Data Loading Error")
-        });
-        return deferred.promise();
-    }
-});
+            /* ============================================================
+               1. HÀM CỤC BỘ XỬ LÝ SỰ KIỆN (add + PKColumn & openDetail + PKColumn)
+               ============================================================ */
+            function addExampleKey() { // <-- THAY ExampleKey bằng PKColumn thực tế (ví dụ: addCRM_CustomerID)
+                // Tên biến gán theo chuẩn: currentClicked_Grid<GridName> và currentRecordID_<Key>
+                window.currentClicked_GridExample = null;
+                window.currentRecordID_ExampleKey = null; // <-- THAY ExampleKey bằng PKColumn thực tế
 
-// 2. Grid options BẮT BUỘC (Rule 6)
-gridInstance.option("remoteOperations", { paging:true, filtering:true, sorting:true, searching:true });
-gridInstance.option({
-    "scrolling.mode":             "infinite",      // ← chìa khoá
-    "scrolling.rowRenderingMode": "virtual",
-    "scrolling.preloadEnabled":   false,
-    "paging.enabled":             true,
-    "paging.pageSize":            50,
-    "pager.visible":              false,            // ← ẨN pager
-    "dataSource":                 dataStore,
-    "height":                     getGridHeight()
-});
+                var tf = "sp_ExampleDetail"; // SP form chi tiết (bỏ đuôi _html)
+                if (["Android", "iOS"].includes(getMobileOperatingSystem())) {
+                    OpenFormParamMobile(tf);
+                } else {
+                    openFormParam(tf);
+                }
+            }
 
-// 3. Reset cache khi search đổi
-gridInstance.option("onOptionChanged", function (e) {
-    if (e.name === "searchPanel" && e.fullName === "searchPanel.text") {
-        _currentKeyword = (e.value || "").trim();
-        _pageCache = {};
-    }
-});
+            function openDetailExampleKey(rowData) { // <-- THAY ExampleKey bằng PKColumn thực tế (ví dụ: openDetailCRM_CustomerID)
+                if (rowData && rowData.ExampleKey) { // <-- THAY ExampleKey bằng PKColumn thực tế
+                    window.currentClicked_GridExample = rowData.ExampleKey; // <-- THAY ExampleKey bằng PKColumn thực tế
+                    window.currentRecordID_ExampleKey = rowData.ExampleKey; // <-- THAY ExampleKey bằng PKColumn thực tế
 
-// 4. Reload helper
-function ReloadData() { _pageCache = {}; gridInstance.refresh(); }
-ReloadData();
+                    var tf = "sp_ExampleDetail";
+                    var param = {
+                        LoginID: window.UserID || window.LoginID,
+                        LanguageID: window.LanguageID,
+                        ExampleKey: rowData.ExampleKey // <-- THAY ExampleKey bằng PKColumn thực tế
+                    };
+                    if (["Android", "iOS"].includes(getMobileOperatingSystem())) {
+                        OpenFormParamMobile(tf, param);
+                    } else {
+                        openFormParam(tf, param);
+                    }
+                }
+            }
+
+            /* ============================================================
+               2. KHỞI TẠO CUSTOMSTORE CHUẨN (dataSource)
+               ============================================================ */
+            dataStore_GridExample = new DevExpress.data.CustomStore({
+                key: "ExampleKey", // <-- CỰC KỲ QUAN TRỌNG: Thay bằng PKColumn thực tế của Grid (ví dụ: CRM_CustomerID)
+                load: function(loadOptions) {
+                    var deferred = $.Deferred();
+
+                    // Load từ cache cục bộ nếu api = false
+                    if (!api) {
+                        var results = DataSource || [];
+                        var skip = loadOptions.skip || 0;
+                        var take = loadOptions.take || 50;
+                        var pageData = results.slice(skip, skip + take);
+                        deferred.resolve({ data: pageData, totalCount: results.length });
+                        api = true;
+                        return deferred.promise();
+                    }
+
+                    var params = [];
+                    params.push("@ProcName", "sp_ExampleList"); // SP nghiệp vụ lấy dữ liệu (vd: sp_CRM_ProductTypeList)
+
+                    // Tham số truyền vào SP nghiệp vụ
+                    var procParam = "@LoginID=" + (window.UserID || window.LoginID) + ",@LanguageID=" + window.LanguageID;
+                    params.push("@ProcParam", procParam);
+
+                    params.push("@Take", loadOptions.take || 50);
+                    params.push("@Skip", loadOptions.skip || 0);
+
+                    if (loadOptions.requireTotalCount) params.push("@RequireTotalCount", 1);
+
+                    var sort = loadOptions.sort
+                        ? loadOptions.sort.map(s => s.selector + (s.desc ? " DESC" : " ASC")).join(",")
+                        : "";
+                    params.push("@Sort", sort != "" ? "ORDER BY " + sort : "");
+
+                    if (_currentKeyword) {
+                        params.push("@SearchValue", _currentKeyword);
+                        params.push("@ColumnSearch", "Column1,Column2"); // Danh sách các cột tìm kiếm full-text
+                    }
+
+                    // Loại bỏ JS function trong filter để tránh lỗi SQL Injection/Syntax
+                    if (loadOptions.filter) {
+                        var hasFunction = JSON.stringify(loadOptions.filter, (k, v) => typeof v === "function" ? "FUNCTION" : v).includes("FUNCTION");
+                        if (!hasFunction) params.push("@Filters", createConditionQuery(loadOptions.filter));
+                    }
+
+                    // Xử lý tổng hợp Summary (nếu có)
+                    if (loadOptions.totalSummary) {
+                        var summary = loadOptions.totalSummary.map(item => {
+                            return item.summaryType === "custom"
+                                ? "count(CASE WHEN [" + item.selector + "]=1 THEN 1 END) as " + item.selector + "_COUNT"
+                                : item.summaryType + "([" + item.selector + "]) as " + item.selector + "_" + item.summaryType.toUpperCase();
+                        });
+                        params.push("@TotalSummary", summary.join(", "));
+                    }
+
+                    AjaxHPAParadise({
+                        data: { name: "sp_LoadGridUsingAPI", param: params },
+                        success: function(res) {
+                            var json = typeof res === "string" ? JSON.parse(res) : res;
+                            var results = Array.isArray(json?.data?.[0]) ? json.data[0] : [];
+                            var result = { data: results };
+
+                            if (loadOptions.requireTotalCount) {
+                                result.totalCount = json?.data?.[1]?.[0]?.TotalCount ?? 0;
+                                if (loadOptions.totalSummary) result.summary = Object.values(json?.data?.[2]?.[0] ?? {});
+                            } else if (loadOptions.totalSummary) {
+                                result.summary = Object.values(json?.data?.[1]?.[0] ?? {});
+                            }
+
+                            DataSource = results;
+                            window.syncSharedGridData("GridExample"); // <-- THAY GridExample bằng ID Grid thực tế
+                            deferred.resolve(result);
+                        },
+                        error: function() { deferred.reject("Data Loading Error"); }
+                    });
+
+                    return deferred.promise();
+                }
+            });
+
+            /* ============================================================
+               3. HÀM RELOAD DỮ LIỆU
+               ============================================================ */
+            function Reload() {
+                _pageCache = {};
+                var gridInst = InstanceGridExample<uidGrid>; // <-- THAY GridExample bằng ID Grid thực tế (ví dụ: InstanceGridLeadTracking)
+                if (gridInst) { gridInst.refresh(); }
+            }
+
+            /* ============================================================
+               4. CẤU HÌNH ĐÈ LÊN GRID HỆ THỐNG
+               ============================================================ */
+            try {
+                var gi = $("#GridExample").dxDataGrid("instance"); // <-- THAY GridExample bằng ID Grid thực tế
+                if (gi) {
+                    gi.beginUpdate();
+                    gi.option("remoteOperations", { paging: true, filtering: true, sorting: true, searching: true });
+                    gi.option({
+                        "scrolling.mode": "infinite",
+                        "scrolling.rowRenderingMode": "virtual",
+                        "scrolling.preloadEnabled": false,
+                        "paging.enabled": false,
+                        "paging.pageSize": 50,
+                        "pager.visible": false,
+                        "searchPanel.highlightSearchText": false,
+                        "dataSource": dataStore_GridExample, // <-- THAY GridExample bằng ID Grid thực tế
+                        "height": function() {
+                            var el = document.getElementById("GridExample"); // <-- THAY GridExample bằng ID Grid thực tế
+                            if (!el) return 400;
+                            return Math.max(300, window.innerHeight - el.getBoundingClientRect().top - 30);
+                        }
+                    });
+                    gi.option("onOptionChanged", function(e) {
+                        if (e.name === "searchPanel" && e.fullName === "searchPanel.text") {
+                            _currentKeyword = (e.value || "").trim();
+                            _pageCache = {};
+                        }
+                    });
+                    gi.endUpdate();
+                }
+            } catch(e) {}
+
+            // Kích hoạt nạp dữ liệu ban đầu
+            Reload();
+        })();
 ```
 
 ### 9.3 Cache temp table (lớp 2)
@@ -566,6 +704,10 @@ ReloadData();
 - **Tuyển dụng**: `sp_REC_PopupAddNewJob_html`
 - **Sản phẩm**: `sp_Sub_SubProduct_html`, `sp_Sub_SubQuotation_html`
 - **Khác**: `sp_Adjustment_html`, `sp_DataFilter_html`, `sp_UserHunryTask_html`, `sp_CollectingDataGoogleMap_html`, `sp_zalo_autoSendMessage_html`
+
+### 9.6 Các hàm tiện ích giao diện chung (UI Helpers)
+
+Xem chi tiết hướng dẫn sử dụng và ví dụ đầy đủ của `uiManager.showAlert` và `showConfirmPopup` tại tài liệu riêng: [22_UI_Helpers.md](22_UI_Helpers.md).
 
 ---
 
