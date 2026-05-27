@@ -1,10 +1,4 @@
--- ============================================================================
--- File   : SQL script/update_menu_TaskTimeLine_html_ParadiseStyle.sql
--- Mục đích: Thiết kế lại giao diện menu Nhật ký công việc (sp_Task_TaskTimeLine_html)
---          tuân thủ chuẩn thiết kế ParadiseStyle.
--- Cảnh báo: USER tự review và CHẠY. Agent KHÔNG tự động thực thi.
--- Idempotent: Có thể chạy nhiều lần; tự động dọn dẹp và nạp lại HTML cache.
--- ============================================================================
+
 
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
@@ -676,9 +670,9 @@ PRINT '1. Da tao procedure sp_Task_TaskTimeLine_html.';
 GO
 
 -- Rebuild cache tự động
-DELETE FROM tblHtmlScriptCache WHERE TableName = 'sp_Task_TaskTimeLine';
+DELETE FROM tblHtmlScriptCache WHERE TableName = 'sp_Task_TaskTimeLine_html';
 GO
-EXEC dbo.sp_GenerateHTMLScript 'sp_Task_TaskTimeLine_html', @TableName = 'sp_Task_TaskTimeLine';
+EXEC dbo.sp_GenerateHTMLScript 'sp_Task_TaskTimeLine_html' 
 GO
 PRINT '2. Da refresh cache HTML thanh cong cho sp_Task_TaskTimeLine.';
 GO

@@ -1,10 +1,20 @@
 -- =====================================================================================
--- Script update UI menu Hello Vietinsoft theo chuẩn ParadiseStyle (Đồng bộ chuẩn từ DB)
--- Ngày cập nhật: 2026-05-21
--- Tác giả: Antigravity (Sửa lỗi baseline theo thực tế DB)
--- Scope: Renderer html của sp_HelloWorldVietinsoft_html
+-- Script fix menu Hello Vietinsoft theo chuẩn ParadiseStyle v3.3
+-- Ngày: 2026-05-27
+-- Mục đích:
+--   1. XOÁ lệnh gọi sp_MainStyleCSSParadise (pattern cũ deprecated - Rule 2)
+--   2. Bổ sung CSS background cho badge/token-chip (dùng token --paradise-bg-*-subtle)
+--   3. Scope selector input[type="radio"] dưới .hwvts-page
+--   4. Sửa glyphicon 'Info' → 'Information' (Rule 11 - ParadiseIconSVG)
+--   5. Dọn cache dư thừa + Rebuild cache + Refresh menu
 -- =====================================================================================
 
+USE [Vietinsoft_Pay];
+GO
+
+-- =====================================================================================
+-- Phase 1: CREATE OR ALTER renderer (xoá sp_MainStyleCSSParadise, bổ sung CSS)
+-- =====================================================================================
 
 CREATE OR ALTER PROCEDURE [dbo].[sp_HelloWorldVietinsoft_html]
 (
@@ -15,8 +25,6 @@ CREATE OR ALTER PROCEDURE [dbo].[sp_HelloWorldVietinsoft_html]
 AS
 BEGIN
     SET NOCOUNT ON;
-
-
 
     DECLARE @title       NVARCHAR(200) = N'Hello Vietinsoft';
     DECLARE @subtitle    NVARCHAR(300);
@@ -82,6 +90,7 @@ BEGIN
     DECLARE @loadingJs NVARCHAR(400) = REPLACE(REPLACE(@loading, N'\', N'\\'), N'"', N'\"');
     DECLARE @html NVARCHAR(MAX);
 
+    -- FIX 1: XOÁ @StyleHtml + sp_MainStyleCSSParadise — CSS toàn cục đã có sẵn từ 4 layout gốc
     SET @html = N'
 <div id="helloWorldVtsContainer" class="hwvts-page">
     <style>
@@ -562,8 +571,8 @@ BEGIN
               @html                          AS html,
               N''                            AS HtmlParadise,
               N''                            AS paradiseJs,
-              '3.2'                          AS Version,
-              N'ParadiseStyle v3.2 - title synced to Hello Vietinsoft + input bg-surface + check-row cursor + h2 hierarchy' AS VersionData
+              '3.3'                          AS Version,
+              N'ParadiseStyle v3.3 - removed sp_MainStyleCSSParadise (Rule 2) + bg-subtle badge/token-chip + scoped input[radio] + unicode escape' AS VersionData
           ) AS src
        ON tgt.TableName = src.TableName AND tgt.LanguageID = src.LanguageID
     WHEN MATCHED THEN
@@ -581,20 +590,64 @@ BEGIN
 END
 GO
 
-PRINT '1. Da tao procedure sp_HelloWorldVietinsoft_html.';
+PRINT '1. Da cap nhat renderer sp_HelloWorldVietinsoft_html (v3.3 - xoa sp_MainStyleCSSParadise).';
 GO
 
--- Rebuild cache tự động
-IF OBJECT_ID('tempdb..#Results') IS NOT NULL DROP TABLE #Results;
-DELETE FROM tblHtmlScriptCache WHERE TableName = 'sp_HelloWorldVietinsoft_html';
+-- =====================================================================================
+-- Phase 2: Dọn cache dư thừa cho sp_HelloWorldVietinsoft (không có _html)
+-- Wrapper sp_HelloWorldVietinsoft SELECT từ cache 'sp_HelloWorldVietinsoft_html'
+-- Cache cho 'sp_HelloWorldVietinsoft' là dư thừa, không được dùng
+-- =====================================================================================
+
+DELETE FROM dbo.tblHtmlScriptCache WHERE TableName = 'sp_HelloWorldVietinsoft';
 GO
+
+PRINT '2. Da xoa cache du thua cho sp_HelloWorldVietinsoft (wrapper khong can cache rieng).';
+GO
+
+-- =====================================================================================
+-- Phase 3: Rebuild cache cho renderer (VN + EN)
+-- =====================================================================================
+
+DELETE FROM dbo.tblHtmlScriptCache WHERE TableName = 'sp_HelloWorldVietinsoft_html';
+GO
+
 EXEC dbo.sp_GenerateHTMLScript 'sp_HelloWorldVietinsoft_html';
 GO
-PRINT '2. Da refresh cache HTML thanh cong.';
+
+PRINT '3. Da rebuild cache HTML cho sp_HelloWorldVietinsoft_html (VN + EN).';
 GO
 
--- Yêu cầu app tải lại bộ đệm
+-- =====================================================================================
+-- Phase 4: FIX ICON — 'Info' → 'Information' (ParadiseIconSVG chỉ có 'Information')
+-- =====================================================================================
+
+UPDATE MEN_Menu
+   SET glyphicon = N'Information'
+ WHERE MenuID = 'MnuHEP910'
+   AND glyphicon = N'Info';
+
+IF @@ROWCOUNT > 0
+    PRINT '4. Da fix glyphicon: Info → Information cho MnuHEP910.';
+ELSE
+    PRINT '4. glyphicon da la Information hoac khong tim thay MnuHEP910.';
+GO
+
+-- =====================================================================================
+-- Phase 5: Refresh menu cache client
+-- =====================================================================================
+
 EXEC dbo.sp_Men_Menu_AfterSave_Simple @ClassName = N'sp_HelloWorldVietinsoft';
 GO
-PRINT '3. Da kich hoat reset menu cache client.';
+
+PRINT '5. Da kich hoat reset menu cache client.';
+GO
+
+PRINT '=== HOAN TAT ===';
+PRINT 'Fix menu Hello Vietinsoft ParadiseStyle v3.3 - 2026-05-27';
+PRINT '  1. Xoa sp_MainStyleCSSParadise (pattern cu) → giam ~50KB CSS thua';
+PRINT '  2. Bo sung bg-subtle cho badge/token-chip (dung token --paradise-bg-*-subtle)';
+PRINT '  3. Scope input[type="radio"] duoi .hwvts-page';
+PRINT '  4. Fix glyphicon: Info → Information (ParadiseIconSVG)';
+PRINT '  5. Don cache du thua cho wrapper';
 GO

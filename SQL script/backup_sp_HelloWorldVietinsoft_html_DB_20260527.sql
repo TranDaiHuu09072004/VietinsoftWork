@@ -1,10 +1,9 @@
 -- =====================================================================================
--- Script update UI menu Hello Vietinsoft theo chuẩn ParadiseStyle (Đồng bộ chuẩn từ DB)
--- Ngày cập nhật: 2026-05-21
--- Tác giả: Antigravity (Sửa lỗi baseline theo thực tế DB)
--- Scope: Renderer html của sp_HelloWorldVietinsoft_html
+-- BACKUP: Source gốc renderer sp_HelloWorldVietinsoft_html từ DB Vietinsoft_Pay
+-- Ngày lấy: 2026-05-27
+-- Mục đích: Lưu lại source hiện tại trước khi sửa
+-- VI PHẠM: Đang gọi sp_MainStyleCSSParadise (pattern cũ đã deprecated)
 -- =====================================================================================
-
 
 CREATE OR ALTER PROCEDURE [dbo].[sp_HelloWorldVietinsoft_html]
 (
@@ -16,7 +15,11 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-
+    DECLARE @StyleHtml NVARCHAR(MAX) = N'';
+    IF OBJECT_ID('dbo.sp_MainStyleCSSParadise', 'P') IS NOT NULL
+    BEGIN
+        EXEC dbo.sp_MainStyleCSSParadise @StyleHtml = @StyleHtml OUTPUT;
+    END
 
     DECLARE @title       NVARCHAR(200) = N'Hello Vietinsoft';
     DECLARE @subtitle    NVARCHAR(300);
@@ -82,7 +85,7 @@ BEGIN
     DECLARE @loadingJs NVARCHAR(400) = REPLACE(REPLACE(@loading, N'\', N'\\'), N'"', N'\"');
     DECLARE @html NVARCHAR(MAX);
 
-    SET @html = N'
+    SET @html = ISNULL(@StyleHtml, N'') + N'
 <div id="helloWorldVtsContainer" class="hwvts-page">
     <style>
         .hwvts-page {
@@ -123,47 +126,15 @@ BEGIN
             color: var(--paradise-text-muted);
             font-size: var(--paradise-font-body2);
             font-weight: var(--font-weight-semi-bold);
-            transition: var(--paradise-transition-fast);
         }
-        .hwvts-badge {
-            background-color: var(--paradise-bg-primary-subtle);
-            border-color: var(--paradise-bg-primary-subtle);
+        .hwvts-badge,
+        .hwvts-token-primary {
             color: var(--paradise-color-primary);
         }
-        .hwvts-token-chip.hwvts-token-primary {
-            background-color: var(--paradise-bg-primary-subtle);
-            border-color: var(--paradise-bg-primary-subtle);
-            color: var(--paradise-color-primary);
-        }
-        .hwvts-token-chip.hwvts-token-success,
-        .hwvts-status.hwvts-token-success {
-            background-color: var(--paradise-bg-success-subtle);
-            border-color: var(--paradise-bg-success-subtle);
-            color: var(--paradise-color-success);
-        }
-        .hwvts-token-chip.hwvts-token-danger,
-        .hwvts-status.hwvts-token-danger {
-            background-color: var(--paradise-bg-danger-subtle);
-            border-color: var(--paradise-bg-danger-subtle);
-            color: var(--paradise-color-danger);
-        }
-        .hwvts-token-chip.hwvts-token-warning,
-        .hwvts-status.hwvts-token-warning {
-            background-color: var(--paradise-bg-warning-subtle);
-            border-color: var(--paradise-bg-warning-subtle);
-            color: var(--paradise-color-warning);
-        }
-        .hwvts-token-chip.hwvts-token-info,
-        .hwvts-status.hwvts-token-info {
-            background-color: var(--paradise-bg-info-subtle);
-            border-color: var(--paradise-bg-info-subtle);
-            color: var(--paradise-color-info);
-        }
-        .hwvts-token-chip:not([class*="hwvts-token-"]) {
-            background-color: var(--paradise-bg-secondary-subtle);
-            border-color: var(--paradise-border-color);
-            color: var(--paradise-text-muted);
-        }
+        .hwvts-token-success { color: var(--paradise-color-success); }
+        .hwvts-token-danger { color: var(--paradise-color-danger); }
+        .hwvts-token-warning { color: var(--paradise-color-warning); }
+        .hwvts-token-info { color: var(--paradise-color-info); }
         .hwvts-title {
             margin: 0;
             color: var(--paradise-color-primary);
@@ -271,7 +242,7 @@ BEGIN
             font-size: var(--paradise-font-body1);
             cursor: pointer;
         }
-        .hwvts-page input[type="radio"] {
+        input[type="radio"] {
             accent-color: var(--paradise-color-checkbox);
         }
         .hwvts-table-wrap {
@@ -482,7 +453,7 @@ BEGIN
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
-            .replace(/\u0027/g, "&#039;");
+            .replace(/'/g, "&#039;");
     }
 
     function setCount(value){
@@ -579,22 +550,4 @@ BEGIN
 
     SELECT @html AS html;
 END
-GO
-
-PRINT '1. Da tao procedure sp_HelloWorldVietinsoft_html.';
-GO
-
--- Rebuild cache tự động
-IF OBJECT_ID('tempdb..#Results') IS NOT NULL DROP TABLE #Results;
-DELETE FROM tblHtmlScriptCache WHERE TableName = 'sp_HelloWorldVietinsoft_html';
-GO
-EXEC dbo.sp_GenerateHTMLScript 'sp_HelloWorldVietinsoft_html';
-GO
-PRINT '2. Da refresh cache HTML thanh cong.';
-GO
-
--- Yêu cầu app tải lại bộ đệm
-EXEC dbo.sp_Men_Menu_AfterSave_Simple @ClassName = N'sp_HelloWorldVietinsoft';
-GO
-PRINT '3. Da kich hoat reset menu cache client.';
 GO

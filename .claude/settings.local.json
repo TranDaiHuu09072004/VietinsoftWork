@@ -30,7 +30,17 @@
       "mcp__mssql-vietinsoft__execute_query",
       "mcp__Paradise_Dev__test_connection",
       "mcp__Paradise_STVN_Test__test_connection",
-      "mcp__Paradise_STVN_Test__execute_query"
+      "mcp__Paradise_STVN_Test__execute_query",
+      "Bash(python -c ' *)",
+      "Bash(python \"d:/VTS User/Cuong.vu/Agent work/VietinsoftWork/scratch/fix_salaryslip_escape.py\")",
+      "Bash(python \"d:/VTS User/Cuong.vu/Agent work/VietinsoftWork/scratch/fix_salaryslip_char.py\")",
+      "Bash(python \"d:/VTS User/Cuong.vu/Agent work/VietinsoftWork/scratch/fix_salaryslip_quotes.py\")",
+      "Bash(python \"d:/VTS User/Cuong.vu/Agent work/VietinsoftWork/scratch/fix_salaryslip_backslash.py\")",
+      "Bash(python \"d:/VTS User/Cuong.vu/Agent work/VietinsoftWork/scratch/fix_trailing_quote.py\")",
+      "Bash(python \"d:/VTS User/Cuong.vu/Agent work/VietinsoftWork/scratch/fix_userid.py\")",
+      "Bash(python \"d:/VTS User/Cuong.vu/Agent work/VietinsoftWork/scratch/fix_userid_v2.py\")",
+      "Bash(python \"d:/VTS User/Cuong.vu/Agent work/VietinsoftWork/scratch/compare_js.py\")",
+      "Bash(python \"d:/VTS User/Cuong.vu/Agent work/VietinsoftWork/scratch/compare_v2.py\")"
     ]
   }
 }

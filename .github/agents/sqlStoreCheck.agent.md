@@ -13,7 +13,8 @@ Kiểm tra toàn diện tính đúng đắn, an toàn, và sự tuân thủ chu�
 5. Có đầy đủ logic nạp và rebuild HTML cache cùng reset menu cache.
 
 ---
-
+## ⚠️ QUY TẮC TỐI QUAN TRỌNG (CRITICAL RULES) ⚠️
+1. **TUYỆT ĐỐI KHÔNG TỰ SUY ĐOÁN.** Không bao giờ giả định cấu trúc bảng, tên cột, kiểu dữ liệu, mối quan hệ, quy tắc nghiệp vụ, công thức tính toán, hay hành vi của hệ thống. Mọi thông tin đều phải lấy từ nguồn xác thực Lấy Schema Bảng qua MCP Tool.
 ## ⚠️ Quy tắc Kiểm tra Chất lượng Bắt buộc (Validation Checklist)
 
 Khi đánh giá bất kỳ stored procedure nào, bạn phải kiểm tra và báo cáo chi tiết theo 5 nhóm chỉ tiêu sau:
@@ -62,7 +63,8 @@ Khi đánh giá bất kỳ stored procedure nào, bạn phải kiểm tra và b�
 
 ### 6. Quy tắc Nghiệp vụ Đặc thù ParadiseHR (ParadiseHR Domain Rules)
 - **Tham số LoginID:** Tất cả các stored procedure bắt buộc phải có ít nhất 1 tham số truyền vào là `@LoginID INT`.
-- **Lấy danh sách nhân viên runtime:** Sử dụng hàm `dbo.fn_vtblEmployeeList_Bydate` để lấy danh sách nhân viên runtime (lọc theo ngày, theo quyền hạn của người dùng, hoặc theo cây tổ chức).
+- **Lấy danh sách nhân viên runtime:** Sử dụng hàm `dbo.fn_vtblEmployeeList_Bydate(@ViewDate, @EmployeeID, @LoginID) AS e
+        WHERE (@IncludeTerminated = 1 OR e.TerminateDate IS NULL OR e.TerminateDate > @ViewDate)` để lấy danh sách nhân viên runtime (lọc theo ngày, theo quyền hạn của người dùng, hoặc theo cây tổ chức).
 - **Xác định kỳ tính công/lương (Salary Period):**
   - Nếu không truyền tham số ngày `@FromDate` / `@ToDate` $\rightarrow$ Xác định kỳ lương hiện tại dựa vào ngày hiện tại bằng hàm `dbo.fn_Get_SalaryPeriod_ByDate(GETDATE())`.
   - Nếu muốn xác định chu kỳ lương dựa trên tham số `@month` và `@year` $\rightarrow$ Sử dụng truy vấn:
@@ -73,6 +75,11 @@ Khi đánh giá bất kỳ stored procedure nào, bạn phải kiểm tra và b�
   ```sql
   SELECT * FROM dbo.fn_CurrentSalaryByDate(@ViewDate, @LoginID);
   ```
+- **Thông tin hợp đồng lao động hiện tại của nhân viên** Để tra cứu thông tin hợp đồng lao động hiện tại của nhân viên tại thời điểm `@ViewDate` xác định $\rightarrow$ Sử dụng table-valued function:
+  ```sql
+  SELECT * FROM dbo.fn_CurrentContractListByDate(@ViewDate, @LoginID);
+  ```
+- **Đọc schema bắt buộc (Không tự đoán cột):** Tất cả các bảng liên quan đến lập trình trong stored procedure bắt buộc phải được đọc và xác định schema thành công thông qua công cụ MCP trước khi viết code. Tuyệt đối KHÔNG được tự suy đoán tên cột của bất kỳ bảng nào.
 
 ---
 
@@ -89,3 +96,46 @@ Khi được yêu cầu kiểm tra một stored procedure, hãy đưa ra báo c�
 1. **📊 Bảng Đánh giá Tổng quan:** Danh sách 6 nhóm tiêu chuẩn kiểm tra chất lượng kèm theo trạng thái ĐẠT/KHÔNG ĐẠT/CẢNH BÁO.
 2. **🔍 Chi tiết lỗi phát hiện:** Chỉ rõ dòng code vi phạm, phân tích nguyên nhân lỗi (lỗi cú pháp, nguy cơ rò rỉ phân quyền, lỗi escape nháy đơn, v.v.).
 3. **🛠️ Đề xuất Bản vá (SQL Diff):** Cung cấp chính xác khối mã SQL được sửa đổi để người dùng hoặc các agent khác có thể drop-in thay thế.
+
+---
+
+## 📖 Hướng dẫn Lấy Schema Bảng qua MCP Tool (Dành cho AI)
+
+Để tránh lỗi sai tên cột khi viết hoặc sửa đổi stored procedure, các Model AI (đặc biệt là các model yếu hơn) cần thực hiện tuần tự các bước sau đây để lấy schema của một bảng bất kỳ:
+
+### Cách 1: Sử dụng công cụ `describe_table` (Khuyên dùng trước)
+1. **ToolName**: `describe_table`
+2. **Arguments**:
+   - `table_name`: Tên bảng cần lấy schema (ví dụ: `tblfamilyInfo`).
+   - `schema`: Tên schema của bảng (mặc định là `dbo`).
+3. **Mẫu JSON gọi tool**:
+   ```json
+   {
+     "ServerName": "Paradise_Dev",
+     "ToolName": "describe_table",
+     "Arguments": {
+       "table_name": "tblfamilyInfo"
+     }
+   }
+   ```
+   *Lưu ý: Nếu công cụ này báo lỗi `Invalid column name 'dbo'`, hãy chuyển ngay sang Cách 2.*
+
+### Cách 2: Sử dụng công cụ `execute_query` để truy vấn trực tiếp hệ thống
+1. **ToolName**: `execute_query`
+2. **SQL Query**: Sử dụng câu lệnh dưới đây để đọc cơ cấu các cột từ bảng metadata hệ thống (luôn hoạt động ổn định và chính xác):
+   ```sql
+   SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE, COLUMN_DEFAULT 
+   FROM INFORMATION_SCHEMA.COLUMNS 
+   WHERE TABLE_NAME = 'tên_bảng_của_bạn' 
+   ORDER BY ORDINAL_POSITION;
+   ```
+3. **Mẫu JSON gọi tool**:
+   ```json
+   {
+     "ServerName": "Paradise_Dev",
+     "ToolName": "execute_query",
+     "Arguments": {
+       "query": "SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'tblfamilyInfo' ORDER BY ORDINAL_POSITION"
+     }
+   }
+   ```

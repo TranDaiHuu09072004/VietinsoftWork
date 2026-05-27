@@ -52,7 +52,7 @@ Mẫu cấu trúc file cleanup script (xem mục [Mẫu script cleanup](#mẫu-s
 
 | Tên procedure | Lý do | File Knowledge nguồn | Date marked | Cleanup script |
 |---|---|---|---|---|
-| _(chưa có)_ | | | | |
+| sp_CompanySalarySummary | Đã lỗi thời, không còn sử dụng (bao gồm các hậu tố: `_BeforeLoad`, `_Debug`, `_EMC`, `_Export01`, `_html`, `_STD`, `_view`) | | 2026-05-26 | [SQL script/cleanup_obsolete_procedures_20260526.sql](../SQL%20script/cleanup_obsolete_procedures_20260526.sql) |
 
 ## 4. View / function lỗi thời
 
