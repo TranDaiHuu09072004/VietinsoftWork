@@ -1,0 +1,25 @@
+# Temporary and Backup files
+*.bak
+*.tmp
+*.temp
+*.log
+.DS_Store
+
+# MCP & Editor backups
+.mcp.json.*.bak
+.vscode/mcp.json.*.bak
+.claude/settings.local.json
+
+# Test & Scratch scripts
+test*.ps1
+test*.txt
+test*.bat
+dump_*.ps1
+dump_*.bat
+append_*.ps1
+merge*.ps1
+scratch/
+
+# Environments
+node_modules/
+.env
