@@ -47,19 +47,6 @@ AS BEGIN SET NOCOUNT ON;
       + N'  // ... gọi AjaxHPAParadise + render ...'
       + N'})();</script>';
 
-    MERGE dbo.tblHtmlScriptCache AS tgt
-    USING (SELECT 'sp_X_html' AS TableName, @LanguageID AS LanguageID,
-                  '-1' AS ScreenType, @html AS html,
-                  N'' AS HtmlParadise, N'' AS paradiseJs,
-                  '1' AS Version, N'' AS VersionData) AS src
-       ON tgt.TableName = src.TableName AND tgt.LanguageID = src.LanguageID
-    WHEN MATCHED THEN UPDATE SET tgt.ScreenType=src.ScreenType, tgt.html=src.html,
-                                 tgt.HtmlParadise=src.HtmlParadise, tgt.paradiseJs=src.paradiseJs,
-                                 tgt.Version=src.Version, tgt.VersionData=src.VersionData
-    WHEN NOT MATCHED BY TARGET THEN
-        INSERT (TableName, LanguageID, ScreenType, html, HtmlParadise, paradiseJs, Version, VersionData)
-        VALUES (src.TableName, src.LanguageID, src.ScreenType, src.html, src.HtmlParadise, src.paradiseJs, src.Version, src.VersionData);
-
     SELECT @html AS html;
 END
 ```
@@ -349,11 +336,10 @@ Msg 257, Implicit conversion from nvarchar to varbinary(max) is not allowed.
 ### 6.1 Checklist 15 điểm (đối chiếu trước khi export)
 
 **Quote boundary (5):**
-- [ ] 1. `<script>`, `function`, `String(...)`, `AjaxHPAParadise(...)` đều BÊN TRONG chuỗi `@html`.
-- [ ] 2. `MERGE dbo.tblHtmlScriptCache` BÊN NGOÀI chuỗi `@html`.
-- [ ] 3. Không còn `.replace(/''/g` raw — đã đổi sang `.replace(/'/g, ...)` (Case B §3.2).
-- [ ] 4. Mọi text label đa ngôn ngữ đi qua biến `*Js` đã escape `\` + `"`.
-- [ ] 5. JS regex literal chứa `'` dùng `'`, JS string literal dùng `''`.
+- [ ] 1. `<script>`, `function`, `String(...)`, `AjaxHPAParadise(...)` đều BÊN TRONG chuỗi `@html`. 
+- [ ] 2. Không còn `.replace(/''/g` raw — đã đổi sang `.replace(/'/g, ...)` (Case B §3.2).
+- [ ] 3. Mọi text label đa ngôn ngữ đi qua biến `*Js` đã escape `\` + `"`.
+- [ ] 4. JS regex literal chứa `'` dùng `'`, JS string literal dùng `''`.
 
 **Schema constraints (3):**
 - [ ] 6. MERGE `tblHtmlScriptCache` fill đủ 8 cột notnull.
