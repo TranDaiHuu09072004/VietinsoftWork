@@ -217,30 +217,174 @@ SET @html = N'
         <div id="<GridName>" style="height:100%;"></div>
     </div>
     <script>(() => {
-        let DataSource = [];
+        // Cờ khai báo hiển thị toolbar hệ thống cho Grid (Nạp sẵn reload và +)
+            let _showtoolbarGrid_GridExample = true; // <-- THAY GridExample bằng ID Grid thực tế (ví dụ: GridLeadTracking)
+
+            var api = true;
+            var DataSource = [];
+            var _pageCache = {};
+            var _currentKeyword = "";
+            var dataStore_GridExample = null; // <-- THAY GridExample bằng ID Grid thực tế
         '
 + (SELECT loadUI FROM tblCommonControlType_Signed WHERE UID = '<grid_container_UID>') + N'
         window.currentRecordID_<ColumnIDName> = null;
-        function ReloadData() {
-            AjaxHPAParadise({
-                data: { name: "<SPLoadData>", param: [] },
-                success: function (res) {
-                    const json    = typeof res === "string" ? JSON.parse(res) : res;
-                    const results = Array.isArray(json?.data?.[0]) ? json.data[0] : (json?.data?.[0] ? [json.data[0]] : []);
-                    const gridInstance = Instance<GridName><UID>;
-                    const gridConfig   = window.getGridConfig_<GridName>(results);
-                    gridInstance.beginUpdate();
-                    gridInstance.option("paging.enabled",     true);
-                    gridInstance.option("paging.pageSize",    gridConfig.pageSize);
-                    gridInstance.option("pager.allowedPageSizes", gridConfig.allowedPageSizes);
-                    gridInstance.option("dataSource",         results);
-                    gridInstance.endUpdate();
-                    DataSource = results;
-                    '
-+ (SELECT loadData FROM tblCommonControlType_Signed WHERE UID = '<grid_container_UID>') + N'
+
+ /* ============================================================
+               1. HÀM CỤC BỘ XỬ LÝ SỰ KIỆN (add + PKColumn & openDetail + PKColumn)
+               ============================================================ */
+            function addExampleKey() { // <-- THAY ExampleKey bằng PKColumn thực tế (ví dụ: addCRM_CustomerID)
+                // Tên biến gán theo chuẩn: currentClicked_Grid<GridName> và currentRecordID_<Key>
+                window.currentClicked_GridExample = null;
+                window.currentRecordID_ExampleKey = null; // <-- THAY ExampleKey bằng PKColumn thực tế
+
+                var tf = "sp_ExampleDetail"; // SP form chi tiết (bỏ đuôi _html)
+                if (["Android", "iOS"].includes(getMobileOperatingSystem())) {
+                    OpenFormParamMobile(tf);
+                } else {
+                    openFormParam(tf);
+                }
+            }
+
+            function openDetailExampleKey(rowData) { // <-- THAY ExampleKey bằng PKColumn thực tế (ví dụ: openDetailCRM_CustomerID)
+                if (rowData && rowData.ExampleKey) { // <-- THAY ExampleKey bằng PKColumn thực tế
+                    window.currentClicked_GridExample = rowData.ExampleKey; // <-- THAY ExampleKey bằng PKColumn thực tế
+                    window.currentRecordID_ExampleKey = rowData.ExampleKey; // <-- THAY ExampleKey bằng PKColumn thực tế
+
+                    var tf = "sp_ExampleDetail";
+                    var param = {
+                        LoginID: window.UserID || window.LoginID,
+                        LanguageID: window.LanguageID,
+                        ExampleKey: rowData.ExampleKey // <-- THAY ExampleKey bằng PKColumn thực tế
+                    };
+                    if (["Android", "iOS"].includes(getMobileOperatingSystem())) {
+                        OpenFormParamMobile(tf, param);
+                    } else {
+                        openFormParam(tf, param);
+                    }
+                }
+            }
+
+              /* ============================================================
+               2. KHỞI TẠO CUSTOMSTORE CHUẨN (dataSource)
+               ============================================================ */
+            dataStore_GridExample = new DevExpress.data.CustomStore({
+                key: "ExampleKey", // <-- CỰC KỲ QUAN TRỌNG: Thay bằng PKColumn thực tế của Grid (ví dụ: CRM_CustomerID)
+                load: function(loadOptions) {
+                    var deferred = $.Deferred();
+
+                    // Load từ cache cục bộ nếu api = false
+                    if (!api) {
+                        var results = DataSource || [];
+                        var skip = loadOptions.skip || 0;
+                        var take = loadOptions.take || 50;
+                        var pageData = results.slice(skip, skip + take);
+                        deferred.resolve({ data: pageData, totalCount: results.length });
+                        api = true;
+                        return deferred.promise();
+                    }
+
+                    var params = [];
+                    params.push("@ProcName", "sp_ExampleList"); // SP nghiệp vụ lấy dữ liệu (vd: sp_CRM_ProductTypeList)
+
+                    // Tham số truyền vào SP nghiệp vụ
+                    var procParam = "@LoginID=" + (window.UserID || window.LoginID) + ",@LanguageID=" + window.LanguageID;
+                    params.push("@ProcParam", procParam);
+
+                    params.push("@Take", loadOptions.take || 50);
+                    params.push("@Skip", loadOptions.skip || 0);
+
+                    if (loadOptions.requireTotalCount) params.push("@RequireTotalCount", 1);
+
+                    var sort = loadOptions.sort
+                        ? loadOptions.sort.map(s => s.selector + (s.desc ? " DESC" : " ASC")).join(",")
+                        : "";
+                    params.push("@Sort", sort != "" ? "ORDER BY " + sort : "");
+
+                    if (_currentKeyword) {
+                        params.push("@SearchValue", _currentKeyword);
+                        params.push("@ColumnSearch", "Column1,Column2"); // Danh sách các cột tìm kiếm full-text
+                    }
+
+                    // Loại bỏ JS function trong filter để tránh lỗi SQL Injection/Syntax
+                    if (loadOptions.filter) {
+                        var hasFunction = JSON.stringify(loadOptions.filter, (k, v) => typeof v === "function" ? "FUNCTION" : v).includes("FUNCTION");
+                        if (!hasFunction) params.push("@Filters", createConditionQuery(loadOptions.filter));
+                    }
+
+                    // Xử lý tổng hợp Summary (nếu có)
+                    if (loadOptions.totalSummary) {
+                        var summary = loadOptions.totalSummary.map(item => {
+                            return item.summaryType === "custom"
+                                ? "count(CASE WHEN [" + item.selector + "]=1 THEN 1 END) as " + item.selector + "_COUNT"
+                                : item.summaryType + "([" + item.selector + "]) as " + item.selector + "_" + item.summaryType.toUpperCase();
+                        });
+                        params.push("@TotalSummary", summary.join(", "));
+                    }
+
+                    AjaxHPAParadise({
+                        data: { name: "sp_LoadGridUsingAPI", param: params },
+                        success: function(res) {
+                            var json = typeof res === "string" ? JSON.parse(res) : res;
+                            var results = Array.isArray(json?.data?.[0]) ? json.data[0] : [];
+                            var result = { data: results };
+
+                            if (loadOptions.requireTotalCount) {
+                                result.totalCount = json?.data?.[1]?.[0]?.TotalCount ?? 0;
+                                if (loadOptions.totalSummary) result.summary = Object.values(json?.data?.[2]?.[0] ?? {});
+                            } else if (loadOptions.totalSummary) {
+                                result.summary = Object.values(json?.data?.[1]?.[0] ?? {});
+                            }
+
+                            DataSource = results;
+                            window.syncSharedGridData("GridExample"); // <-- THAY GridExample bằng ID Grid thực tế
+                            deferred.resolve(result);
+                        },
+                        error: function() { deferred.reject("Data Loading Error"); }
+                    });
+
+                    return deferred.promise();
                 }
             });
-        }
+
+         function ReloadData() {
+                _pageCache = {};
+                var gridInst = InstanceGridExample<uidGrid>; // <-- THAY GridExample bằng ID Grid thực tế (ví dụ: InstanceGridLeadTracking)
+                if (gridInst) { gridInst.refresh(); }
+            }
+
+             /* ============================================================
+               4. CẤU HÌNH ĐÈ LÊN GRID HỆ THỐNG
+               ============================================================ */
+            try {
+                var gi = $("#GridExample").dxDataGrid("instance"); // <-- THAY GridExample bằng ID Grid thực tế
+                if (gi) {
+                    gi.beginUpdate();
+                    gi.option("remoteOperations", { paging: true, filtering: true, sorting: true, searching: true });
+                    gi.option({
+                        "scrolling.mode": "infinite",
+                        "scrolling.rowRenderingMode": "virtual",
+                        "scrolling.preloadEnabled": false,
+                        "paging.enabled": false,
+                        "paging.pageSize": 50,
+                        "pager.visible": false,
+                        "searchPanel.highlightSearchText": false,
+                        "dataSource": dataStore_GridExample, // <-- THAY GridExample bằng ID Grid thực tế
+                        "height": function() {
+                            var el = document.getElementById("GridExample"); // <-- THAY GridExample bằng ID Grid thực tế
+                            if (!el) return 400;
+                            return Math.max(300, window.innerHeight - el.getBoundingClientRect().top - 30);
+                        }
+                    });
+                    gi.option("onOptionChanged", function(e) {
+                        if (e.name === "searchPanel" && e.fullName === "searchPanel.text") {
+                            _currentKeyword = (e.value || "").trim();
+                            _pageCache = {};
+                        }
+                    });
+                    gi.endUpdate();
+                }
+            } catch(e) {}
+
         ReloadData();
     })();
     </script>';

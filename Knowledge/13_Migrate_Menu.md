@@ -316,7 +316,7 @@ GO
 KHÔNG MERGE thủ công từ renderer. Cache được build bởi helper hệ thống:
 
 ```sql
-EXEC dbo.sp_GenerateHTMLScript @TableName = N'sp_X_html';
+EXEC dbo.sp_GenerateHTMLScript @ProcName = N'sp_X_html';
 ```
 
 `sp_GenerateHTMLScript` tự động gọi renderer cho VN + EN và MERGE vào `tblHtmlScriptCache` với đủ 8 cột. Renderer chỉ cần `SELECT @html AS html;` — không tự MERGE.

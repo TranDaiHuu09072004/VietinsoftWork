@@ -485,11 +485,27 @@ document.getElementById("<UID>").addEventListener("onHpaAutoSaveSuccess", functi
 
 ### loadDataSourceCommon
 
+> ⚠️ **QUY TẮC BẮT BUỘC:**
+>
+> **Rule 1 — Bất kỳ control nào** (form hoặc grid column) có khai báo `DataSourceSP` trong `tblCommonControlType_Signed` → renderer **PHẢI** gọi `loadDataSourceCommon` với `columnName` khớp với `ColumnName` của control. Nếu không → control không có data → không hiển thị được tên/giá trị.
+>
+> **Rule 2 — `loadDataSourceCommon` PHẢI chạy TRƯỚC khi inject `loadUI`.** Vì `loadUI` cần đọc `window["DataSource_<ColumnName>"]` để render control. Nếu gọi sau → control render xong rồi data mới load → hiển thị blank.
+
 ```javascript
-// Hệ thống TỰ GỌI hàm này trong loadUI — KHÔNG gọi lại lần nữa
-loadDataSourceCommon("<ColumnName>", "<DataSourceSP>", function(data) {
-    window["DataSource_<ColumnName>"] = data;
-});
+// Mẫu gọi trong renderer — columnName PHẢI khớp với ColumnName trong tblCommonControlType_Signed
+if ("<DataSourceSP>" && "<DataSourceSP>".trim() !== "") {
+    loadDataSourceCommon("<ColumnName>", "<DataSourceSP>", function(data) {});
+}
+// Ví dụ: cột OwnerID có DataSourceSP = 'EmployeeListAll_DataSetting_Custom'
+loadDataSourceCommon("OwnerID", "EmployeeListAll_DataSetting_Custom", function(data) {});
+```
+
+**Thứ tự đúng trong renderer:**
+```
+1. Định nghĩa hàm loadDataSourceCommon()
+2. Gọi loadDataSourceCommon("<ColumnName>", "<DataSourceSP>")  ← TRƯỚC loadUI
+3. Inject loadUI của control (date, grid, selectEmployee...)
+4. Code còn lại (ReloadData, openDetail, v.v.)
 ```
 
 ---
