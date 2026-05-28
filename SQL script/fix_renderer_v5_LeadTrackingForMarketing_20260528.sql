@@ -54,7 +54,7 @@ BEGIN
         + N'function esc(v){if(v===null||v===undefined)return"";return String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/' + @SQ + N'/g,"&#039;");}';
 
     /* --- Cờ hiển thị Toolbar (+ và Reload) --- */
-    SET @html = @html + N'var _showtoolbarGrid_GridLeadTracking = true;';
+    SET @html = @html + N'var _showtoolbarGrid_' + @uidGrid + N' = true;';
 
     /* --- Callback Thêm mới (+) --- */
     SET @html = @html + N'function addCRM_CustomerID() {'
