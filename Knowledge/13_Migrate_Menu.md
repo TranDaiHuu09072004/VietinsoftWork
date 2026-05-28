@@ -478,16 +478,7 @@ CREATE PROCEDURE dbo.sp_X_html (@LoginID int=3, @LanguageID varchar(5)='VN', @is
 AS BEGIN SET NOCOUNT ON;
     DECLARE @html nvarchar(max) = N'<!-- HTML/CSS/JS đã xác minh -->';
 
-    MERGE dbo.tblHtmlScriptCache AS tgt
-    USING (SELECT 'sp_X_html' AS TableName, @LanguageID AS LanguageID, '-1' AS ScreenType,
-                  @html AS html, N'' AS HtmlParadise, N'' AS paradiseJs, '1' AS Version, N'' AS VersionData) AS src
-       ON tgt.TableName=src.TableName AND tgt.LanguageID=src.LanguageID
-    WHEN MATCHED THEN UPDATE SET tgt.ScreenType=src.ScreenType, tgt.html=src.html,
-                                 tgt.HtmlParadise=src.HtmlParadise, tgt.paradiseJs=src.paradiseJs,
-                                 tgt.Version=src.Version, tgt.VersionData=src.VersionData
-    WHEN NOT MATCHED BY TARGET THEN
-        INSERT (TableName, LanguageID, ScreenType, html, HtmlParadise, paradiseJs, Version, VersionData)
-        VALUES (src.TableName, src.LanguageID, src.ScreenType, src.html, src.HtmlParadise, src.paradiseJs, src.Version, src.VersionData);
+    SELECT @html AS html;
 END
 GO
 

@@ -24,7 +24,7 @@
 ### 7 quy tắc (1 dòng/rule)
 
 1. **`N'...'`** — mọi `'` trong HTML/JS phải escape `''` hoặc dùng `&#039;`.
-2. **CẤM `.replace(/''/g, ...)`** trong JS embed — vỡ N-string T-SQL. Dùng `.replace(/'/g, ...)`.
+2. **CẤM `.replace(/''/g, ...)`** trong JS embed — vỡ N-string T-SQL. Dùng `CHAR(39)` hoặc `&#039;` (chỉ SSMS).
 3. **Text VN/EN → JS** qua biến `*Js` đã escape — `REPLACE(REPLACE(@x, N'\', N'\\'), N'"', N'\"')`.
 4. **`varbinary(max)` → `CAST(NULL AS VARBINARY(MAX))`** — KHÔNG `N''` (Msg 257).
 5. **MERGE `tblHtmlScriptCache` đủ 8 cột**: `TableName, LanguageID, ScreenType, html, HtmlParadise, paradiseJs, Version, VersionData`.
@@ -46,19 +46,6 @@ AS BEGIN SET NOCOUNT ON;
       + N'  var EMPTY_MSG = "' + @emptyJs + N'";'
       + N'  // ... gọi AjaxHPAParadise + render ...'
       + N'})();</script>';
-
-    MERGE dbo.tblHtmlScriptCache AS tgt
-    USING (SELECT 'sp_X_html' AS TableName, @LanguageID AS LanguageID,
-                  '-1' AS ScreenType, @html AS html,
-                  N'' AS HtmlParadise, N'' AS paradiseJs,
-                  '1' AS Version, N'' AS VersionData) AS src
-       ON tgt.TableName = src.TableName AND tgt.LanguageID = src.LanguageID
-    WHEN MATCHED THEN UPDATE SET tgt.ScreenType=src.ScreenType, tgt.html=src.html,
-                                 tgt.HtmlParadise=src.HtmlParadise, tgt.paradiseJs=src.paradiseJs,
-                                 tgt.Version=src.Version, tgt.VersionData=src.VersionData
-    WHEN NOT MATCHED BY TARGET THEN
-        INSERT (TableName, LanguageID, ScreenType, html, HtmlParadise, paradiseJs, Version, VersionData)
-        VALUES (src.TableName, src.LanguageID, src.ScreenType, src.html, src.HtmlParadise, src.paradiseJs, src.Version, src.VersionData);
 
     SELECT @html AS html;
 END
@@ -126,10 +113,19 @@ SET @html = @html + N'html += "<td style=''padding:10px;''>" + value + "</td>";'
 
 **Case B — JS regex literal** (vd `.replace(/'/g, ...)`):
 
-**TUYỆT ĐỐI KHÔNG** viết `.replace(/''/g, ...)` raw — pattern này có 2 `'` cạnh nhau giữa các slash, gây nhầm lẫn parser. Dùng unicode escape `'`:
+**TUYỆT ĐỐI KHÔNG** viết `.replace(/''/g, ...)` raw — pattern này có 2 `'` cạnh nhau giữa các slash, gây nhầm lẫn parser. **Cũng KHÔNG dùng `&#039;` HTML entity** trong file SQL viết bằng tool (Write tool có thể convert `&#039;` → `'` thật → đóng N-string sớm). 
+
+**Cách AN TOÀN TUYỆT ĐỐI — dùng `CHAR(39)`:**
+```sql
+DECLARE @SQ NCHAR(1) = CHAR(39);        -- single quote, không cần literal '
+SET @html = @html + N'.replace(/' + @SQ + N'/g,"&#039;")';
+-- JS runtime: .replace(/'/g, "&#039;")
+```
+
+**Cách cũ (chỉ dùng khi viết SQL trực tiếp trong SSMS, không qua file):**
 ```sql
 SET @html = @html + N'.replace(/'/g, "&#039;")';
--- JS runtime: .replace(/'/g, "&#039;")   (JS regex engine: ' = ')
+-- Note: &#039; có thể bị convert thành ' nếu viết qua Write tool → LỖI
 ```
 
 > Quy tắc tổng kết: JS string literal dùng `''`, JS regex literal dùng `'`.
@@ -349,11 +345,10 @@ Msg 257, Implicit conversion from nvarchar to varbinary(max) is not allowed.
 ### 6.1 Checklist 15 điểm (đối chiếu trước khi export)
 
 **Quote boundary (5):**
-- [ ] 1. `<script>`, `function`, `String(...)`, `AjaxHPAParadise(...)` đều BÊN TRONG chuỗi `@html`.
-- [ ] 2. `MERGE dbo.tblHtmlScriptCache` BÊN NGOÀI chuỗi `@html`.
-- [ ] 3. Không còn `.replace(/''/g` raw — đã đổi sang `.replace(/'/g, ...)` (Case B §3.2).
-- [ ] 4. Mọi text label đa ngôn ngữ đi qua biến `*Js` đã escape `\` + `"`.
-- [ ] 5. JS regex literal chứa `'` dùng `'`, JS string literal dùng `''`.
+- [ ] 1. `<script>`, `function`, `String(...)`, `AjaxHPAParadise(...)` đều BÊN TRONG chuỗi `@html`. 
+- [ ] 2. Không còn `.replace(/''/g` raw — đã dùng `CHAR(39)` hoặc `'` (chỉ SSMS).
+- [ ] 3. Mọi text label đa ngôn ngữ đi qua biến `*Js` đã escape `\` + `"`.
+- [ ] 4. JS regex literal chứa `'` dùng `'`, JS string literal dùng `''`.
 
 **Schema constraints (3):**
 - [ ] 6. MERGE `tblHtmlScriptCache` fill đủ 8 cột notnull.
@@ -375,7 +370,8 @@ Msg 257, Implicit conversion from nvarchar to varbinary(max) is not allowed.
 
 | Triệu chứng | Nguyên nhân | Fix |
 |---|---|---|
-| `Incorrect syntax near 'function'` / `String` / tên biến JS | Nháy đơn JS đóng N-string T-SQL sớm | Escape `''` hoặc `&#039;`; rà `.replace(/''/g)` |
+| `Incorrect syntax near 'function'` / `String` / tên biến JS | Nháy đơn JS đóng N-string T-SQL sớm | Escape `''` hoặc dùng `CHAR(39)`; rà `.replace(/''/g)` |
+| `The label 'data' has already been declared` (hàng loạt label error) + `Incorrect syntax near '{'` / `'}'` | Một `'` trong JS regex làm đóng N-string → toàn bộ JS bị parse thành T-SQL | Dùng `DECLARE @SQ NCHAR(1)=CHAR(39);` + ghép `+ @SQ +` vào regex (xem §3.2 Case B) |
 | `Msg 257 Implicit conversion from nvarchar to varbinary(max)` | MERGE/INSERT `N''` vào cột `varbinary(max)` | `CAST(NULL AS VARBINARY(MAX))` |
 | `InstanceXXX is not defined` runtime | Renderer build trước DUC → `loadUI` rỗng trong cache | Đảo thứ tự: metadata → DUC → renderer → cache |
 | `Cannot insert NULL into column 'html'` | MERGE thiếu 1 trong 8 cột notnull | Fill đủ 8 cột |

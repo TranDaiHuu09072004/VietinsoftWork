@@ -8,7 +8,7 @@
 
 1. [6 Quy tắc bắt buộc](#1-6-quy-tắc-bắt-buộc)
 2. [Hai layer + Quy ước đặt tên](#2-hai-layer--quy-ước-đặt-tên)
-3. [Quy trình 9 phase](#3-quy-trình-9-phase)
+3. [Quy trình 10 phase](#3-quy-trình-10-phase)
 4. [Nhánh config-driven `tblCommonControlType_Signed`](#4-nhánh-config-driven-tblcommoncontroltype_signed)
 5. [Menu mẫu "Hello world Vietinsoft"](#5-menu-mẫu-hello-world-vietinsoft)
 6. [`AjaxHPAParadise` runtime API](#6-ajaxhpaparadise-runtime-api)
@@ -26,7 +26,7 @@
 - ❌ **KHÔNG** gọi `sp_UpdateMenuInUserRight` (tự cấp `FullAccess=32` cho **MỌI** LoginID > 0 → mở quyền toàn hệ thống).
 - ➡️ User/group khác: cấp sau qua UI app hoặc script riêng.
 
-### Rule 2 — Cờ menu HTML-rendered (rất dễ sai)
+### Rule 2 — Cờ menu HTML-rendered  và chuẩn giao diện ParadiseStyle.
 
 Tất cả menu HTML-rendered (`MnuKPI007`, `MnuTM022`, `MnuWPT037`...) dùng **CÙNG PATTERN**:
 
@@ -39,6 +39,9 @@ Tất cả menu HTML-rendered (`MnuKPI007`, `MnuTM022`, `MnuWPT037`...) dùng **
 | `isShowInMobileLayOut` | **`0`** | ⚠️ SAI nếu để `1` |
 | `IsUseMobileDevice` | `1` | Bật cho Web HTML-rendered + Mobile |
 
+#### phải thiết kế giao diện theo đúng chuẩn ParadiseStyle 
+- Tham khảo tri thức tại file 14_ParadiseStyle.md
+
 > Hệ thống nhận diện "menu Web HTML-rendered" qua `AssemblyName='DataSetting'` + `ClassName` trỏ cặp wrapper/renderer + có cache `tblHtmlScriptCache`. **KHÔNG** qua các cờ `ViewOnWeb`/`isShowLayOutWeb`.
 
 ### Rule 3 — Parent menu phải `IsVisible = 1`
@@ -48,19 +51,18 @@ SELECT IsVisible FROM MEN_Menu WHERE MenuID = '<ParentMenuID>';
 -- Nếu = 0 → chọn parent khác.
 ```
 
-Parent đã verify an toàn: `MnuKPI000` · `MnuTM000` · `MnuWPT000` · `MnuHRS000`. ❌ Tránh `MnuHEP000` (Trợ giúp — `IsVisible=0`).
+Parent đã verify an toàn: `MnuKPI000` · `MnuTM000` · `MnuWPT000` · `MnuHRS000` · `MnuCSM000` · `MnuMDT000`· `MnuPRL000`· `MnuTAD000` · `MnuTM000`· `MnuSCR000`. ❌ Tránh `MnuHEP000` (Trợ giúp — `IsVisible=0`).
 
-### Rule 4 — BẮT BUỘC `tblDataSetting` + `tblDataSettingLayout`
+### Rule 4 — BẮT BUỘC `tblDataSetting` 
 
 Mỗi menu HTML-rendered phải có **3 bảng metadata**:
 
 | Bảng | Số dòng | Vai trò |
 |---|---|---|
 | `tblDataSetting` | 1 | Báo cho app: procedure HTML-rendered (`IsProcedure=1, IsShowLayout=1, ColumnDataType='html&ViewHtml', ColumnOrderBy='html&0'`) |
-| `tblDataSettingLayout` | 2 | `root` (group) + `lblhtml` (item, `ControlType='ParadiseWebView2'`, `ControlName='html'`, `NamePa='root'`) |
 | `tblHtmlScriptCache` | ≥ 1/lang | HTML/CSS/JS thực |
 
-❌ **Thiếu 2 row `tblDataSettingLayout`** = triệu chứng "click menu → màn hình trắng" (dù menu hiện + có quyền + có cache).
+
 
 ### Rule 5 — Renderer HTML/JS an toàn
 
@@ -114,18 +116,40 @@ Tự sinh `MenuID` mới: lấy `MAX(số sau 6 ký tự)` trong nhóm + 1 (proc
 
 ---
 
-## 3. Quy trình 9 phase
+## 3. Quy trình 10 phase
+
+### Phase 0 — Khảo sát thông tin (BẮT BUỘC, trước mọi phase khác)
+
+> ⚠️ **Khi user yêu cầu tạo menu mới, Agent PHẢI hỏi đủ 6 câu dưới đây trước khi tiến hành bất kỳ thao tác kỹ thuật nào.** Không được bỏ qua bước này.
+
+Agent cần khảo sát tuần tự các thông tin sau:
+
+| # | Câu hỏi | Mục đích | Ánh xạ tới phase |
+|---|---|---|---|
+| 0.1 | **Tên menu là gì?** (tiếng Việt) | Tên hiển thị trong cây menu → `tblMD_Message` (`Language='VN'`) | Phase D |
+| 0.2 | **Bạn có muốn tôi tự dịch tên menu sang tiếng Anh không?** | Nếu user đồng ý → Agent tự dịch và điền `@TextEN`. Nếu không → hỏi tiếp tên tiếng Anh | Phase D |
+| 0.3 | **Thuộc menu cha nào?** (vd: `MnuKPI000`, `MnuHRS000`, `MnuWPT000`...) | `@ParentMenuID` trong `sp_s_CreateMenu`. Agent phải **verify `IsVisible=1`** trước khi chấp nhận (Rule 3) | Phase D |
+| 0.4 | **Tên thủ tục (stored procedure) cần gắn vào menu này là gì?** | `@ClassName` — wrapper procedure sẽ được tạo. Agent tự suy ra tên renderer (`<ClassName>_html`) và các API runtime | Phase A, B, C |
+| 0.5 | **Phân quyền menu này cho nhóm (Group) hay cho riêng LoginName?** | Quyết định ghi `tblSC_GroupRight` (nhóm) hay `tblSC_Right_Stored` (cá nhân). Ngoài ra **luôn cấp cho `LoginID=3`** (Rule 1) | Phase G |
+| 0.6 | **Cho tôi biết tên nhóm hoặc LoginName đó?** | Xác định `UserGroupID` hoặc `LoginID` cụ thể để cấp `FullAccess=32` | Phase G |
+
+**Quy tắc khảo sát:**
+- Hỏi **tuần tự** từ 0.1 → 0.6. Mỗi câu trả lời có thể ảnh hưởng đến câu sau.
+- Với câu 0.3: Agent phải **tự verify** `ParentMenuID` có `IsVisible=1` trong DB trước khi confirm với user.
+- Với câu 0.4: Agent tự suy ra quy ước đặt tên: `ClassName` → renderer `ClassName_html` → API `ClassName_<Action>` → cache key `ClassName_html`.
+- Với câu 0.5–0.6: Agent cần tra cứu DB để xác nhận tên group/LoginName tồn tại trước khi dùng.
+- **KHÔNG được phép skip bất kỳ câu nào.** Nếu user không cung cấp đủ thông tin, Agent phải hỏi lại.
 
 ```
+[0] Khảo sát thông tin          → Hỏi đủ 6 câu: tên VN, tên EN, parent, procedure, group/login, tên group/login
 [A] Thiết kế nguồn data        → quyết định procedure API runtime
 [B] Cặp procedure UI           → <class>_html (renderer) + <class> (wrapper đọc cache)
 [C] Procedure API runtime      → sp_<X>_<Action>: SELECT data từ DB
 [D] Metadata menu              → sp_s_CreateMenu hoặc INSERT thủ công 3 bảng
-[D2] tblDataSetting            → 1 row (IsProcedure=1, IsShowLayout=1, ColumnDataType='html&ViewHtml')
-[D3] tblDataSettingLayout      → 2 row (root + lblhtml/ParadiseWebView2)                       ← BẮT BUỘC
+[D2] tblDataSetting            → 1 row (IsProcedure=1, IsShowLayout=1, ColumnDataType='html&ViewHtml') 
 [E] Cờ nền tảng                → IsWeb=0, ViewOnWeb=0, isShowLayOutWeb=0, isShowInMobileLayOut=0, IsUseMobileDevice=1
 [F] Build cache                → EXEC sp_GenerateHTMLScript '<class>_html'
-[G] Quyền                      → INSERT tblSC_Right_Stored(LoginID=3, FullAccess='32')
+[G] Quyền                      → INSERT tblSC_Right_Stored(LoginID=3, FullAccess='32') + group/login từ khảo sát
 [H] Refresh menu cache         → EXEC sp_Men_Menu_AfterSave_Simple @ClassName='<ClassName>'
 [I] User logout/login          → Click menu → wrapper trả HTML → JS gọi API runtime
 ```
@@ -174,10 +198,11 @@ PK = `ID` (varchar(36), default `[dbo].[fn_UUIDv7_Min]()`); các cột khác **n
 1. DELETE FROM tblCommonControlType_Signed WHERE TableName='<class>_html'  -- idempotent
 2. INSERT metadata (UID deterministic, html/loadUI/loadData NULL)
 3. EXEC sptblCommonControlType_Signed_DUC '<class>_html'                   -- populate
-4. CREATE OR ALTER PROCEDURE <class>_html                                  -- renderer trỏ UID
-5. DELETE FROM tblHtmlScriptCache WHERE TableName='<class>_html'
-6. EXEC sp_GenerateHTMLScript '<class>_html'                               -- build cache
-7. EXEC sp_Men_Menu_AfterSave_Simple @ClassName=N'<ClassName>'
+4. CREATE OR ALTER PROCEDURE <class_Data>                                  -- procedure to get data from DB and show on the UI.
+5. CREATE OR ALTER PROCEDURE <class>_html                                  -- renderer trỏ UID
+6. DELETE FROM tblHtmlScriptCache WHERE TableName='<class>_html'
+7. EXEC sp_GenerateHTMLScript '<class>_html'                               -- build cache
+8. EXEC sp_Men_Menu_AfterSave_Simple @ClassName=N'<ClassName>'
 ```
 
 > ⚠️ **DUC PHẢI EXEC TRƯỚC khi tạo renderer** — vì renderer dynamic SQL `(SELECT loadUI FROM tblCommonControlType_Signed WHERE UID='...')` cần cột `loadUI` đã có data.
@@ -268,7 +293,7 @@ END
 ### 5.3 Renderer + Wrapper (Phase B)
 
 - **Renderer** `sp_HelloWorldVietinsoft_html`: build chuỗi HTML/CSS/JS, gọi API qua `AjaxHPAParadise`, UPSERT cache `tblHtmlScriptCache` MERGE 8 cột (theo pattern [17 §3.3](17_RendererHtmlJsSafe.md)) cho cả VN + EN.
-- **Wrapper** `sp_HelloWorldVietinsoft`: `SELECT TOP 1 html FROM tblHtmlScriptCache WHERE TableName='sp_HelloWorldVietinsoft_html' AND ScreenType='-1' AND LanguageID=@LanguageID`.
+- **Wrapper** `sp_HelloWorldVietinsoft`: `SELECT TOP 1 html FROM tblHtmlScriptCache WHERE TableName='sp_HelloWorldVietinsoft' AND ScreenType='-1' AND LanguageID=@LanguageID`.
 
 Code đầy đủ: xem 2 script đã liệt kê đầu §5.
 
@@ -290,16 +315,12 @@ VALUES ('sp_HelloWorldVietinsoft', 'sp_HelloWorldVietinsoft', 1, 1,
     'html&0', 'html&ViewHtml', 'isReadOnlyRow,dtftxxENGColumns',
     'grdTableEditor,txtFilter,btnReload,btnFWDelete,btnFWReset,btnExport,btnFWSave,btnFWAdd,isReadOnlyRow,dtftxxENGColumns', /* ... */);
 
--- Phase D3: tblDataSettingLayout (2 row)
-INSERT INTO tblDataSettingLayout (TableName, Name, ControlName, NamePa, Type, ControlType, /* ... */)
-VALUES ('sp_HelloWorldVietinsoft', 'root',    '',     '',     'g', '',                /* ... */),
-       ('sp_HelloWorldVietinsoft', 'lblhtml', 'html', 'root', 'i', 'ParadiseWebView2', /* ... */);
 
 -- Phase E: cờ menu (đảm bảo Rule 2)
 UPDATE MEN_Menu
    SET IsVisible=1, IsWeb=0, ViewOnWeb=0, isShowLayOutWeb=0,
-       IsUseMobileDevice=1, isShowInMobileLayOut=0,
-       glyphicon=N'Info', GroupID='MnuKPI000', Priority=99
+       IsUseMobileDevice=1, isShowInMobileLayOut=0, Priority=99
+       glyphicon=N'Info', GroupID='MnuKPI000'
  WHERE MenuID='MnuHEP910';
 ```
 
@@ -347,21 +368,22 @@ Verified từ: `sp_Train_Ranking_Template_html`, `sp_KPIProcessCustomer_html`.
 
 ---
 
-## 7. Checklist 13 điểm
+## 7. Checklist 15 điểm
 
-1. ☐ `MenuID` không trùng — `SELECT * FROM MEN_Menu WHERE MenuID='<id>'`.
-2. ☐ **Parent menu** `IsVisible=1` (Rule 3). Né `MnuHEP000`.
-3. ☐ **Cờ Rule 2**: `IsWeb=0, ViewOnWeb=0, isShowLayOutWeb=0, isShowInMobileLayOut=0, IsUseMobileDevice=1`.
-4. ☐ **Phase D2 (Rule 4)** — `tblDataSetting` 1 row đủ `IsProcedure=1, IsShowLayout=1, ColumnOrderBy='html&0', ColumnDataType='html&ViewHtml'`.
-5. ☐ **Phase D3 (Rule 4)** — `tblDataSettingLayout` 2 row (`root` group + `lblhtml` ParadiseWebView2).
-6. ☐ Renderer UPSERT cache cho **cả VN và EN**.
-7. ☐ Wrapper `SELECT TOP 1 html` lọc `(TableName, ScreenType='-1', LanguageID)`.
-8. ☐ Procedure API có `@LoginID` + `@LanguageID`.
-9. ☐ JS gọi `AjaxHPAParadise` với `param` **mảng phẳng**.
-10. ☐ Phase G — CHỈ `LoginID = 3`.
-11. ☐ Phase H — CHỈ `sp_Men_Menu_AfterSave_Simple @ClassName='...'`. KHÔNG `sp_UpdateMenuInUserRight`.
-12. ☐ Verify logout/login → menu hiện → click → render OK → DevTools Network xem POST `AjaxHPAParadise` đúng `name` + `param`.
-13. ☐ **(Rule 6) Nếu có `dxDataGrid`**: `scrolling.mode="infinite"`, `pager.visible=false`, `remoteOperations` đủ 4 cờ, `CustomStore` gọi `sp_LoadGridUsingAPI` với `@Skip/@Take`. Data SP có `@TempTableAPIName`. Xem [§9](#9-grid--infinite-loop-scroll-rule-6).
+1. ☐ **Phase 0 — Khảo sát đủ 6 câu**: tên VN, tên EN (hoặc tự dịch), parent menu, procedure, group/LoginName, tên group/LoginName.
+2. ☐ **`MenuID` không trùng** — `SELECT * FROM MEN_Menu WHERE MenuID='<id>'`.
+3. ☐ **Parent menu** `IsVisible=1` (Rule 3). Né `MnuHEP000`.
+4. ☐ **Cờ Rule 2**: `IsWeb=0, ViewOnWeb=0, isShowLayOutWeb=0, isShowInMobileLayOut=0, IsUseMobileDevice=1`.
+5. ☐ **Phase D2 (Rule 4)** — `tblDataSetting` 1 row đủ `IsProcedure=1, IsShowLayout=1, ColumnOrderBy='html&0', ColumnDataType='html&ViewHtml'`. 
+7. ☐ Renderer UPSERT cache cho **cả VN và EN**.
+8. ☐ Wrapper `SELECT TOP 1 html` lọc `(TableName, ScreenType='-1', LanguageID)`.
+9. ☐ Procedure API có `@LoginID` + `@LanguageID`.
+10. ☐ JS gọi `AjaxHPAParadise` với `param` **mảng phẳng**.
+11. ☐ Phase G — CHỈ `LoginID = 3` + group/LoginName từ khảo sát.
+12. ☐ Phase H — CHỈ `sp_Men_Menu_AfterSave_Simple @ClassName='...'`. KHÔNG `sp_UpdateMenuInUserRight`.
+13. ☐ Verify logout/login → menu hiện → click → render OK → DevTools Network xem POST `AjaxHPAParadise` đúng `name` + `param`.
+14. ☐ **(Rule 6) Nếu có `dxDataGrid`**: `scrolling.mode="infinite"`, `pager.visible=false`, `remoteOperations` đủ 4 cờ, `CustomStore` gọi `sp_LoadGridUsingAPI` với `@Skip/@Take`. Data SP có `@TempTableAPIName`. Xem [§9](#9-grid--infinite-loop-scroll-rule-6).
+15. ☐ **Phase 0 verify** — tên group/LoginName từ khảo sát đã được xác nhận tồn tại trong DB trước khi gán quyền.
 
 ---
 
@@ -370,7 +392,6 @@ Verified từ: `sp_Train_Ranking_Template_html`, `sp_KPIProcessCustomer_html`.
 | Triệu chứng | Nguyên nhân | Cách kiểm tra |
 |---|---|---|
 | Menu không hiện trong cây (đã có quyền + logout/login) | (1) Sai cờ Web (Rule 2); (2) parent `IsVisible=0` (vd `MnuHEP000`); (3) menu `IsVisible=0` | `SELECT m.MenuID, m.IsVisible, m.IsWeb, m.ViewOnWeb, m.isShowLayOutWeb, m.IsUseMobileDevice, m.isShowInMobileLayOut, p.IsVisible AS ParentVisible FROM MEN_Menu m LEFT JOIN MEN_Menu p ON p.MenuID=m.ParentMenuID WHERE m.MenuID IN ('<id>','MnuKPI007')` |
-| **Menu hiện + click → màn hình TRẮNG** | **Thiếu D2 + D3** (Rule 4) | `SELECT * FROM tblDataSetting WHERE TableName='<class>'`; `SELECT * FROM tblDataSettingLayout WHERE TableName='<class>'`. Phải có 1 + 2 row. Fix: [fix_menu_HelloWorldVietinsoft_v2_20260520.sql](../SQL%20script/fix_menu_HelloWorldVietinsoft_v2_20260520.sql) |
 | Mở menu thấy "loading..." không kết thúc | Cache chưa build | `SELECT DATALENGTH(html) FROM tblHtmlScriptCache WHERE TableName='<class>_html' AND LanguageID='VN'` → nếu rỗng: `EXEC dbo.sp_GenerateHTMLScript '<class>_html'` |
 | HTML cũ sau khi sửa | Cache chưa rebuild | `DELETE FROM tblHtmlScriptCache WHERE TableName='<class>_html'; EXEC dbo.sp_GenerateHTMLScript '<class>_html'` |
 | JS gọi API lỗi 500 | `param` sai (object thay vì array) / thiếu `@LoginID`/`@LanguageID` | DevTools Network xem body |
@@ -446,73 +467,211 @@ AS BEGIN
 END
 ```
 
-**Renderer JS** (lớp 1, rút gọn):
+**Renderer JS** (lớp 1 - Mẫu cấu trúc chuẩn và tối giản cho Grid được trình bày đầy đủ ở mục 9.2.1 ngay bên dưới).
+
+
+
+### 9.2.1 Cấu trúc JS CustomStore chuẩn và tối giản cho Grid
+
+Dưới đây là cấu trúc Javascript CustomStore và cấu hình đè Grid tối giản (không cần DateBox lọc, không có stats và các nút lọc). Mẫu này tập trung hoàn toàn vào cấu trúc chuẩn của grid và `dataSource` (sử dụng `CustomStore` kết nối API `sp_LoadGridUsingAPI` hỗ trợ phân trang infinite scroll, sắp xếp, tìm kiếm):
+
+> [!IMPORTANT]
+> **Quy chế tích hợp Toolbar & Event của Hệ thống**:
+> Khi cờ hiển thị toolbar hệ thống được bật (ví dụ: `_showtoolbarGrid_<uidGrid>` = true), hệ thống đã tích hợp sẵn nút **Tải lại (Reload)** và nút **Thêm mới (+)**:
+> - Nút **Tải lại** tự động gọi hàm cục bộ tên là `Reload()`.
+> - Nút **Thêm mới (+)** tự động gọi hàm cục bộ theo cú pháp: `add` + `PKColumn` (Ví dụ PKColumn là `ExampleKey` thì hàm là `addExampleKey()`).
+> - Sự kiện mở chi tiết dòng (click/dblclick) tự động gọi hàm cục bộ theo cú pháp: `openDetail` + `PKColumn` (Ví dụ: `openDetailExampleKey(rowData)`).
+>
+> Vì vậy, ta cần đặt tên hàm cục bộ chính xác theo các quy tắc trên. Không cần chèn thủ công các nút này qua sự kiện `onToolbarPreparing`.
+
+1. **Encapsulation (Hàm cục bộ)**: Các hàm callback `add<PKColumn>` và `openDetail<PKColumn>` được khai báo dạng local function bên trong IIFE để tránh xung đột biến toàn cục và khớp với sự kiện tự động từ hệ thống.
+2. **Offline/Local Cache slicing**: Lưu trữ và đọc dữ liệu từ cache cục bộ `DataSource` khi `api = false`.
+3. **Filter Safety Check**: Lọc bỏ các Javascript Function trong điều kiện filter trước khi chuyển thành SQL query.
+4. **Dynamic Total Summary**: Ánh xạ động các summary types của DevExtreme.
+5. **Grid Config Override**: Đè các cấu hình bắt buộc như `scrolling.mode: "infinite"`, `remoteOperations` và gán `dataSource`.
+
+#### Mẫu Javascript tối giản:
 
 ```javascript
-// 1. DataStore — KHÔNG dùng array tĩnh
-const dataStore = new DevExpress.data.CustomStore({
-    key: "ProductTypeID",
-    load: function (loadOptions) {
-        const deferred = $.Deferred();
-        let params = [];
-        params.push("@ProcName",  "sp_CRM_ProductTypeList");
-        params.push("@ProcParam", "@LoginID="+window.LoginID+", @LanguageID="+window.LanguageID);
-        params.push("@Take",      loadOptions.take || 50);
-        params.push("@Skip",      loadOptions.skip || 0);
-        if (loadOptions.requireTotalCount) params.push("@RequireTotalCount", 1);
+        (() => {
+            // Cờ khai báo hiển thị toolbar hệ thống cho Grid (Nạp sẵn reload và +)
+            let _showtoolbarGrid_GridExample = true; // <-- THAY GridExample bằng ID Grid thực tế (ví dụ: GridLeadTracking)
 
-        const sort = loadOptions.sort
-            ? loadOptions.sort.map(s => s.selector + (s.desc ? " DESC" : " ASC")).join(",")
-            : "STT";
-        params.push("@Sort", "ORDER BY " + sort);
+            var api = true;
+            var DataSource = [];
+            var _pageCache = {};
+            var _currentKeyword = "";
+            var dataStore_GridExample = null; // <-- THAY GridExample bằng ID Grid thực tế
+            var ERR = "Lỗi tải dữ liệu";
 
-        if (_currentKeyword) {
-            params.push("@SearchValue",  _currentKeyword);
-            params.push("@ColumnSearch", "ProductTypeName,ContractDetailTypeName");
-        }
-        if (loadOptions.filter)        params.push("@Filters",      createConditionQuery(loadOptions.filter));
-        if (loadOptions.totalSummary)  params.push("@TotalSummary", /* build từ totalSummary */);
+            // Helper escape HTML tránh lỗ hổng XSS
+            function esc(v) {
+                if (v === null || v === undefined) return "";
+                return String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+            }
 
-        AjaxHPAParadise({
-            data: { name: "sp_LoadGridUsingAPI", param: params },
-            success: function (res) {
-                const json = typeof res === "string" ? JSON.parse(res) : res;
-                const results = Array.isArray(json?.data?.[0]) ? json.data[0] : [];
-                let result = { data: results };
-                if (loadOptions.requireTotalCount)
-                    result.totalCount = json?.data?.[1]?.[0]?.TotalCount ?? 0;
-                deferred.resolve(result);
-            },
-            error: () => deferred.reject("Data Loading Error")
-        });
-        return deferred.promise();
-    }
-});
+            /* ============================================================
+               1. HÀM CỤC BỘ XỬ LÝ SỰ KIỆN (add + PKColumn & openDetail + PKColumn)
+               ============================================================ */
+            function addExampleKey() { // <-- THAY ExampleKey bằng PKColumn thực tế (ví dụ: addCRM_CustomerID)
+                // Tên biến gán theo chuẩn: currentClicked_Grid<GridName> và currentRecordID_<Key>
+                window.currentClicked_GridExample = null;
+                window.currentRecordID_ExampleKey = null; // <-- THAY ExampleKey bằng PKColumn thực tế
 
-// 2. Grid options BẮT BUỘC (Rule 6)
-gridInstance.option("remoteOperations", { paging:true, filtering:true, sorting:true, searching:true });
-gridInstance.option({
-    "scrolling.mode":             "infinite",      // ← chìa khoá
-    "scrolling.rowRenderingMode": "virtual",
-    "scrolling.preloadEnabled":   false,
-    "paging.enabled":             true,
-    "paging.pageSize":            50,
-    "pager.visible":              false,            // ← ẨN pager
-    "dataSource":                 dataStore,
-    "height":                     getGridHeight()
-});
+                var tf = "sp_ExampleDetail"; // SP form chi tiết (bỏ đuôi _html)
+                if (["Android", "iOS"].includes(getMobileOperatingSystem())) {
+                    OpenFormParamMobile(tf);
+                } else {
+                    openFormParam(tf);
+                }
+            }
 
-// 3. Reset cache khi search đổi
-gridInstance.option("onOptionChanged", function (e) {
-    if (e.name === "searchPanel" && e.fullName === "searchPanel.text") {
-        _currentKeyword = (e.value || "").trim();
-        _pageCache = {};
-    }
-});
+            function openDetailExampleKey(rowData) { // <-- THAY ExampleKey bằng PKColumn thực tế (ví dụ: openDetailCRM_CustomerID)
+                if (rowData && rowData.ExampleKey) { // <-- THAY ExampleKey bằng PKColumn thực tế
+                    window.currentClicked_GridExample = rowData.ExampleKey; // <-- THAY ExampleKey bằng PKColumn thực tế
+                    window.currentRecordID_ExampleKey = rowData.ExampleKey; // <-- THAY ExampleKey bằng PKColumn thực tế
 
-// 4. Reload helper
-function ReloadData() { _pageCache = {}; gridInstance.refresh(); }
-ReloadData();
+                    var tf = "sp_ExampleDetail";
+                    var param = {
+                        LoginID: window.UserID || window.LoginID,
+                        LanguageID: window.LanguageID,
+                        ExampleKey: rowData.ExampleKey // <-- THAY ExampleKey bằng PKColumn thực tế
+                    };
+                    if (["Android", "iOS"].includes(getMobileOperatingSystem())) {
+                        OpenFormParamMobile(tf, param);
+                    } else {
+                        openFormParam(tf, param);
+                    }
+                }
+            }
+
+            /* ============================================================
+               2. KHỞI TẠO CUSTOMSTORE CHUẨN (dataSource)
+               ============================================================ */
+            dataStore_GridExample = new DevExpress.data.CustomStore({
+                key: "ExampleKey", // <-- CỰC KỲ QUAN TRỌNG: Thay bằng PKColumn thực tế của Grid (ví dụ: CRM_CustomerID)
+                load: function(loadOptions) {
+                    var deferred = $.Deferred();
+
+                    // Load từ cache cục bộ nếu api = false
+                    if (!api) {
+                        var results = DataSource || [];
+                        var skip = loadOptions.skip || 0;
+                        var take = loadOptions.take || 50;
+                        var pageData = results.slice(skip, skip + take);
+                        deferred.resolve({ data: pageData, totalCount: results.length });
+                        api = true;
+                        return deferred.promise();
+                    }
+
+                    var params = [];
+                    params.push("@ProcName", "sp_ExampleList"); // SP nghiệp vụ lấy dữ liệu (vd: sp_CRM_ProductTypeList)
+
+                    // Tham số truyền vào SP nghiệp vụ
+                    var procParam = "@LoginID=" + (window.UserID || window.LoginID) + ",@LanguageID=" + window.LanguageID;
+                    params.push("@ProcParam", procParam);
+
+                    params.push("@Take", loadOptions.take || 50);
+                    params.push("@Skip", loadOptions.skip || 0);
+
+                    if (loadOptions.requireTotalCount) params.push("@RequireTotalCount", 1);
+
+                    var sort = loadOptions.sort
+                        ? loadOptions.sort.map(s => s.selector + (s.desc ? " DESC" : " ASC")).join(",")
+                        : "";
+                    params.push("@Sort", sort != "" ? "ORDER BY " + sort : "");
+
+                    if (_currentKeyword) {
+                        params.push("@SearchValue", _currentKeyword);
+                        params.push("@ColumnSearch", "Column1,Column2"); // Danh sách các cột tìm kiếm full-text
+                    }
+
+                    // Loại bỏ JS function trong filter để tránh lỗi SQL Injection/Syntax
+                    if (loadOptions.filter) {
+                        var hasFunction = JSON.stringify(loadOptions.filter, (k, v) => typeof v === "function" ? "FUNCTION" : v).includes("FUNCTION");
+                        if (!hasFunction) params.push("@Filters", createConditionQuery(loadOptions.filter));
+                    }
+
+                    // Xử lý tổng hợp Summary (nếu có)
+                    if (loadOptions.totalSummary) {
+                        var summary = loadOptions.totalSummary.map(item => {
+                            return item.summaryType === "custom"
+                                ? "count(CASE WHEN [" + item.selector + "]=1 THEN 1 END) as " + item.selector + "_COUNT"
+                                : item.summaryType + "([" + item.selector + "]) as " + item.selector + "_" + item.summaryType.toUpperCase();
+                        });
+                        params.push("@TotalSummary", summary.join(", "));
+                    }
+
+                    AjaxHPAParadise({
+                        data: { name: "sp_LoadGridUsingAPI", param: params },
+                        success: function(res) {
+                            var json = typeof res === "string" ? JSON.parse(res) : res;
+                            var results = Array.isArray(json?.data?.[0]) ? json.data[0] : [];
+                            var result = { data: results };
+
+                            if (loadOptions.requireTotalCount) {
+                                result.totalCount = json?.data?.[1]?.[0]?.TotalCount ?? 0;
+                                if (loadOptions.totalSummary) result.summary = Object.values(json?.data?.[2]?.[0] ?? {});
+                            } else if (loadOptions.totalSummary) {
+                                result.summary = Object.values(json?.data?.[1]?.[0] ?? {});
+                            }
+
+                            DataSource = results;
+                            window.syncSharedGridData("GridExample"); // <-- THAY GridExample bằng ID Grid thực tế
+                            deferred.resolve(result);
+                        },
+                        error: function() { deferred.reject("Data Loading Error"); }
+                    });
+
+                    return deferred.promise();
+                }
+            });
+
+            /* ============================================================
+               3. HÀM RELOAD DỮ LIỆU
+               ============================================================ */
+            function Reload() {
+                _pageCache = {};
+                var gridInst = InstanceGridExample<uidGrid>; // <-- THAY GridExample bằng ID Grid thực tế (ví dụ: InstanceGridLeadTracking)
+                if (gridInst) { gridInst.refresh(); }
+            }
+
+            /* ============================================================
+               4. CẤU HÌNH ĐÈ LÊN GRID HỆ THỐNG
+               ============================================================ */
+            try {
+                var gi = $("#GridExample").dxDataGrid("instance"); // <-- THAY GridExample bằng ID Grid thực tế
+                if (gi) {
+                    gi.beginUpdate();
+                    gi.option("remoteOperations", { paging: true, filtering: true, sorting: true, searching: true });
+                    gi.option({
+                        "scrolling.mode": "infinite",
+                        "scrolling.rowRenderingMode": "virtual",
+                        "scrolling.preloadEnabled": false,
+                        "paging.enabled": false,
+                        "paging.pageSize": 50,
+                        "pager.visible": false,
+                        "searchPanel.highlightSearchText": false,
+                        "dataSource": dataStore_GridExample, // <-- THAY GridExample bằng ID Grid thực tế
+                        "height": function() {
+                            var el = document.getElementById("GridExample"); // <-- THAY GridExample bằng ID Grid thực tế
+                            if (!el) return 400;
+                            return Math.max(300, window.innerHeight - el.getBoundingClientRect().top - 30);
+                        }
+                    });
+                    gi.option("onOptionChanged", function(e) {
+                        if (e.name === "searchPanel" && e.fullName === "searchPanel.text") {
+                            _currentKeyword = (e.value || "").trim();
+                            _pageCache = {};
+                        }
+                    });
+                    gi.endUpdate();
+                }
+            } catch(e) {}
+
+            // Kích hoạt nạp dữ liệu ban đầu
+            Reload();
+        })();
 ```
 
 ### 9.3 Cache temp table (lớp 2)
@@ -545,6 +704,10 @@ ReloadData();
 - **Tuyển dụng**: `sp_REC_PopupAddNewJob_html`
 - **Sản phẩm**: `sp_Sub_SubProduct_html`, `sp_Sub_SubQuotation_html`
 - **Khác**: `sp_Adjustment_html`, `sp_DataFilter_html`, `sp_UserHunryTask_html`, `sp_CollectingDataGoogleMap_html`, `sp_zalo_autoSendMessage_html`
+
+### 9.6 Các hàm tiện ích giao diện chung (UI Helpers)
+
+Xem chi tiết hướng dẫn sử dụng và ví dụ đầy đủ của `uiManager.showAlert` và `showConfirmPopup` tại tài liệu riêng: [22_UI_Helpers.md](22_UI_Helpers.md).
 
 ---
 
