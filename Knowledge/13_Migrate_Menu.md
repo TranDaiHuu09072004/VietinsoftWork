@@ -216,9 +216,9 @@ END
 
 Nếu wrapper khác pattern này — đọc source + giữ logic, không tự đơn giản hoá.
 
-### Phase E — Tìm API JS gọi
+### Phase E — Tìm wrapper + renderer + scan API surface
 
-Trong source renderer, tìm keywords: `AjaxHPAParadise`, `sp_`, `openFormParam`, `OpenFormParamMobile`, `paradisefile_`, `GetFileAPI`.
+Tìm wrapper (`sp_X`) + renderer (`sp_X_html`). Trong source renderer, tìm keywords: `AjaxHPAParadise`, `sp_`, `openFormParam`, `OpenFormParamMobile`, `paradisefile_`, `GetFileAPI`, `loadDataSourceCommon`, `@ProcName`.
 
 ```sql
 -- Tìm proc cùng họ:
@@ -238,6 +238,49 @@ SELECT OBJECT_DEFINITION(OBJECT_ID('dbo.sp_X_GetData')) AS Source;
 | Wrapper `sp_X` / Renderer `sp_X_html` / API `sp_X_GetData` | ✓ |
 | Proc dùng chung toàn hệ thống | Chỉ nếu DB đích chưa có — ghi chú rõ |
 | Proc refresh (`sp_Men_Menu_AfterSave_Simple`...) | KHÔNG — chỉ EXEC sau migrate |
+
+### Phase E2 — Scan toàn bộ dependency (SP xử lí + table)
+
+> ⚠️ **BẮT BUỘC** — Không chỉ migrate renderer. Phải scan **mọi** procedure được gọi từ renderer (qua `AjaxHPAParadise`, `openFormParam`, `loadDataSourceCommon`, `DataSourceSP`) và các **table** mà chúng truy cập.
+
+**Bước 1 — Extract danh sách SP từ renderer JS:**
+
+Quét source renderer (`OBJECT_DEFINITION('sp_X_html')`) tìm tất cả:
+- `name: "sp_..."` trong `AjaxHPAParadise`
+- `openFormParam("sp_...")` / `OpenFormParamMobile("sp_...")`  
+- `loadDataSourceCommon(..., "sp_...")`
+- `DataSourceSP = 'sp_...'` trong `tblCommonControlType_Signed`
+- `@ProcName = "sp_..."` trong CustomStore
+
+**Bước 2 — Với mỗi SP research được, đọc source + extract table:**
+
+```sql
+-- Lấy source của SP nghiệp vụ
+SELECT OBJECT_DEFINITION(OBJECT_ID('dbo.sp_XYZ')) AS Source;
+
+-- Tìm tất cả table được SP tham chiếu
+SELECT DISTINCT referenced_entity_name
+FROM sys.dm_sql_referenced_entities('dbo.sp_XYZ', 'OBJECT')
+WHERE referenced_class = 1; -- OBJECT_OR_COLUMN
+```
+
+**Bước 3 — Phân loại dependency:**
+
+| Loại | Ví dụ | Xử lý |
+|------|-------|-------|
+| **SP nghiệp vụ** (của menu này) | `sp_LeadTrackingForMarketingList` | ✓ Migrate |
+| **SP hệ thống** (có sẵn mọi DB) | `sp_LoadGridUsingAPI`, `sp_GenerateHTMLScript` | Ghi chú dependency |
+| **SP module khác** (CRM, HRM...) | `sp_CRM_CustomerDetail` | Ghi chú — DB đích phải có module |
+| **Table nghiệp vụ** | `tblCRM_CustomerPersonInfo` | Ghi chú — DB đích phải có |
+| **Table hệ thống** | `tblHtmlScriptCache`, `tblCommonControlType_Signed` | Có sẵn |
+| **Function** | `fn_GetStringParamImageByEmployeeID` | ✓ Migrate nếu chưa có |
+
+**Bước 4 — Thêm vào script migrate:**
+
+Script migrate cuối cùng phải bao gồm:
+1. Tất cả SP nghiệp vụ (wrapper + renderer + data SP + xử lí)
+2. Tất cả function riêng
+3. Ghi chú rõ các dependency hệ thống/module cần có sẵn
 
 ### Phase F — Lấy ngôn ngữ + quyền
 
