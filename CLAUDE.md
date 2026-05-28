@@ -1,5 +1,9 @@
 # CLAUDE.md — Quy tắc bắt buộc khi làm việc với dự án Vietinsoft (ParadiseHR)
 
+> File `CLAUDE.md` BẮT BUỘC phải được đọc tiếp theo — quy tắc Claude Code cho dự án. Xem [CLAUDE.md](CLAUDE.md)
+
+> File `Vietinsoft_Agent_Skill.md` BẮT BUỘC phải được đọc — đây là quy tắc chính của dự án, chứa critical rules và quy trình 6 bước. Xem [Vietinsoft_Agent_Skill.md](Vietinsoft_Agent_Skill.md)
+
 > File này được Claude Code tự load mỗi session. **MỌI QUY TẮC TRONG FILE NÀY ĐỀU LÀ BẮT BUỘC.** Không có loại trừ nào, không có "ưu tiên", không có "thường thường" — chỉ có TUÂN THỦ.
 
 ---

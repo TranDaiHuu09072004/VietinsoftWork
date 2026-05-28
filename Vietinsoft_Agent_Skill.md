@@ -28,6 +28,8 @@
 
 7. **KHÔNG TỰ THỰC THI CÂU LỆNH DDL/DML XOÁ DB.** Khi user yêu cầu xoá item khỏi DB, luôn build SQL script trong [SQL script/](SQL script/) cho user tự chạy — không gọi tool DB ghi để xoá trực tiếp.
 
+8. **KHÔNG TỰ Ý COMMIT/PUSH CODE.** Agent chỉ được phép `git commit` và `git push` khi user yêu cầu rõ ràng trong turn hiện tại. Có thể `git add` để stage file nhưng không được commit khi chưa có lệnh của user. Với git operations (stash, pull, rebase, status) vẫn được thực hiện để phục vụ công việc.
+
 ---
 
 ## Bối cảnh dự án

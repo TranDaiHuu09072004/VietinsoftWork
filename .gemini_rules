@@ -1,4 +1,9 @@
-QUY TẮC BẮT BUỘC DÀNH CHO ANTIGRAVITY (CRITICAL RULE):
-Bất cứ khi nào bắt đầu một Conversation mới (phiên làm việc mới) trong dự án VietinsoftWork này, việc ĐẦU TIÊN bạn PHẢI làm là sử dụng công cụ đọc file (view_file) để ĐỌC NỘI DUNG của file `Vietinsoft_Agent_Skill.md` (nằm ở thư mục gốc của dự án).
-Bạn BẮT BUỘC phải đọc để hiểu toàn bộ ngữ cảnh, và tuân thủ tuyệt đối các quy tắc, quy trình làm việc được ghi trong file `Vietinsoft_Agent_Skill.md` trước khi xử lý bất kỳ yêu cầu nào của người dùng.
-KHÔNG ĐƯỢC PHÉP BỎ QUA BƯỚC NÀY KỂ CẢ KHI BẠN CHO RẰNG MÌNH ĐÃ NHỚ!
+# .gemini_rules — Bridge file cho Antigravity/Gemini
+
+> File `UserProfile.md` BẮT BUỘC phải được đọc đầu tiên để nạp ngữ cảnh người dùng và cách xưng hô. Xem [UserProfile.md](UserProfile.md)
+
+> File `CLAUDE.md` BẮT BUỘC phải được đọc tiếp theo — quy tắc Claude Code cho dự án. Xem [CLAUDE.md](CLAUDE.md)
+
+> File `Vietinsoft_Agent_Skill.md` BẮT BUỘC phải được đọc — đây là quy tắc chính của dự án, chứa critical rules và quy trình 6 bước. Xem [Vietinsoft_Agent_Skill.md](Vietinsoft_Agent_Skill.md)
+
+KHÔNG ĐƯỢC PHÉP BỎ QUA CÁC BƯỚC NÀY KỂ CẢ KHI BẠN CHO RẰNG MÌNH ĐÃ NHỚ!

@@ -1,58 +1,9 @@
-# Quy tắc bắt buộc dành cho Agent khi làm việc với dự án Vietinsoft (Vietinsoft Agent Skill)
+# .clinerules — Bridge file cho Cline
 
-**MỤC ĐÍCH:** Đảm bảo Agent (Antigravity/AI) luôn có đủ kiến thức chính xác trước khi trả lời câu hỏi hoặc thực hiện bất kỳ công việc nào trong dự án, tránh tuyệt đối việc tự suy đoán sai lệch.
+> File `UserProfile.md` BẮT BUỘC phải được đọc đầu tiên để nạp ngữ cảnh người dùng và cách xưng hô. Xem [UserProfile.md](UserProfile.md)
 
-**HƯỚNG DẪN THỰC THI DÀNH CHO AGENT (AGENT INSTRUCTIONS):**
+> File `CLAUDE.md` BẮT BUỘC phải được đọc tiếp theo — quy tắc Claude Code cho dự án. Xem [CLAUDE.md](CLAUDE.md)
 
-Khi bắt đầu một session mới hoặc khi nhận được một yêu cầu liên quan đến logic, nghiệp vụ, hoặc cấu trúc của dự án, bạn (Agent) PHẢI tuân thủ nghiêm ngặt quy trình các bước sau đây:
+> File `Vietinsoft_Agent_Skill.md` BẮT BUỘC phải được đọc — đây là quy tắc chính của dự án, chứa critical rules và quy trình 6 bước. Xem [Vietinsoft_Agent_Skill.md](Vietinsoft_Agent_Skill.md)
 
-### Bước 1: Kiểm tra trạng thái nạp kiến thức
-- Nếu bạn đã đọc và nạp các kiến thức tổng quan của dự án trong phiên làm việc (session) hiện tại rồi thì bỏ qua Bước 2.
-- Nếu chưa, BẮT BUỘC phải thực hiện Bước 2.
-
-### Bước 2: Truy vấn thông tin trong folder `Knowledge`
-- Bạn phải ưu tiên dùng công cụ `view_file` hoặc `grep_search` để đọc và tìm kiếm thông tin nghiệp vụ/kỹ thuật cần thiết trong các file ở folder `Knowledge` (nằm ở thư mục gốc của dự án).
-- File `Knowledge/INDEX.md` là **chỉ mục bắt buộc đọc đầu tiên** — chứa 4 bảng map giúp tìm đúng file Knowledge theo:
-  - Chủ đề.
-  - Keyword tiếng Việt.
-  - Tên bảng (table) trong DB.
-  - Tên procedure.
-- Sau khi xác định được file Knowledge cần thiết qua `INDEX.md`, mở file đó để lấy tri thức cụ thể.
-- Folder `Knowledge` là nguồn kiến thức cốt lõi đầu tiên của dự án.
-
-### Bước 3: Đánh giá thông tin và Khám phá qua Database
-- Nếu thông tin trong folder `Knowledge` ĐÃ ĐỦ để giải quyết yêu cầu: Tiến hành xử lý công việc.
-- Nếu thông tin trong folder `Knowledge` CHƯA ĐỦ hoặc không đề cập chi tiết: 
-  - BẮT BUỘC phải sử dụng công cụ truy vấn Database (MCP `sql-server-vietinsoft`) để tìm hiểu, khám phá bảng (tables), views, cấu trúc hoặc các stored procedures liên quan.
-  - Sử dụng các lệnh như `mcp_sql-server-vietinsoft_execute_query` để đọc mã nguồn SQL thực tế của hệ thống.
-
-### Bước 4: Cập nhật kiến thức mới vào folder `Knowledge` (Self-Learning)
-- Sau khi khám phá cơ sở dữ liệu và xác minh được các logic/quy tắc nghiệp vụ mới mà trước đó trong folder `Knowledge` chưa có, bạn BẮT BUỘC phải cập nhật (ghi thêm) những kiến thức quan trọng đó vào **đúng file** trong folder `Knowledge`.
-- Cách xác định file đúng: tra `Knowledge/INDEX.md` (bảng map keyword/table/procedure → file).
-- Nếu tri thức mới không khớp file nào hiện có, tạo file mới (đặt tên dạng `12_xxx.md` theo số tiếp theo) và **bổ sung file đó vào `Knowledge/INDEX.md`**.
-- Mục đích: Lưu trữ lại kiến thức để các lần làm việc sau có thể sử dụng mà không cần truy vấn lại Database.
-
-### Bước 5: Quản lý dữ liệu lỗi thời (DEPRECATED)
-- File `Knowledge/99_deprecated.md` là **danh sách bảng / cột / procedure / view / menu / tham số đã được user xác nhận LỖI THỜI, không dùng nữa**.
-- **TRƯỚC KHI** dùng bất kỳ tên item nào (bảng / cột / procedure / view / menu / parameter) trong câu trả lời, BẮT BUỘC kiểm tra `Knowledge/99_deprecated.md`:
-  - Nếu item nằm trong danh sách → KHÔNG dùng nó để trả lời, KHÔNG đề xuất nó như giải pháp.
-  - Nếu user hỏi trực tiếp về item đó → trả lời rằng item đã được đánh dấu lỗi thời (kèm lý do nếu có) và hỏi user muốn tiếp tục hay không.
-- **Khi user phản hồi rằng tri thức Agent vừa cung cấp là sai / lỗi thời** (đại loại: *"cái đó không dùng nữa"* / *"thực tế không có"* / *"đã bỏ lâu rồi"* / *"loại bỏ kiến thức này"*):
-  - Ghi item vào đúng bảng phân loại trong `Knowledge/99_deprecated.md` (table / column / procedure / view / menu / parameter / other).
-  - Mỗi entry tối thiểu phải có: tên item, loại, lý do (theo lời user), file Knowledge nguồn, ngày đánh dấu.
-  - Xoá entry sai khỏi file Knowledge gốc (nếu tri thức đó đã được ghi vào file Knowledge nào trước đây).
-- **Khi user yêu cầu XOÁ item khỏi database**:
-  - TUYỆT ĐỐI KHÔNG tự gọi `write_query` / `drop_table` / `drop_procedure` / `alter_table` để xoá.
-  - Build file SQL script trong folder `SQL script/` đặt tên dạng `cleanup_<scope>_<YYYYMMDD>.sql`.
-  - Script phải bọc trong `BEGIN TRANSACTION ... COMMIT/ROLLBACK` với `TRY/CATCH`, dùng `DROP IF EXISTS` / `IF OBJECT_ID(...) IS NOT NULL` để idempotent.
-  - Với menu phải xoá đúng thứ tự để không vỡ FK: `tblSC_Right_Stored` / `tblSC_GroupRight` → `tblSC_Object` → `tblMD_Message` → `MEN_Menu`.
-  - Đưa file script cho user tự review và chạy — KHÔNG thực thi tự động.
-  - Cập nhật cột "Cleanup script" trong bảng deprecated tương ứng trỏ tới file vừa tạo.
-  - Xem mẫu script đầy đủ ở cuối file `Knowledge/99_deprecated.md`.
-
-### ⚠️ QUY TẮC TỐI QUAN TRỌNG (CRITICAL RULES) ⚠️
-1. **TUYỆT ĐỐI KHÔNG ĐƯỢC TỰ SUY ĐOÁN:** Không bao giờ được tự động giả định cấu trúc bảng, tên trường, hay quy tắc tính toán của nghiệp vụ.
-2. **KHÔNG ĐƯA RA KẾT LUẬN VỘI VÃ:** Mọi câu trả lời hay kết luận đều phải có **chứng cứ xác thực** (concrete evidence) được trích xuất từ file tài liệu trong folder `Knowledge` hoặc từ kết quả query trực tiếp trong hệ thống database MCP.
-3. Nếu không tìm thấy thông tin xác thực từ cả tài liệu lẫn cơ sở dữ liệu, phải báo cáo lại cho người dùng (USER) để xin thêm chỉ dẫn hoặc xác nhận.
-4. **KHÔNG BAO GIỜ tự thực thi câu lệnh DDL/DML xoá hoặc sửa cấu trúc DB** (`write_query`, `drop_table`, `alter_table`, `drop_procedure`...) — luôn build script và để user tự chạy.
-5. **LUÔN check `Knowledge/99_deprecated.md` trước khi dùng tên item nào** — không lặp lại kiến thức đã bị user phủ nhận trước đó.
+KHÔNG ĐƯỢC PHÉP BỎ QUA CÁC BƯỚC NÀY KỂ CẢ KHI BẠN CHO RẰNG MÌNH ĐÃ NHỚ!

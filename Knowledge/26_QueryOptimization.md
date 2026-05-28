@@ -14,6 +14,79 @@
 4. **GIẢI THÍCH RÕ RÀNG.** Mỗi script tối ưu phải kèm phân tích: vấn đề là gì, tại sao chọn giải pháp này, risk là gì.
 5. **KHÔNG DÙNG TRANSACTION.** ParadiseHR hạn chế transaction để tránh xung đột với C#. Script phải idempotent (chạy nhiều lần không lỗi).
 6. **TƯƠNG THÍCH ĐA PHIÊN BẢN.** Mọi câu SQL trong script phải tương thích SQL Server 2008 → 2022. Cú pháp chỉ có ở bản cao hơn phải có chú thích rõ ràng.
+7. **ƯU TIÊN HÀM MỚI KHI CÓ THỂ.** Nếu phiên bản SQL Server đích hỗ trợ hàm mới (2012+), ưu tiên dùng cú pháp hiện đại để đạt hiệu năng tốt nhất. Luôn cung cấp fallback cho bản cũ. Xem [Chiến lược chọn cú pháp theo phiên bản](#chiến-lược-chọn-cú-pháp-theo-phiên-bản).
+8. **CÂN NHẮC WITH (NOLOCK) KHI ĐỌC.** ParadiseHR có nhiều bảng chịu concurrent read/write cao. Trong các query đọc (SELECT) không yêu cầu consistency tuyệt đối, cân nhắc dùng `WITH (NOLOCK)` để giảm lock contention. Xem [Chiến lược WITH (NOLOCK)](#chiến-lược-with-nolock).
+
+---
+
+## Chiến lược chọn cú pháp theo phiên bản
+
+Nguyên tắc: **Chọn cú pháp HIỆN ĐẠI NHẤT mà phiên bản SQL Server đích hỗ trợ.** Nếu không rõ phiên bản → fallback SQL 2008.
+
+| Mục đích | SQL 2008-2012 | SQL 2012+ (ưu tiên) | SQL 2016+ | SQL 2017+ |
+|---|---|---|---|---|
+| Pagination | `ROW_NUMBER() OVER(...) BETWEEN` | `OFFSET ... FETCH NEXT` | — | — |
+| Conditional value | `CASE WHEN ... THEN ... END` | `IIF(condition, true, false)` | — | — |
+| NULL handling | `CASE WHEN x IS NULL THEN y ELSE x END` | — | — | — |
+| Safe cast | `CASE WHEN ISNUMERIC(x)=1 THEN CAST(x AS ...) END` | `TRY_CAST(x AS ...)` / `TRY_CONVERT(...)` | — | — |
+| String aggregation | `FOR XML PATH('')` + `STUFF` | `FOR XML PATH` | — | `STRING_AGG(c, ', ')` |
+| First/Last value | Subquery `SELECT TOP 1 ... ORDER BY` | `FIRST_VALUE(x) OVER(...)`, `LAST_VALUE(x) OVER(...)` | — | — |
+| Row offset access | Self-join or subquery | `LEAD(x, n) OVER(...)`, `LAG(x, n) OVER(...)` | — | — |
+| Date from parts | `CAST(CAST(y AS VARCHAR)+'-'+CAST(m AS VARCHAR)+'-'+CAST(d AS VARCHAR) AS DATE)` | `DATEFROMPARTS(y, m, d)` | — | — |
+| Format datetime | `CONVERT(VARCHAR, date, style)` | `FORMAT(date, 'yyyy-MM-dd')` (chậm hơn CONVERT) | — | — |
+| Drop if exists | `IF EXISTS (SELECT 1 FROM sys.indexes ...) DROP INDEX ...` | — | `DROP INDEX IF EXISTS ...` | — |
+| Create or alter | `IF OBJECT_ID(...) IS NOT NULL DROP ...; CREATE ...` | — | `CREATE OR ALTER ...` | — |
+| Error handling | `RAISERROR(...)` | `THROW` | — | — |
+
+> **⚠️ `FORMAT()`** chậm hơn `CONVERT()` đáng kể khi gọi trên nhiều rows. Chỉ dùng khi cần custom format phức tạp. Với format ngày tháng đơn giản → luôn ưu tiên `CONVERT()`.
+
+---
+
+## Chiến lược WITH (NOLOCK)
+
+### Khi nào NÊN dùng NOLOCK
+
+| Tình huống | Lý do |
+|---|---|
+| Query tra cứu danh sách (list view, grid) | Dirty read chấp nhận được, giảm lock |
+| Report / Dashboard không cần real-time chính xác 100% | Ưu tiên tốc độ hơn consistency |
+| Bảng reference ít thay đổi (tblDepartment, tblPosition...) | Nguy cơ dirty read thấp |
+| Bảng có concurrent read/write cao (tblHasTA, tblTmpAttend...) | Tránh lock escalation |
+| SELECT đếm / thống kê không join tới bảng đang INSERT/UPDATE | An toàn dùng NOLOCK |
+
+### Khi nào TRÁNH dùng NOLOCK
+
+| Tình huống | Lý do |
+|---|---|
+| **Tính lương / tài chính** (tblSal_*, tblPayslip) | Yêu cầu consistency tuyệt đối, dirty read gây sai tiền |
+| **Tạo hóa đơn / mã số tăng tự động** | Có thể đọc duplicate hoặc missing row |
+| **Query có JOIN tới bảng đang UPDATE/DELETE hàng loạt** | Có thể đọc 2 lần cùng 1 row hoặc bỏ sót row |
+| **INSERT...SELECT / SELECT INTO** | Có thể insert duplicate data |
+| **Subquery trong WHERE với EXISTS/IN** | Missing row detection |
+| **Transaction đang chạy với ROLLBACK** | Có thể đọc row đã rollback |
+
+> **Cảnh báo:** NOLOCK có thể gây đọc dirty data, missing rows, hoặc đọc trùng row 2 lần. Không dùng trong môi trường yêu cầu consistency tuyệt đối.
+
+### Mẫu sử dụng NOLOCK an toàn
+
+```sql
+-- ✅ TỐT: Query báo cáo trên bảng lớn, chấp nhận dirty read
+SELECT te.EmployeeID, te.FullName, td.DepartmentName
+FROM tblEmployee te WITH (NOLOCK)
+JOIN tblDepartment td WITH (NOLOCK) ON te.DepartmentID = td.DepartmentID
+WHERE te.EmployeeStatusID = 0
+
+-- ✅ TỐT: Đếm tổng trên bảng reference ít thay đổi
+SELECT COUNT(*) FROM tblDepartment WITH (NOLOCK)
+
+-- ❌ XẤU: Dùng NOLOCK khi tính lương (consistency critical)
+SELECT SUM(SalaryPayable) FROM tblPayslip WITH (NOLOCK)  -- KHÔNG làm vậy!
+
+-- ❌ XẤU: INSERT...SELECT với NOLOCK
+INSERT INTO tblReport SELECT * FROM tblHasTA WITH (NOLOCK)  -- Có thể duplicate!
+```
+
+> **Trong script tối ưu:** Khi viết lại procedure, nếu thêm `WITH (NOLOCK)` vào các bảng đọc, phải ghi chú rõ lý do + cảnh báo dirty read trong comment header script.
 
 ---
 
@@ -318,8 +391,17 @@ Agent PHẢI trả lời theo cấu trúc:
 | `DROP INDEX IF EXISTS` | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
 | `CREATE OR ALTER PROCEDURE` | ❌ | ❌ | ❌ | ❌ | ✅ SP1 | ✅ | ✅ | ✅ |
 | `STRING_AGG` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
+| `IIF(cond, v1, v2)` | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `TRY_CAST` / `TRY_CONVERT` | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `FIRST_VALUE` / `LAST_VALUE` | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `LEAD` / `LAG` | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `DATEFROMPARTS` | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `FORMAT` | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `OFFSET ... FETCH NEXT` | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `WITH (NOLOCK)` (table hint) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `OPTION (RECOMPILE)` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `OPTION (OPTIMIZE FOR UNKNOWN)` | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `THROW` (error handling) | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Query Store | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
 | `INCLUDE` trong index | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Filtered index `WHERE` | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
