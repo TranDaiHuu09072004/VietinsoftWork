@@ -84,6 +84,7 @@
 | **giao việc / task management / công việc / approval task / TaskTimeLine / MyWork / subtask / template task / recurring task / `tblTask_Tasks` / `HistoryID` / history-versioning / `tblTask_Approvals` StageOrder / `NotifycationSendID` 1/2/4/6 / SignalR Task / phân biệt với `TaskSchedule` cron và `tblLabourAssignTask` sản xuất** | [19_TaskAssignment.md](19_TaskAssignment.md) |
 | **email batch / gửi email hàng loạt / `sp_EmailSendingByDuc` / `@BatchJson` / Graph API `$batch` / Microsoft 365 mail / gửi mail tự động / retry email lỗi / `tblEmailList` log email** | [email_batching_guide.md](email_batching_guide.md) |
 | **load avatar / ảnh nhân viên / `GlobalEmployeeAvatarCache` / `paramImg` / `loadEmployeeAvatarAsync` / `loadEmployeeAvatarsBatch` / blob avatar / avatar stack / `fn_GetStringParamImageByEmployeeID` / SVG default avatar / avatar cache** | [LOAD_EMPLOYEE_AVATAR_GUIDE.md](LOAD_EMPLOYEE_AVATAR_GUIDE.md) |
+| **chọn loại control / format ngày tháng trên lưới / format tiền tệ trên lưới / format giờ phút / hpaControlDate format / hpaControlDateTime format / hpaControlMoney format / quy tắc chọn control input grid / `_autoSave` `_readOnly` runtime** | [25.HPA_Controls_Guidelines.md](25.HPA_Controls_Guidelines.md) |
 
 ---
 
