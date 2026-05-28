@@ -49,7 +49,7 @@ Verify parent có `IsVisible=1` trước khi update `ParentMenuID`. Nếu giữ 
 |---|---|---|
 | `tblDataSetting` | 1 row theo `TableName=<ClassName>` (`IsProcedure, IsShowLayout, ColumnOrderBy, ColumnDataType, ControlHiddenInShowLayout, FormLayoutJS`) | **Mọi** menu HTML-rendered |
 | `tblDataSettingLayout` | **2 row** (`root` + `lblhtml`/ParadiseWebView2) | **Mọi** menu HTML-rendered |
-| `tblHtmlScriptCache` | Copy cache hoặc chạy lại renderer | **Mọi** menu HTML-rendered |
+| `tblHtmlScriptCache` | Build cache bằng `sp_GenerateHTMLScript` | **Mọi** menu HTML-rendered |
 | `tblCommonControlType_Signed` | Full row metadata theo `TableName='<ClassName>_html'` với **UID deterministic** + EXEC `sptblCommonControlType_Signed_DUC '<ClassName>_html'` trước cache | Menu **config-driven** (renderer dynamic SQL — xem [12 §4](12_CreateMenu.md)) |
 
 **Triệu chứng nếu thiếu:**
@@ -65,7 +65,7 @@ WHERE TableName = '<ClassName>_html';
 
 ### Rule 5 — Renderer HTML/JS an toàn
 
-Mọi script migrate/update có renderer `sp_X_html` → bắt buộc đọc [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md): escape T-SQL/JS, `varbinary(max)` của tblDataSetting/Layout (Msg 257), dynamic SQL config-driven, MERGE cache 8 cột, polyfill global, template + checklist 15 điểm.
+Mọi script migrate/update có renderer `sp_X_html` → bắt buộc đọc [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md): escape T-SQL/JS, `varbinary(max)` của tblDataSetting/Layout (Msg 257), dynamic SQL config-driven, polyfill global, template + checklist 15 điểm. Cache build bằng `sp_GenerateHTMLScript` (cách DUY NHẤT), KHÔNG MERGE thủ công từ renderer.
 
 ### Rule 6 — Schema-aware idempotent (chống Msg 8106 và họ lỗi tương tự)
 
@@ -311,9 +311,15 @@ GO
 
 Áp dụng tương tự cho `sp_X_html` + `sp_X_GetData`.
 
-### 4.2 `tblHtmlScriptCache` — MERGE 8 cột
+### 4.2 `tblHtmlScriptCache` — Build cache bằng `sp_GenerateHTMLScript` (cách DUY NHẤT)
 
-Renderer phải MERGE theo `(TableName, LanguageID)` với đủ 8 cột notnull (`TableName, LanguageID, ScreenType, html, HtmlParadise, paradiseJs, Version, VersionData`). Template đầy đủ: [17_RendererHtmlJsSafe.md §5](17_RendererHtmlJsSafe.md).
+KHÔNG MERGE thủ công từ renderer. Cache được build bởi helper hệ thống:
+
+```sql
+EXEC dbo.sp_GenerateHTMLScript @TableName = N'sp_X_html';
+```
+
+`sp_GenerateHTMLScript` tự động gọi renderer cho VN + EN và MERGE vào `tblHtmlScriptCache` với đủ 8 cột. Renderer chỉ cần `SELECT @html AS html;` — không tự MERGE.
 
 ### 4.3 `MEN_Menu` — IF NOT EXISTS INSERT ELSE UPDATE
 
@@ -471,7 +477,7 @@ CREATE PROCEDURE dbo.sp_X_GetData (@LoginID int, @LanguageID varchar(5)='VN')
 AS BEGIN SET NOCOUNT ON; /* source đã xác minh */ END
 GO
 
--- PHASE 2: Renderer (xem MERGE 8 cột — [17_RendererHtmlJsSafe.md §5])
+-- PHASE 2: Renderer (chỉ SELECT @html AS html — cache do sp_GenerateHTMLScript build)
 IF OBJECT_ID('dbo.sp_X_html','P') IS NOT NULL DROP PROCEDURE dbo.sp_X_html;
 GO
 CREATE PROCEDURE dbo.sp_X_html (@LoginID int=3, @LanguageID varchar(5)='VN', @isWeb int=1)
@@ -592,7 +598,7 @@ GO
 - [ ] Đã đọc `MEN_Menu`: `ParentMenuID`, `ClassName`, `AssemblyName`, cờ Web/mobile.
 - [ ] `tblSC_Object` có / tạo theo `Description=MenuID`.
 - [ ] Có source wrapper + renderer (HTML-rendered) + API JS gọi.
-- [ ] `tblHtmlScriptCache` xử lý bằng MERGE 8 cột.
+- [ ] `tblHtmlScriptCache` build bằng `sp_GenerateHTMLScript` (KHÔNG MERGE thủ công từ renderer).
 - [ ] `MEN_Menu` IF NOT EXISTS INSERT ELSE UPDATE.
 - [ ] `tblSC_Object` không insert trùng.
 - [ ] `tblSC_Right_Stored` key `(ObjectID, LoginID=3)` — KHÔNG xử lý `tblSC_GroupRight`.
