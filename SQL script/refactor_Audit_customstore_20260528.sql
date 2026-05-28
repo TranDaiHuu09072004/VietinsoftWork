@@ -111,6 +111,7 @@ BEGIN
     SET @html = @html + N'
 <script>(() => {
     let _showtoolbarGrid_PAUDITGRD00000000000000000000001 = true;
+    let _showtoolbarAdd_PAUDITGRD00000000000000000000001  = false;
     var api = true;
     var DataSource = [];
     var _pageCache = {};

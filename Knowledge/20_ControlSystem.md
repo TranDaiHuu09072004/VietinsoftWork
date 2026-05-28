@@ -71,6 +71,8 @@ description: >
 
 ## A.2 Mapping loại control
 
+> ⚠️ **Bảng này chỉ để THAM KHẢO — KHÔNG dùng để tự suy luận.** Khi user không nói rõ loại control, phải dùng `AskUserQuestion` (Bước 0). Chỉ dùng mapping này khi user đã xác nhận ngầm qua từ khóa trong mô tả (vd: "tạo combobox chọn loại" → `hpaControlSelectBox`).
+
 | Từ khoá trong mô tả | Type |
 |---|---|
 | text, tên, mã, varchar ngắn, input thường | `hpaControlText` |
@@ -126,6 +128,17 @@ Mặc định **không tự suy đoán** label nếu user chưa xác nhận.
 
 ## A.4 Quy trình sinh INSERT SQL
 
+### Bước 0 — BẮT BUỘC HỎI: Chọn loại control cho từng cột
+
+> ⚠️ **KHÔNG BAO GIỜ tự suy luận Type từ tên cột.** Tên cột `CreatedDate` không có nghĩa là dùng `hpaControlDate` — có thể user muốn `hpaControlDateTime`, `hpaControlText`, hoặc để `NULL`.
+
+**Quy trình bắt buộc:**
+1. Liệt kê danh sách cột cần tạo control
+2. Dùng `AskUserQuestion` hiển thị multi-select hoặc từng câu hỏi cho user chọn **loại control** cho mỗi cột
+3. Chỉ sau khi user xác nhận → mới sinh SQL
+
+> Ngoại lệ duy nhất: user đã nói rõ loại control ngay từ đầu (vd: "tạo control Date cho cột NgaySinh") → không cần hỏi lại.
+
 ### Bước 1 — Phân tích input
 
 Đọc mô tả. Xác định:
@@ -138,7 +151,7 @@ Nếu thiếu `TableName` hoặc `ColumnName`, **hỏi lại** trước khi sinh
 
 ### Bước 2 — Map từng cột
 
-Với mỗi cột, xác định: `Type`, `IsRequired`, `ReadOnly`, `AutoSave`, `DataSourceSP`, `TabIndex`, các cột nâng cao nếu có đề cập.
+Với mỗi cột, xác định: `Type` (đã có từ Bước 0), `IsRequired`, `ReadOnly`, `AutoSave`, `DataSourceSP`, `TabIndex`, các cột nâng cao nếu có đề cập.
 
 ### Bước 3 — Sinh SQL
 
