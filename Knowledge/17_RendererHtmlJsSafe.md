@@ -217,8 +217,11 @@ SET @html = N'
         <div id="<GridName>" style="height:100%;"></div>
     </div>
     <script>(() => {
-        // Cờ khai báo hiển thị toolbar hệ thống cho Grid (Nạp sẵn reload và +)
-            let _showtoolbarGrid_GridExample = true; // <-- THAY GridExample bằng ID Grid thực tế (ví dụ: GridLeadTracking)
+        // Cờ hiển thị nút reload + nút thêm (+) trên toolbar Grid — 2 biến độc lập
+            // _showtoolbarGrid_<UID> = true  → hiện nút Reload (🔄)
+            // _showtoolbarAdd_<UID>  = true  → hiện nút Thêm (+)
+            let _showtoolbarGrid_P<UID_CUA_GRID_CHA> = true;
+            let _showtoolbarAdd_P<UID_CUA_GRID_CHA>  = true;
 
             var api = true;
             var DataSource = [];
