@@ -23,3 +23,6 @@ scratch/
 # Environments
 node_modules/
 .env
+
+# SQL script folder
+SQL script/

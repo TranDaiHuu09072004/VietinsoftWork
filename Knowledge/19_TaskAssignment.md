@@ -165,12 +165,15 @@ Tham số: `@HistoryID`, `@LoginID`, `@CompleteSubtasks BIT = 0`.
 5. Notification `NotifycationSendID=1` (yêu cầu duyệt) cho approver `StageOrder` nhỏ nhất (`ApprovalStatus=0`).
 
 **Nhánh B — không approval**:
-1. `tblTask_Tasks.StatusID = 4` (Done).
+1. `tblTask_Tasks.StatusID = 4` (Done) và cập nhật `ActualFinishDate = GETDATE()`.
 2. Log `tblTask_TaskProcesses`.
 3. Comment `'Đã hoàn thành công việc'`.
 4. Notification `NotifycationSendID=4` cho **Assignee + Requester** (UNION).
 
-**Option `@CompleteSubtasks=1`**: CTE đệ quy update cây subtask sang `StatusID=4`, comment `'Hệ thống tự động hoàn thành theo công việc cha'`.
+**Option `@CompleteSubtasks=1`**: 
+- Sử dụng CTE đệ quy để tìm toàn bộ cây subtasks ở mọi cấp độ sâu.
+- Cập nhật trạng thái `StatusID = 4` và `ActualFinishDate = GETDATE()` cho các subtask chưa hoàn thành (`StatusID <> 4`).
+- Sử dụng mệnh đề `OUTPUT` để ghi log comment `'Hệ thống tự động hoàn thành theo công việc cha'` **chỉ** cho những subtask thực sự bị thay đổi trạng thái trong đợt này.
 
 Realtime: `sp_Task_SmartSignalR @ForceReload=0` + `sp_Task_SignalR_Detail_Update`. Sau cùng reset Taskschedule + `EXEC sp_SendEmailPending 3, 'vn'`.
 
