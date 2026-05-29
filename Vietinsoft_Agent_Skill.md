@@ -8,27 +8,29 @@
 
 Đây là các quy tắc **không bao giờ được vi phạm** dưới bất kỳ hoàn cảnh nào:
 
-1. **TUYỆT ĐỐI KHÔNG TỰ SUY ĐOÁN.** Không bao giờ giả định cấu trúc bảng, tên cột, kiểu dữ liệu, mối quan hệ, quy tắc nghiệp vụ, công thức tính toán, hay hành vi của hệ thống. Mọi thông tin đều phải lấy từ nguồn xác thực.
+1. **BẮT BUỘC HIỂU ĐÚNG YÊU CẦU TRƯỚC KHI LÀM.** Mỗi khi nhận câu hỏi hoặc yêu cầu từ người dùng, Agent phải đảm bảo chắc chắn đã hiểu đúng ý đồ của họ. Nếu có bất kỳ thông tin nào còn mơ hồ, chưa rõ ràng hoặc câu hỏi quá ngắn không đủ thông tin ngữ cảnh để hiểu rõ yêu cầu, Agent **bắt buộc phải hỏi lại hoặc phỏng vấn người dùng** để làm rõ trước khi bắt tay vào việc. Tuyệt đối không tự suy đoán ý đồ của người dùng.
 
-2. **MỌI CÂU TRẢ LỜI PHẢI CÓ CHỨNG CỨ XÁC THỰC (CONCRETE EVIDENCE).** Chứng cứ chấp nhận được:
+2. **TUYỆT ĐỐI KHÔNG TỰ SUY ĐOÁN.** Không bao giờ giả định cấu trúc bảng, tên cột, kiểu dữ liệu, mối quan hệ, quy tắc nghiệp vụ, công thức tính toán, hay hành vi của hệ thống. Mọi thông tin đều phải lấy từ nguồn xác thực.
+
+3. **MỌI CÂU TRẢ LỜI PHẢI CÓ CHỨNG CỨ XÁC THỰC (CONCRETE EVIDENCE).** Chứng cứ chấp nhận được:
    - Nội dung trích trực tiếp từ **các file Knowledge** trong [Knowledge/](Knowledge/) (đã xác minh ở các session trước).
    - Kết quả query trực tiếp từ MCP `mssql-vietinsoft` (schema, data, source của procedure/view).
    - Nội dung trích từ file source trong repo (đọc qua `Read`/`Grep`).
    - Phát biểu rõ ràng của user trong session hiện tại.
 
-3. **KHÔNG ĐƯA RA KẾT LUẬN VỘI VÃ.** Nếu chứng cứ chưa đủ, không được "đoán cho hợp lý". Phải:
+4. **KHÔNG ĐƯA RA KẾT LUẬN VỘI VÃ.** Nếu chứng cứ chưa đủ, không được "đoán cho hợp lý". Phải:
    - Hoặc tiếp tục tra cứu để có chứng cứ.
    - Hoặc nói rõ với user: *"Không tìm thấy thông tin xác thực trong Knowledge và DB. Xin user cung cấp thêm chỉ dẫn / xác nhận."*
 
-4. **KHÔNG VIẾT/SỬA/XOÁ DỮ LIỆU DB KHI CHƯA ĐƯỢC USER YÊU CẦU RÕ RÀNG TRONG TURN HIỆN TẠI.** Mặc định chỉ dùng tool đọc. Permission một lần không đồng nghĩa permission vĩnh viễn.
+5. **KHÔNG VIẾT/SỬA/XOÁ DỮ LIỆU DB KHI CHƯA ĐƯỢC USER YÊU CẦU RÕ RÀNG TRONG TURN HIỆN TẠI.** Mặc định chỉ dùng tool đọc. Permission một lần không đồng nghĩa permission vĩnh viễn.
 
-5. **TỰ HỌC — SELF-LEARNING.** Sau khi khám phá tri thức mới qua DB hoặc source, BẮT BUỘC ghi lại vào **đúng file** trong [Knowledge/](Knowledge/) tương ứng (xem mục [Bước 5](#bước-5--tự-cập-nhật-knowledge-self-learning)) để session sau không phải tra lại.
+6. **TỰ HỌC — SELF-LEARNING.** Sau khi khám phá tri thức mới qua DB hoặc source, BẮT BUỘC ghi lại vào **đúng file** trong [Knowledge/](Knowledge/) tương ứng (xem mục [Bước 5](#bước-5--tự-cập-nhật-knowledge-self-learning)) để session sau không phải tra lại.
 
-6. **LUÔN CHECK DANH SÁCH LỖI THỜI TRƯỚC KHI DÙNG TÊN ITEM.** Trước khi đề cập tên bảng / cột / procedure / view / menu / parameter trong câu trả lời, phải kiểm tra [Knowledge/99_deprecated.md](Knowledge/99_deprecated.md). Nếu item nằm trong danh sách → KHÔNG dùng, KHÔNG đề xuất.
+7. **LUÔN CHECK DANH SÁCH LỖI THỜI TRƯỚC KHI DÙNG TÊN ITEM.** Trước khi đề cập tên bảng / cột / procedure / view / menu / parameter trong câu trả lời, phải kiểm tra [Knowledge/99_deprecated.md](Knowledge/99_deprecated.md). Nếu item nằm trong danh sách → KHÔNG dùng, KHÔNG đề xuất.
 
-7. **KHÔNG TỰ THỰC THI CÂU LỆNH DDL/DML XOÁ DB.** Khi user yêu cầu xoá item khỏi DB, luôn build SQL script trong [SQL script/](SQL script/) cho user tự chạy — không gọi tool DB ghi để xoá trực tiếp.
+8. **KHÔNG TỰ THỰC THI CÂU LỆNH DDL/DML XOÁ DB.** Khi user yêu cầu xoá item khỏi DB, luôn build SQL script trong [SQL script/](SQL script/) cho user tự chạy — không gọi tool DB ghi để xoá trực tiếp.
 
-8. **KHÔNG TỰ Ý COMMIT/PUSH CODE.** Agent chỉ được phép `git commit` và `git push` khi user yêu cầu rõ ràng trong turn hiện tại. Có thể `git add` để stage file nhưng không được commit khi chưa có lệnh của user. Với git operations (stash, pull, rebase, status) vẫn được thực hiện để phục vụ công việc.
+9. **KHÔNG TỰ Ý COMMIT/PUSH CODE.** Agent chỉ được phép `git commit` và `git push` khi user yêu cầu rõ ràng trong turn hiện tại. Có thể `git add` để stage file nhưng không được commit khi chưa có lệnh của user. Với git operations (stash, pull, rebase, status) vẫn được thực hiện để phục vụ công việc.
 
 ---
 
