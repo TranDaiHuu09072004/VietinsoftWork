@@ -50,7 +50,7 @@ Verify parent có `IsVisible=1` trước khi update `ParentMenuID`. Nếu giữ 
 | `tblDataSetting` | 1 row theo `TableName=<ClassName>` (`IsProcedure, IsShowLayout, ColumnOrderBy, ColumnDataType, ControlHiddenInShowLayout, FormLayoutJS`) | **Mọi** menu HTML-rendered |
 | `tblDataSettingLayout` | **2 row** (`root` + `lblhtml`/ParadiseWebView2) | **Mọi** menu HTML-rendered |
 | `tblHtmlScriptCache` | Build cache bằng `sp_GenerateHTMLScript` | **Mọi** menu HTML-rendered |
-| `tblCommonControlType_Signed` | Full row metadata theo `TableName='<ClassName>_html'` với **UID deterministic** + EXEC `sptblCommonControlType_Signed_DUC '<ClassName>_html'` trước cache | Menu **config-driven** (renderer dynamic SQL — xem [12 §4](12_CreateMenu.md)) |
+| `tblCommonControlType_Signed` | Full row metadata theo `TableName='<ClassName>_html'` với **UID deterministic** + EXEC `sptblCommonControlType_Signed_DUC '<ClassName>_html'` trước cache. **Chỉ cần khi renderer có `+(SELECT loadUI...)`** — nếu `tblCommonControlType_Signed` chỉ chứa data source reference mà renderer không inject loadUI thì **không** cần DUC | Menu **config-driven** (renderer dynamic SQL — xem [12 §4](12_CreateMenu.md)) |
 
 **Triệu chứng nếu thiếu:**
 - Thiếu DataSetting/Layout → menu hiện trong cây + có quyền nhưng click → **màn hình trắng**.

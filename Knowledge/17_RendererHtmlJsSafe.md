@@ -401,7 +401,9 @@ SELECT @html AS html;
 | `<ColumnIDName>` | PK field name (vd `EmployeeID`) |
 | `<SPLoadData>` | SP trả data grid (vd `sp_LoadHelloWorldVietinsoftEmployeeList`) |
 
-### 4.2 Thứ tự deploy 7 bước (idempotent)
+### 4.2 Thứ tự deploy 7 bước (idempotent) — CHỈ áp dụng cho config-driven
+
+> ⚠️ **Quy tắc 7 bước này CHỈ dành cho renderer config-driven** — tức renderer có `+(SELECT loadUI FROM tblCommonControlType_Signed WHERE UID='...')` trong code T-SQL. Nếu `tblCommonControlType_Signed` chỉ chứa data source reference (vd `hpaControlSelectBox` làm dropdown, **không** được inject vào renderer qua subquery) thì **CHỈ cần bước 4-5-6-7** (sửa proc → DELETE cache → `sp_GenerateHTMLScript` → refresh menu).
 
 ```
 1. DELETE FROM tblCommonControlType_Signed WHERE TableName = '<class>_html';
@@ -413,7 +415,9 @@ SELECT @html AS html;
 7. EXEC sp_Men_Menu_AfterSave_Simple @ClassName = N'<ClassName>';
 ```
 
-> ⚠️ **DUC PHẢI EXEC TRƯỚC** khi tạo renderer — vì renderer dynamic-SQL cần `loadUI` đã có data. Đảo thứ tự → cache build với JS rỗng → runtime lỗi `InstanceXXX is not defined`.
+> ⚠️ **DUC PHẢI EXEC TRƯỚC** khi tạo config-driven renderer — vì renderer dynamic-SQL cần `loadUI` đã có data. Đảo thứ tự → cache build với JS rỗng → runtime lỗi `InstanceXXX is not defined`.
+>
+> ⚠️ **Renderers KHÔNG config-driven**: nếu `tblCommonControlType_Signed` chỉ có data source rows (select box options...) mà renderer không dùng `+(SELECT loadUI...)` thì **không cần** `sptblCommonControlType_Signed_DUC`. Chỉ cần: sửa proc → `DELETE cache` → `sp_GenerateHTMLScript`.
 
 ### 4.3 Migrate sang DB khác — BẮT BUỘC mang theo metadata
 
@@ -495,7 +499,7 @@ Msg 257, Implicit conversion from nvarchar to varbinary(max) is not allowed.
 - [ ] 6. UID `tblCommonControlType_Signed` deterministic (`'P'+32 ký tự` cố định, không NULL).
 
 **Thứ tự deploy (3):**
-- [ ] 7. `EXEC sptblCommonControlType_Signed_DUC` TRƯỚC `CREATE OR ALTER` renderer (config-driven).
+- [ ] 7. Nếu renderer có `+(SELECT loadUI...)` (config-driven): `EXEC sptblCommonControlType_Signed_DUC` TRƯỚC `CREATE OR ALTER`. Nếu KHÔNG: bỏ qua bước này, chỉ cần bước 8.
 - [ ] 8. `DELETE FROM tblHtmlScriptCache` TRƯỚC `EXEC sp_GenerateHTMLScript`.
 - [ ] 9. Renderer có `SELECT @html AS html` cuối (fallback khi cache chưa có).
 

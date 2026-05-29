@@ -207,6 +207,8 @@ PK = `ID` (varchar(36), default `[dbo].[fn_UUIDv7_Min]()`); các cột khác **n
 
 > ⚠️ **DUC PHẢI EXEC TRƯỚC khi tạo renderer** — vì renderer dynamic SQL `(SELECT loadUI FROM tblCommonControlType_Signed WHERE UID='...')` cần cột `loadUI` đã có data.
 >
+> ⚠️ **Chỉ cần DUC khi renderer có `+(SELECT loadUI ...)` / `+(SELECT loadData ...)`** (config-driven). Nếu `tblCommonControlType_Signed` chỉ chứa data source reference (vd `hpaControlSelectBox` làm dropdown options, không inject loadUI vào renderer) thì **KHÔNG** cần DUC khi sửa renderer — chỉ cần `DELETE tblHtmlScriptCache` + `sp_GenerateHTMLScript`.
+>
 > ⚠️ **UID phải unique TOÀN BỘ BẢNG `tblCommonControlType_Signed`** (global, không chỉ trong 1 `TableName`). Nếu 2 menu khác nhau dùng chung UID, subquery `WHERE UID='...'` trả về >1 row → `Msg 512`. **Pattern đặt UID an toàn**: dùng prefix 3-4 ký tự viết tắt của menu + đủ 32 ký tự sau `P`. Ví dụ: `PUMG...` (UserMgmt), `PCRM...` (CRM), `PKPI...` (KPI). Không dùng UID quá generic như `P000...G01`.
 
 ### 4.4 Pattern renderer nhúng loadUI/loadData
