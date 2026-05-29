@@ -189,7 +189,7 @@ PK = `ID` (varchar(36), default `[dbo].[fn_UUIDv7_Min]()`); các cột khác **n
 | `GridColumnName` | varchar(100) | (Column row) trỏ tới `ColumnName` của grid container |
 | `GridWidth` | varchar(20) | Width pixel column |
 | `AllowSorting`/`AllowFiltering` | bit | 1/0 |
-| `UID` | varchar(33) | `'P' + 32 ký tự`. Để NULL → proc tự sinh random. **Renderer dynamic SQL cần UID deterministic** để idempotent |
+| `UID` | varchar(33) | `'P' + 32 ký tự`. Để NULL → proc tự sinh random. **Renderer dynamic SQL cần UID deterministic** để idempotent. ⚠️ **PHẢI UNIQUE TOÀN BỘ BẢNG** (global across all `TableName`) — nếu trùng UID với menu khác, renderer `(SELECT loadUI ... WHERE UID='...')` sẽ trả về >1 row → lỗi `Msg 512 Subquery returned more than 1 value`. Không dùng UID quá generic như `P000...G01` — thay vào đó dùng prefix riêng theo menu (vd `PUMG...` cho UserMgmt, `PCRM...` cho CRM) |
 | `html`, `loadUI`, `loadData` | nvarchar(MAX) | **KHÔNG fill khi insert** — DUC tự build + UPDATE |
 
 ### 4.3 Thứ tự deploy (BẮT BUỘC)
@@ -206,6 +206,8 @@ PK = `ID` (varchar(36), default `[dbo].[fn_UUIDv7_Min]()`); các cột khác **n
 ```
 
 > ⚠️ **DUC PHẢI EXEC TRƯỚC khi tạo renderer** — vì renderer dynamic SQL `(SELECT loadUI FROM tblCommonControlType_Signed WHERE UID='...')` cần cột `loadUI` đã có data.
+>
+> ⚠️ **UID phải unique TOÀN BỘ BẢNG `tblCommonControlType_Signed`** (global, không chỉ trong 1 `TableName`). Nếu 2 menu khác nhau dùng chung UID, subquery `WHERE UID='...'` trả về >1 row → `Msg 512`. **Pattern đặt UID an toàn**: dùng prefix 3-4 ký tự viết tắt của menu + đủ 32 ký tự sau `P`. Ví dụ: `PUMG...` (UserMgmt), `PCRM...` (CRM), `PKPI...` (KPI). Không dùng UID quá generic như `P000...G01`.
 
 ### 4.4 Pattern renderer nhúng loadUI/loadData
 
@@ -292,7 +294,7 @@ END
 
 ### 5.3 Renderer + Wrapper (Phase B)
 
-- **Renderer** `sp_HelloWorldVietinsoft_html`: build chuỗi HTML/CSS/JS, gọi API qua `AjaxHPAParadise`, UPSERT cache `tblHtmlScriptCache` MERGE 8 cột (theo pattern [17 §3.3](17_RendererHtmlJsSafe.md)) cho cả VN + EN.
+- **Renderer** `sp_HelloWorldVietinsoft_html`: build chuỗi HTML/CSS/JS, gọi API qua `AjaxHPAParadise`, kết thúc bằng `SELECT @html AS html;`. Cache `tblHtmlScriptCache` do `sp_GenerateHTMLScript` xử lý UPSERT đủ 8 cột cho cả VN + EN.
 - **Wrapper** `sp_HelloWorldVietinsoft`: `SELECT TOP 1 html FROM tblHtmlScriptCache WHERE TableName='sp_HelloWorldVietinsoft' AND ScreenType='-1' AND LanguageID=@LanguageID`.
 
 Code đầy đủ: xem 2 script đã liệt kê đầu §5.

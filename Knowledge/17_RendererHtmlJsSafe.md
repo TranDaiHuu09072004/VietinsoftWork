@@ -12,7 +12,7 @@
 2. [7 quy tắc bắt buộc + Anatomy 6 layer](#2-7-quy-tắc-bắt-buộc--anatomy-6-layer)
 3. [Pattern escape T-SQL → JavaScript](#3-pattern-escape-t-sql--javascript)
 4. [Pattern config-driven (`tblCommonControlType_Signed`)](#4-pattern-config-driven-tblcommoncontroltype_signed)
-5. [MERGE `tblHtmlScriptCache` (8 cột) + `varbinary(max)` (Msg 257)](#5-merge-tblhtmlscriptcache-8-cột--varbinarymax-msg-257)
+5. [Cache `tblHtmlScriptCache` — do `sp_GenerateHTMLScript` xử lý + `varbinary(max)` (Msg 257)](#5-cache-tblhtmlscriptcache--do-sp_generatehtmlscript-xử-lý--varbinarymax-msg-257)
 6. [Checklist 15 điểm + Triệu chứng lỗi](#6-checklist-15-điểm--triệu-chứng-lỗi)
 7. [Template renderer đầy đủ](#7-template-renderer-đầy-đủ)
 8. [Truy vấn MCP để extract renderer từ DB](#8-truy-vấn-mcp-để-extract-renderer-từ-db)
@@ -27,9 +27,9 @@
 2. **CẤM `.replace(/''/g, ...)`** trong JS embed — vỡ N-string T-SQL. Dùng `CHAR(39)` hoặc `&#039;` (chỉ SSMS).
 3. **Text VN/EN → JS** qua biến `*Js` đã escape — `REPLACE(REPLACE(@x, N'\', N'\\'), N'"', N'\"')`.
 4. **`varbinary(max)` → `CAST(NULL AS VARBINARY(MAX))`** — KHÔNG `N''` (Msg 257).
-5. **MERGE `tblHtmlScriptCache` đủ 8 cột**: `TableName, LanguageID, ScreenType, html, HtmlParadise, paradiseJs, Version, VersionData`.
-6. **UID `tblCommonControlType_Signed` deterministic** — không random.
-7. **Idempotent**: `DROP IF EXISTS` cho proc, `DELETE` cache trước build, `MERGE` metadata.
+5. **UID `tblCommonControlType_Signed` deterministic** — không random.
+6. **Idempotent**: `DROP IF EXISTS` cho proc, `DELETE` cache trước `sp_GenerateHTMLScript`.
+7. **Cache do `sp_GenerateHTMLScript` lo** — Renderer chỉ `SELECT @html AS html;`, KHÔNG tự MERGE.
 
 ### Template tối giản (copy-paste, fork rồi sửa)
 
@@ -72,19 +72,18 @@ END
 | 2 | KHÔNG `.replace(/''/g, ...)` trong JS embed | T-SQL parse `''` thành `'` + chuỗi kế → vỡ boundary |
 | 3 | Text VN/EN nhúng JS qua biến `*Js` đã escape `\` + `"` | Backslash + `"` trong text có thể vỡ JS string |
 | 4 | `varbinary(max)` → `CAST(NULL AS VARBINARY(MAX))` (KHÔNG `N''`) | Msg 257 implicit conversion nvarchar → varbinary |
-| 5 | MERGE `tblHtmlScriptCache` đủ 8 cột notnull | Lỗi `Cannot insert NULL into column 'html'` |
-| 6 | UID `tblCommonControlType_Signed` deterministic | Renderer dynamic-SQL `(SELECT loadUI FROM ... WHERE UID='...')` cần UID stable |
-| 7 | Script export idempotent (`DROP IF EXISTS`, `DELETE` cache trước build, `MERGE` metadata) | Chạy lần 2 trên DB đích phải không lỗi |
+| 5 | UID `tblCommonControlType_Signed` deterministic | Renderer dynamic-SQL `(SELECT loadUI FROM ... WHERE UID='...')` cần UID stable |
+| 6 | Script export idempotent (`DROP IF EXISTS`, `DELETE` cache trước `sp_GenerateHTMLScript`) | Chạy lần 2 trên DB đích phải không lỗi |
+| 7 | Cache do `sp_GenerateHTMLScript` xử lý — Renderer KHÔNG tự MERGE | `sp_GenerateHTMLScript` gọi renderer VN+EN rồi MERGE đủ 8 cột |
 
-### Anatomy 6 layer
+### Anatomy 5 layer
 
 ```
 ┌─ Layer 1: Signature  — @LoginID INT=3, @LanguageID VARCHAR(5)='VN', @isWeb INT=1
 ├─ Layer 2: Text VN/EN — DECLARE @title NVARCHAR(200) = N'...'; IF @LanguageID='EN' SET @title=N'...';
 ├─ Layer 3: Biến *Js   — DECLARE @titleJs = REPLACE(REPLACE(@title, N'\', N'\\'), N'"', N'\"');
 ├─ Layer 4: Build @html NVARCHAR(MAX) = N'<html>...<script>...</script>';
-├─ Layer 5: MERGE tblHtmlScriptCache UPSERT theo (TableName, LanguageID)
-└─ Layer 6: SELECT @html AS html  (fallback khi cache chưa có — framework gọi proc trực tiếp lần đầu)
+└─ Layer 5: SELECT @html AS html  (cache do sp_GenerateHTMLScript xử lý UPSERT — Renderer KHÔNG tự MERGE)
 ```
 
 ---
@@ -432,37 +431,31 @@ EXEC sp_GenerateHTMLScript '<class>_html';
 
 ---
 
-## 5. MERGE `tblHtmlScriptCache` (8 cột) + `varbinary(max)` (Msg 257)
+## 5. Cache `tblHtmlScriptCache` — do `sp_GenerateHTMLScript` xử lý
 
-### 5.1 MERGE pattern (8 cột notnull)
+> ⚠️ **Renderer KHÔNG tự MERGE/INSERT vào `tblHtmlScriptCache`.** Việc UPSERT cache được `sp_GenerateHTMLScript` đảm nhiệm — nó gọi renderer cho VN + EN rồi tự MERGE đủ 8 cột. Renderer chỉ cần `SELECT @html AS html;` ([13_Migrate_Menu.md:365](13_Migrate_Menu.md)).
 
-```sql
-MERGE dbo.tblHtmlScriptCache AS tgt
-USING (SELECT 'sp_X_html' AS TableName, @LanguageID AS LanguageID, '-1' AS ScreenType,
-              @html AS html, N'' AS HtmlParadise, N'' AS paradiseJs,
-              '1' AS Version, N'' AS VersionData) AS src
-   ON tgt.TableName = src.TableName AND tgt.LanguageID = src.LanguageID
-WHEN MATCHED THEN
-    UPDATE SET tgt.ScreenType=src.ScreenType, tgt.html=src.html,
-               tgt.HtmlParadise=src.HtmlParadise, tgt.paradiseJs=src.paradiseJs,
-               tgt.Version=src.Version, tgt.VersionData=src.VersionData
-WHEN NOT MATCHED BY TARGET THEN
-    INSERT (TableName, LanguageID, ScreenType, html, HtmlParadise, paradiseJs, Version, VersionData)
-    VALUES (src.TableName, src.LanguageID, src.ScreenType, src.html, src.HtmlParadise, src.paradiseJs, src.Version, src.VersionData);
-```
+### 5.1 Schema `tblHtmlScriptCache` (8 cột notnull — tham khảo)
 
-| Cột | Kiểu | Giá trị mặc định an toàn |
+| Cột | Kiểu | Giá trị mặc định |
 |---|---|---|
 | `TableName` | varchar | `'sp_X_html'` |
-| `LanguageID` | varchar(5) | `@LanguageID` (`'VN'`/`'EN'`) |
+| `LanguageID` | varchar(5) | `'VN'` / `'EN'` |
 | `ScreenType` | varchar | `'-1'` |
-| `html` | nvarchar(max) | `@html` |
+| `html` | nvarchar(max) | Nội dung HTML từ renderer |
 | `HtmlParadise` | nvarchar(max) | `N''` (notnull) |
 | `paradiseJs` | nvarchar(max) | `N''` (notnull) |
 | `Version` | varchar | `'1'` |
 | `VersionData` | nvarchar(max) | `N''` |
 
-### 5.2 Cột `varbinary(max)` — Msg 257
+### 5.2 Build cache — cách DUY NHẤT
+
+```sql
+DELETE FROM dbo.tblHtmlScriptCache WHERE TableName = 'sp_X_html';
+EXEC dbo.sp_GenerateHTMLScript 'sp_X_html';
+```
+
+### 5.3 Cột `varbinary(max)` — Msg 257
 
 Khi MERGE/INSERT vào `tblDataSetting` / `tblDataSettingLayout`, có các cột `varbinary(max)`. Truyền `N''` → lỗi:
 ```
@@ -491,27 +484,26 @@ Msg 257, Implicit conversion from nvarchar to varbinary(max) is not allowed.
 
 ### 6.1 Checklist 15 điểm (đối chiếu trước khi export)
 
-**Quote boundary (5):**
+**Quote boundary (4):**
 - [ ] 1. `<script>`, `function`, `String(...)`, `AjaxHPAParadise(...)` đều BÊN TRONG chuỗi `@html`. 
 - [ ] 2. Không còn `.replace(/''/g` raw — đã dùng `CHAR(39)` hoặc `'` (chỉ SSMS).
 - [ ] 3. Mọi text label đa ngôn ngữ đi qua biến `*Js` đã escape `\` + `"`.
 - [ ] 4. JS regex literal chứa `'` dùng `'`, JS string literal dùng `''`.
 
-**Schema constraints (3):**
-- [ ] 6. MERGE `tblHtmlScriptCache` fill đủ 8 cột notnull.
-- [ ] 7. `varbinary(max)` dùng `CAST(NULL AS VARBINARY(MAX))`, không `N''`.
-- [ ] 8. UID `tblCommonControlType_Signed` deterministic (`'P'+32 ký tự` cố định, không NULL).
+**Schema constraints (2):**
+- [ ] 5. `varbinary(max)` dùng `CAST(NULL AS VARBINARY(MAX))`, không `N''`.
+- [ ] 6. UID `tblCommonControlType_Signed` deterministic (`'P'+32 ký tự` cố định, không NULL).
 
 **Thứ tự deploy (3):**
-- [ ] 9. `EXEC sptblCommonControlType_Signed_DUC` TRƯỚC `CREATE OR ALTER` renderer (config-driven).
-- [ ] 10. `DELETE FROM tblHtmlScriptCache` TRƯỚC `EXEC sp_GenerateHTMLScript`.
-- [ ] 11. Renderer có `SELECT @html AS html` cuối (fallback khi cache chưa có).
+- [ ] 7. `EXEC sptblCommonControlType_Signed_DUC` TRƯỚC `CREATE OR ALTER` renderer (config-driven).
+- [ ] 8. `DELETE FROM tblHtmlScriptCache` TRƯỚC `EXEC sp_GenerateHTMLScript`.
+- [ ] 9. Renderer có `SELECT @html AS html` cuối (fallback khi cache chưa có).
 
 **Idempotency (4):**
-- [ ] 12. Script có `SET NOCOUNT ON; SET XACT_ABORT ON; GO` ở header.
-- [ ] 13. Mọi proc dùng `CREATE OR ALTER` (hoặc DROP + CREATE).
-- [ ] 14. Metadata (`MEN_Menu`, `tblSC_Object`, `tblDataSetting`, `tblDataSettingLayout`) dùng MERGE hoặc IF NOT EXISTS.
-- [ ] 15. Có verify cuối: `SELECT DATALENGTH(html) FROM tblHtmlScriptCache WHERE TableName='<class>_html'`.
+- [ ] 10. Script có `SET NOCOUNT ON; SET XACT_ABORT ON; GO` ở header.
+- [ ] 11. Mọi proc dùng `CREATE OR ALTER` (hoặc DROP + CREATE).
+- [ ] 12. Metadata (`MEN_Menu`, `tblSC_Object`, `tblDataSetting`, `tblDataSettingLayout`) dùng MERGE hoặc IF NOT EXISTS.
+- [ ] 13. Có verify cuối: `SELECT DATALENGTH(html) FROM tblHtmlScriptCache WHERE TableName='<class>_html'`.
 
 ### 6.2 Triệu chứng → Nguyên nhân → Fix
 
@@ -521,12 +513,13 @@ Msg 257, Implicit conversion from nvarchar to varbinary(max) is not allowed.
 | `The label 'data' has already been declared` (hàng loạt label error) + `Incorrect syntax near '{'` / `'}'` | Một `'` trong JS regex làm đóng N-string → toàn bộ JS bị parse thành T-SQL | Dùng `DECLARE @SQ NCHAR(1)=CHAR(39);` + ghép `+ @SQ +` vào regex (xem §3.2 Case B) |
 | `Msg 257 Implicit conversion from nvarchar to varbinary(max)` | MERGE/INSERT `N''` vào cột `varbinary(max)` | `CAST(NULL AS VARBINARY(MAX))` |
 | `InstanceXXX is not defined` runtime | Renderer build trước DUC → `loadUI` rỗng trong cache | Đảo thứ tự: metadata → DUC → renderer → cache |
-| `Cannot insert NULL into column 'html'` | MERGE thiếu 1 trong 8 cột notnull | Fill đủ 8 cột |
+| `Cannot insert NULL into column 'html'` | `sp_GenerateHTMLScript` gặp renderer trả về NULL | Kiểm tra renderer có `SELECT @html AS html` và `@html` không NULL |
 | UI cache vẫn cũ sau khi sửa | Chưa DELETE cache trước build | `DELETE FROM tblHtmlScriptCache WHERE TableName='<class>_html'` trước `sp_GenerateHTMLScript` |
 | `loadDataSourceCommon is not a function` (barebones menu) | Polyfill global thiếu | Áp pattern §3.5 |
 | Tiếng Việt bị `???` trong cache | T-SQL string không có prefix `N'` | Mọi chuỗi VN phải `N'...'`, biến `NVARCHAR(MAX)` |
 | Grid hiện nhưng không có data | `SPLoadData` sai tên / column SELECT không khớp `ColumnName` | Test `EXEC <SPLoadData> @LoginID=3` thủ công |
 | `dataSource` không update khi `ReloadData` | Trỏ sai `Instance<GridName><UID>` — UID đổi giữa các lần chạy | UID deterministic, không random |
+| `Msg 512 Subquery returned more than 1 value` (tại dòng `+(SELECT loadUI FROM tblCommonControlType_Signed WHERE UID=...)` trong renderer) | UID trong `tblCommonControlType_Signed` bị **trùng giữa 2 menu khác nhau** (UID chỉ unique trong 1 `TableName`, nhưng subquery `WHERE UID='...'` scan toàn bộ bảng) | Dùng UID có prefix riêng theo menu (vd `PUMG...` cho UserMgmt, `PCRM...` cho CRM), không dùng pattern generic như `P000...G01`. Verify: `SELECT UID, COUNT(*) FROM tblCommonControlType_Signed WHERE UID='<your_uid>' GROUP BY UID` → phải trả về 1 row duy nhất |
 
 ---
 
@@ -594,20 +587,9 @@ AS BEGIN
       + N'  });'
       + N'})();</script>';
 
-    -- Layer 5: UPSERT cache
-    MERGE dbo.tblHtmlScriptCache AS tgt
-    USING (SELECT 'sp_X_html' AS TableName, @LanguageID AS LanguageID, '-1' AS ScreenType,
-                  @html AS html, N'' AS HtmlParadise, N'' AS paradiseJs,
-                  '1' AS Version, N'' AS VersionData) AS src
-       ON tgt.TableName = src.TableName AND tgt.LanguageID = src.LanguageID
-    WHEN MATCHED THEN UPDATE SET tgt.ScreenType=src.ScreenType, tgt.html=src.html,
-                                 tgt.HtmlParadise=src.HtmlParadise, tgt.paradiseJs=src.paradiseJs,
-                                 tgt.Version=src.Version, tgt.VersionData=src.VersionData
-    WHEN NOT MATCHED BY TARGET THEN
-        INSERT (TableName, LanguageID, ScreenType, html, HtmlParadise, paradiseJs, Version, VersionData)
-        VALUES (src.TableName, src.LanguageID, src.ScreenType, src.html, src.HtmlParadise, src.paradiseJs, src.Version, src.VersionData);
-
-    -- Layer 6: Fallback SELECT
+    -- Layer 5: SELECT @html AS html (fallback)
+    --          Cache do sp_GenerateHTMLScript xử lý UPSERT —
+    --          Renderer KHÔNG tự MERGE (13_Migrate_Menu.md:365)
     SELECT @html AS html;
 END
 GO
