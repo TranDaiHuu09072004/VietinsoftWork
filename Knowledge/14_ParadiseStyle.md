@@ -215,7 +215,7 @@ Checklist bắt buộc khi viết renderer:
 - [ ] Nếu bắt buộc dùng nháy đơn trong literal SQL, phải viết thành `''`.
 - [ ] Không dùng pattern JavaScript `.replace(/''/g, ...)` trong chuỗi `N'...'`; dùng `.replace(/\u0027/g, "&#039;")` để tránh nháy đơn phá chuỗi SQL.
 - [ ] Biến text đa ngôn ngữ đưa vào JavaScript phải escape trước bằng biến T-SQL riêng, không chèn `REPLACE(...)` phức tạp trực tiếp giữa block `<script>`.
-- [ ] Sau khi sửa renderer, kiểm tra đoạn `<script>` nằm trong chuỗi `N'...'`, còn `MERGE tblHtmlScriptCache` nằm ngoài chuỗi.
+- [ ] Sau khi sửa renderer, kiểm tra đoạn `<script>` nằm trong chuỗi `N'...'`, và renderer kết thúc bằng `SELECT @html AS html;` (cache do `sp_GenerateHTMLScript` xử lý).
 
 Mẫu an toàn:
 
