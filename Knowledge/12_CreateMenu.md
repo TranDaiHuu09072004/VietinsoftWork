@@ -90,6 +90,38 @@ Template đầy đủ + kiến trúc 3 lớp + menu mẫu `sp_CRM_ProductType_ht
 
 > **Why**: ≥30 procedure trong DB đã dùng pattern này (verify: `OBJECT_DEFINITION LIKE '%scrolling.mode%infinite%'`).
 
+### Rule 7 — Đa ngôn ngữ: `%Placeholder%` → `tblMD_Message`
+
+Mọi text hiển thị trên UI phải hỗ trợ đa ngôn ngữ qua cơ chế placeholder `%MessageID%`:
+
+```
+Renderer HTML:        <div>%EmployeeID%</div>
+                              ↓
+sp_GenerateHTMLScript quét tất cả %...% trong HTML
+                              ↓
+Lookup tblMD_Message WHERE MessageID = 'EmployeeID' AND Language = @Language
+                              ↓
+Cache VN:  <div>Mã nhân viên</div>
+Cache EN:  <div>Employee ID</div>
+```
+
+**Áp dụng ở đâu**:
+| Nơi dùng | Ví dụ | Cần tblMD_Message? |
+|---|---|---|
+| `tblCommonControlType_Signed.DisplayName` | `'%STT%'`, `'%FullName%'`, `'%OwnerID%'` | ✅ Bắt buộc |
+| HTML trong renderer | `<div>%EmployeeID%</div>` | ✅ Bắt buộc |
+| Label tĩnh trong T-SQL | `@title = N'Danh sách'` | ❌ Không (đã là text cứng, xử lý riêng trong renderer) |
+
+**Bắt buộc trong migration script**:
+- Mọi `%MessageID%` dùng trong `tblCommonControlType_Signed` hoặc renderer HTML → phải có `tblMD_Message` entry cho **cả VN và EN**
+- Pattern idempotent:
+```sql
+IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'OwnerID' AND Language = 'VN')
+    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('OwnerID', 'VN', N'Người phụ trách');
+IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'OwnerID' AND Language = 'EN')
+    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('OwnerID', 'EN', 'Owner');
+```
+
 ---
 
 ## 2. Hai layer + Quy ước đặt tên

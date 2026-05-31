@@ -86,6 +86,28 @@ END
 └─ Layer 5: SELECT @html AS html  (cache do sp_GenerateHTMLScript xử lý UPSERT — Renderer KHÔNG tự MERGE)
 ```
 
+### Layer 2b — Text đa ngôn ngữ qua `%Placeholder%` + `tblMD_Message`
+
+Ngoài text cứng trong T-SQL (`@title = N'Danh sách'`), ParadiseHR hỗ trợ placeholder `%MessageID%` để `sp_GenerateHTMLScript` tự động replace khi build cache:
+
+```
+HTML trong renderer:  <div>%EmployeeID%</div>
+                              ↓
+sp_GenerateHTMLScript quét %...% → lookup tblMD_Message → replace theo Language
+                              ↓
+Cache VN: <div>Mã nhân viên</div>    Cache EN: <div>Employee ID</div>
+```
+
+**Khi nào dùng `%Placeholder%` thay vì text cứng**:
+| Trường hợp | Dùng | Ví dụ |
+|---|---|---|
+| Label cột grid (`tblCommonControlType_Signed.DisplayName`) | `%Placeholder%` | `'%FullName%'` |
+| Text tĩnh trong HTML renderer | `%Placeholder%` | `<th>%StatusID%</th>` |
+| Text cần xử lý trong JS runtime | Text cứng (Layer 2 VN/EN) | `@title = N'Danh sách'` |
+| Label form/input | `%Placeholder%` | `<label>%FromDate%</label>` |
+
+**Bắt buộc**: Mọi `%MessageID%` phải có `tblMD_Message` entry cho VN + EN. Nếu thiếu → UI hiển thị `%MessageID%` thô.
+
 ---
 
 ## 3. Pattern escape T-SQL → JavaScript

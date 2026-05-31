@@ -8,7 +8,7 @@
 
 ## Mục lục
 
-1. [6 Quy tắc bắt buộc](#1-6-quy-tắc-bắt-buộc)
+1. [8 Quy tắc bắt buộc](#1-8-quy-tắc-bắt-buộc)
 2. [Khi nào dùng + Checklist đầu vào](#2-khi-nào-dùng--checklist-đầu-vào)
 3. [Quy trình 5 Phase](#3-quy-trình-5-phase)
 4. [Template idempotent từng thành phần](#4-template-idempotent-từng-thành-phần)
@@ -17,7 +17,7 @@
 
 ---
 
-## 1. 6 Quy tắc bắt buộc
+## 1. 8 Quy tắc bắt buộc
 
 ### Rule 1 — Cấp quyền: CHỈ LoginID = 3
 
@@ -89,6 +89,43 @@ IF OBJECT_ID('dbo.X','U') IS NOT NULL
    AND COLUMNPROPERTY(OBJECT_ID('dbo.X'),'<col>','IsIdentity') <> 1
     RAISERROR(N'Bảng X tồn tại nhưng <col> không phải IDENTITY. Align schema trước khi rerun.', 16, 1);
 ```
+
+### Rule 7 — KHÔNG hardcode `USE [Database]` trong migration script
+
+Mỗi server/môi trường có tên database khác nhau (DEV → UAT → PROD). Migration script **KHÔNG ĐƯỢC** dùng `USE [<db_name>]` vì:
+
+- ❌ `USE [Paradise_Dev]` — lỗi khi chạy trên server có DB tên `Paradise_Test` / `Paradise_Prod`
+- ❌ `USE [$(Database)]` — SQLCMD mode không phải lúc nào cũng bật
+- ✅ Người dùng tự chọn database trong SSMS trước khi chạy script (dropdown chọn DB)
+- ✅ Script chỉ cần `SET NOCOUNT ON; SET XACT_ABORT ON; GO` ở đầu, không cần `USE`
+
+> **Tiền lệ 2026-05-31**: file `migrate_menu_MnuKPI448_20260531.sql` ban đầu có `USE [Paradise_Dev]` → user phản hồi "mỗi server tên db khác nhau" → đã xoá `USE`.
+
+### Rule 8 — Migration script PHẢI kèm `tblMD_Message` cho mọi `%Placeholder%`
+
+Hệ thống ParadiseHR dùng `%MessageID%` làm placeholder đa ngôn ngữ. Khi `sp_GenerateHTMLScript` build cache, nó quét HTML tìm tất cả `%...%` và replace bằng `Content` từ `tblMD_Message` theo `Language`.
+
+**Bắt buộc trong migration script**:
+- Mọi `%MessageID%` xuất hiện trong renderer HTML hoặc `tblCommonControlType_Signed.DisplayName` → phải có `tblMD_Message` entry cho **cả VN và EN**
+- Nếu thiếu → `sp_GenerateHTMLScript` để nguyên `%MessageID%` (hoặc thay bằng rỗng) → UI hiển thị text thô `%OwnerID%` thay vì "Người phụ trách"
+
+**Pattern idempotent**:
+```sql
+IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'OwnerID' AND Language = 'VN')
+    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('OwnerID', 'VN', N'Người phụ trách');
+IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'OwnerID' AND Language = 'EN')
+    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('OwnerID', 'EN', 'Owner');
+```
+
+**Cách audit**: Chạy query sau để tìm placeholder thiếu `tblMD_Message`:
+```sql
+-- Liệt kê tất cả %...% trong renderer hoặc DisplayName control
+-- Đối chiếu với tblMD_Message để tìm missing entries
+SELECT DISTINCT '<placeholder>' AS Missing
+WHERE NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = '<placeholder>');
+```
+
+> **Tiền lệ 2026-05-31**: file `migrate_menu_MnuKPI448_20260531.sql` có `DisplayName='%Zalo%'`, `'%OwnerID%'` trong `tblCommonControlType_Signed` nhưng thiếu `tblMD_Message` entry cho `Zalo` và `OwnerID` → UI hiển thị `%Zalo%` thay vì "Zalo".
 
 ---
 
