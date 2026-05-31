@@ -66,7 +66,7 @@ Mỗi menu HTML-rendered phải có **3 bảng metadata**:
 
 ### Rule 5 — Renderer HTML/JS an toàn
 
-Viết renderer `<class>_html` build chuỗi `NVARCHAR(MAX)` → bắt buộc đọc [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md): 7 escape rule, MERGE cache 8 cột, varbinary (Msg 257), dynamic SQL config-driven, polyfill global, template + checklist 15 điểm.
+Viết renderer `<class>_html` build chuỗi `NVARCHAR(MAX)` → bắt buộc đọc [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md): 7 escape rule, cache `tblHtmlScriptCache` (MERGE 8 cột do `sp_GenerateHTMLScript` đảm nhiệm), varbinary (Msg 257), dynamic SQL config-driven, polyfill global, template + checklist 15 điểm.
 
 ### Rule 6 — Grid PHẢI dùng Infinite Loop Scroll (CẤM pager truyền thống)
 

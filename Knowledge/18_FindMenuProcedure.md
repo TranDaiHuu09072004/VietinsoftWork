@@ -399,7 +399,7 @@ FROM tblDataSetting WHERE TableName = '<ClassName>' OR ViewName = '<ClassName>';
 
 | Nhu cầu | File hướng dẫn |
 |---|---|
-| Sửa HTML/JS trong renderer `_html` | [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md) (escape T-SQL/JS, MERGE cache 8 cột, Msg 257, polyfill 5 global helper) |
+| Sửa HTML/JS trong renderer `_html` | [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md) (escape T-SQL/JS, cache do `sp_GenerateHTMLScript` MERGE 8 cột, Msg 257, polyfill 5 global helper) |
 | Đọc source proc dài (> 8KB) | [17_RendererHtmlJsSafe.md §8.4](17_RendererHtmlJsSafe.md) (SUBSTRING chunk 4000 ký tự / `export_query` ra file) |
 | Extract trọn renderer package để migrate | [17_RendererHtmlJsSafe.md §8.3](17_RendererHtmlJsSafe.md) (combo 8-query) |
 | Migrate menu sang DB khác | [13_Migrate_Menu.md](13_Migrate_Menu.md) (script idempotent + 5 rule cấp quyền) |
@@ -429,7 +429,7 @@ FROM tblDataSetting WHERE TableName = '<ClassName>' OR ViewName = '<ClassName>';
 | Tạo menu Web mới end-to-end | [12_CreateMenu.md](12_CreateMenu.md) |
 | Migrate/update menu có sẵn | [13_Migrate_Menu.md](13_Migrate_Menu.md) |
 | Chuẩn thiết kế UI ParadiseStyle (4 layout gốc + token CSS) | [14_ParadiseStyle.md](14_ParadiseStyle.md) |
-| Viết renderer HTML/JS an toàn (escape, MERGE cache, Msg 257) | [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md) |
+| Viết renderer HTML/JS an toàn (escape, cache qua `sp_GenerateHTMLScript`, Msg 257) | [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md) |
 | MCP query template + extract renderer package | [17_RendererHtmlJsSafe.md §8](17_RendererHtmlJsSafe.md) |
 | Item lỗi thời (table / proc / view / menu / parameter) | [99_deprecated.md](99_deprecated.md) |
 | Quy tắc MCP đọc-only + TOP N + OBJECT_DEFINITION | [CLAUDE.md Bước 3](../CLAUDE.md) |
