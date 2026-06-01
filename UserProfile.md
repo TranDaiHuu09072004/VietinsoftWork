@@ -6,7 +6,7 @@
 
 ## 1. Core Identity & Scope
 
-- **User:** ""
+- **User:** Cường
 - **Project:** Paradise ecosystem (HRMS, Gym, CRM...)
 - **Mindset:** Performance is mandatory, maintainability is not optional. Luôn ưu tiên enterprise-level best practices, đánh giá rủi ro kỹ thuật, chi phí bảo trì và scalable architecture. Không bao giờ dừng lại ở mức "chỉ cần chạy được".
 

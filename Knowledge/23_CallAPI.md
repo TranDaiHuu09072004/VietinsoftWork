@@ -141,3 +141,28 @@ AjaxHPAParadise({
 | API trả về lỗi HTTP 500 | Truyền tham số `param` dạng Object `{}` thay vì mảng phẳng `[]` | Sửa cấu trúc `param` thành mảng: `["ParamName", value]`. |
 | Dữ liệu hiển thị trống dù DB có bản ghi | 1. Quên giải mã bằng hàm `EncryptionStringDecryption`<br>2. Thiếu tham số bắt buộc `LoginID` hoặc `LanguageID` | 1. Thêm khối kiểm tra giải mã trước khi parse JSON.<br>2. Kiểm tra log Network xem payload gửi lên đã đủ tham số chưa. |
 | JS lỗi `IsNullOrEmpty is not defined` hoặc `EncryptionStringDecryption is not defined` | Các hàm toàn cục (global helpers) của hệ thống chưa được nạp | Đảm bảo đoạn script gọi API chạy sau khi trang đã tải hoàn tất các thư viện tiện ích chung. |
+
+---
+
+## 6. Phân biệt `sp_LoadGridUsingAPI` và gọi trực tiếp Procedure
+
+Trong hệ thống ParadiseHR, việc lấy dữ liệu qua API được chia làm 2 trường hợp rõ ràng, cần phân biệt để tránh sai thiết kế:
+
+### 6.1. Dùng cho Danh sách (Grid / List Form)
+Sử dụng wrapper API `sp_LoadGridUsingAPI` **chỉ khi** bạn đang tải một lưới dữ liệu (ví dụ DevExtreme DataGrid) có yêu cầu phân trang (pagination), tìm kiếm, lọc (filtering) và tính tổng (summary).
+
+**Đặc điểm:**
+* Hàm này sinh ra để tiếp nhận các tham số chuẩn từ DevExtreme như `Take`, `Skip`, `SearchValue`, `Filters`, `TotalSummary`.
+* Truyền SP nghiệp vụ thông qua tham số `@ProcName`.
+* Trả về định dạng chuẩn JSON nhiều mảng (mảng data, mảng totalCount, summary) mà DevExtreme bắt buộc phải có.
+* **KHÔNG** được lạm dụng wrapper này cho các Form chi tiết.
+
+### 6.2. Dùng cho Chi tiết (Detail Form)
+Khi mở một Form chi tiết và cần tải duy nhất một bản ghi dựa theo khóa chính (Primary Key), hãy **gọi thẳng** tên Stored Procedure lấy chi tiết qua `AjaxHPAParadise`.
+
+**Đặc điểm:**
+* Khai báo trực tiếp tên SP nghiệp vụ vào thuộc tính `name` (Ví dụ: `name: "sp_GetRecordDetail"`).
+* **Tuyệt đối không** dùng `sp_LoadGridUsingAPI`.
+* Không cần truyền các tham số phân trang dư thừa (`Take`, `Skip`...).
+* Chỉ truyền trực tiếp khóa chính (ví dụ: `param: ["TemplateName", paramData.TemplateName]`).
+* Giúp code gọn nhẹ, hiệu suất cao, trả về kết quả mảng data[0] và lấy phần tử đầu tiên một cách trực quan, đúng chuẩn kiến trúc.
