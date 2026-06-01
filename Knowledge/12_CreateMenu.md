@@ -28,7 +28,7 @@
 - ❌ **KHÔNG** gọi `sp_UpdateMenuInUserRight` (tự cấp `FullAccess=32` cho **MỌI** LoginID > 0 → mở quyền toàn hệ thống).
 - ➡️ User/group khác: cấp sau qua UI app hoặc script riêng.
 
-### Rule 2 — Cờ menu HTML-rendered  và chuẩn giao diện ParadiseStyle.
+### Rule 2 — Cờ menu HTML-rendered và chuẩn giao diện ParadiseStyle.
 
 Tất cả menu HTML-rendered (`MnuKPI007`, `MnuTM022`, `MnuWPT037`...) dùng **CÙNG PATTERN**:
 
@@ -37,9 +37,11 @@ Tất cả menu HTML-rendered (`MnuKPI007`, `MnuTM022`, `MnuWPT037`...) dùng **
 | `IsVisible` | `1` | Cho phép hiển thị |
 | `IsWeb` | **`0`** | Không phải ASPX cũ |
 | `ViewOnWeb` | **`0`** | ⚠️ SAI nếu để `1` |
-| `isShowLayOutWeb` | **`0`** | ⚠️ SAI nếu để `1` |
+| `isShowLayOutWeb` | `0` hoặc `1` | `1` = ẩn khỏi **danh sách tìm kiếm menu**, `0` = hiển thị |
 | `isShowInMobileLayOut` | **`0`** | ⚠️ SAI nếu để `1` |
 | `IsUseMobileDevice` | `1` | Bật cho Web HTML-rendered + Mobile |
+| `isLeftMenu` | `0` hoặc `1` | `0` = **hiển thị trên menubar**, `1` = không hiển thị |
+| `isHiddenInTree` | `0` hoặc `1` | `0` = hiển thị trong cây menu, `1` = ẩn |
 
 #### phải thiết kế giao diện theo đúng chuẩn ParadiseStyle 
 - Tham khảo tri thức tại file 14_ParadiseStyle.md
@@ -154,7 +156,7 @@ Tự sinh `MenuID` mới: lấy `MAX(số sau 6 ký tự)` trong nhóm + 1 (proc
 
 ### Phase 0 — Khảo sát thông tin (BẮT BUỘC, trước mọi phase khác)
 
-> ⚠️ **Khi user yêu cầu tạo menu mới, Agent PHẢI hỏi đủ 6 câu dưới đây trước khi tiến hành bất kỳ thao tác kỹ thuật nào.** Không được bỏ qua bước này.
+> ⚠️ **Khi user yêu cầu tạo menu mới, Agent PHẢI hỏi đủ 8 câu dưới đây trước khi tiến hành bất kỳ thao tác kỹ thuật nào.** Không được bỏ qua bước này.
 
 Agent cần khảo sát tuần tự các thông tin sau:
 
@@ -166,6 +168,8 @@ Agent cần khảo sát tuần tự các thông tin sau:
 | 0.4 | **Tên thủ tục (stored procedure) cần gắn vào menu này là gì?** | `@ClassName` — wrapper procedure sẽ được tạo. Agent tự suy ra tên renderer (`<ClassName>_html`) và các API runtime | Phase A, B, C |
 | 0.5 | **Phân quyền menu này cho nhóm (Group) hay cho riêng LoginName?** | Quyết định ghi `tblSC_GroupRight` (nhóm) hay `tblSC_Right_Stored` (cá nhân). Ngoài ra **luôn cấp cho `LoginID=3`** (Rule 1) | Phase G |
 | 0.6 | **Cho tôi biết tên nhóm hoặc LoginName đó?** | Xác định `UserGroupID` hoặc `LoginID` cụ thể để cấp `FullAccess=32` | Phase G |
+| 0.7 | **Menu này có hiển thị trên menubar không?** | `isLeftMenu=0` và `isHiddenInTree=0` nếu hiển thị; `isLeftMenu=1` và `isHiddenInTree=1` nếu ẩn (form chi tiết) | Phase D |
+| 0.8 | **Menu này có ẩn khỏi danh sách tìm kiếm menu không?** | `isShowLayOutWeb=1` nếu ẩn khỏi search, `0` nếu hiển thị | Phase D |
 
 **Quy tắc khảo sát:**
 - Hỏi **tuần tự** từ 0.1 → 0.6. Mỗi câu trả lời có thể ảnh hưởng đến câu sau.
@@ -175,7 +179,7 @@ Agent cần khảo sát tuần tự các thông tin sau:
 - **KHÔNG được phép skip bất kỳ câu nào.** Nếu user không cung cấp đủ thông tin, Agent phải hỏi lại.
 
 ```
-[0] Khảo sát thông tin          → Hỏi đủ 6 câu: tên VN, tên EN, parent, procedure, group/login, tên group/login
+[0] Khảo sát thông tin          → Hỏi đủ 8 câu: tên VN, tên EN, parent, procedure, group/login, tên group/login, hiển thị menubar, ẩn khỏi search
 [A] Thiết kế nguồn data        → quyết định procedure API runtime
 [B] Cặp procedure UI           → <class>_html (renderer) + <class> (wrapper đọc cache)
 [C] Procedure API runtime      → sp_<X>_<Action>: SELECT data từ DB
