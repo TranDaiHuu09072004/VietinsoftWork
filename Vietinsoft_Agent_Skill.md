@@ -59,6 +59,7 @@
 - Dựa trên INDEX, xác định **1 hoặc nhiều file Knowledge** chứa tri thức về chủ đề user hỏi.
 - Dùng `Read` mở file đó. Không đọc các file Knowledge khác trừ khi cần thiết.
 - Nếu câu hỏi chạm nhiều chủ đề (vd: chấm công + tính lương): mở từng file theo thứ tự cần.
+- **Nếu INDEX không map được keyword** cần tra cứu: dùng `search_files` (Cline native) với regex tìm kiếm xuyên suốt thư mục `Knowledge/` — đây là cơ chế fallback native, nhanh và không cần MCP phụ trợ.
 
 ### Bước 3 — Đánh giá & Khám phá DB nếu thiếu
 

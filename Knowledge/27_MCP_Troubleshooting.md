@@ -117,4 +117,6 @@ Fork `@bilims/mcp-sqlserver` → sửa SQL builder trong `describe_table`, đả
 ## Cập nhật
 
 - 2026-05-28: Phát hiện 2 bug (`list_databases`, `describe_table`), thêm workaround.
+- 2026-05-30: Phát hiện Cline trên Windows **không đọc được MCP config qua symlink**. `cline_mcp_settings.json` phải là file thật, không được symlink tới `.mcp.json`. Nếu muốn đồng bộ, dùng script copy thay vì symlink.
+- 2026-05-30: Cline MCP config format **không hỗ trợ field `"type": "stdio"`** cho stdio transport. Chỉ cần `"command"`, `"args"`, `"env"`.
 - Khi package `@bilims/mcp-sqlserver` được fix hoặc thay thế bằng MCP server tự viết → cập nhật file này.

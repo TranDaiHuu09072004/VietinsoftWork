@@ -18,6 +18,8 @@
 
 ---
 
+> **Nếu menu có SQL backend chạy chậm, xem [26_QueryOptimization.md](26_QueryOptimization.md) để tối ưu query.**
+
 ## 1. 6 Quy tắc bắt buộc
 
 ### Rule 1 — Cấp quyền: CHỈ LoginID = 3

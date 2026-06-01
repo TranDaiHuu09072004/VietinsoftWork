@@ -4,6 +4,8 @@
 
 ---
 
+> **Sau khi tạo procedure, xem [26_QueryOptimization.md](26_QueryOptimization.md) để tối ưu hiệu năng.**
+
 ## Mục lục
 
 1. [Giai đoạn 0: Khảo sát và Thu thập thông tin (Bắt buộc)](#giai-đoạn-0-khảo-sát-và-thu-thập-thông-tin-bắt-buộc)

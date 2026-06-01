@@ -188,6 +188,7 @@ SELECT OBJECT_DEFINITION(OBJECT_ID('<tên procedure>')) AS SourceCode
 | Scalar UDF trong WHERE/SELECT | Có → chậm | Đề xuất inline |
 | `SELECT *` | Có → không tối ưu | Đề xuất liệt kê cột |
 | `ORDER BY` không có index hỗ trợ | Có → sort spill | Đề xuất index |
+| **Dùng #temp không cần thiết** | Query đơn giản dùng #temp → tăng I/O, chậm hơn CTE | Thay bằng CTE nếu chỉ dùng 1 lần (xem mục Chiến lược CTE vs #temp vs @table) |
 
 **Nếu source QUÁ RỐI (> 3 yếu tố phức tạp trở lên):**
 → DỪNG. Báo cáo:
@@ -527,8 +528,66 @@ WHERE qp.query_plan.exist('//ns:PlanAffectingConvert') = 1
 
 ---
 
+## Chiến lược CTE vs #temp vs @table (tối ưu RAM/CPU/IO)
+
+### Khi nào dùng loại nào
+
+| Loại | Khi dùng | Tránh dùng khi | RAM/IO tác động |
+|---|---|---|---|
+| **CTE** (`WITH ... AS`) | Query đơn giản, dùng 1 lần, cần readability, không cần index riêng | Dùng nhiều lần trong cùng batch (CTE bị re-evaluate mỗi lần gọi), cần transaction rollback (CTE không survive rollback) | ✅ Tiết kiệm RAM (không copy data). ⚠️ Re-evaluate nếu dùng nhiều lần → CPU tăng |
+| **#temp table** | Dữ liệu lớn (> 100 rows), cần index riêng, dùng nhiều lần trong SP, cần statistics (estimate đúng row count) | Query nhỏ 1 lần (overhead tạo/drop), transaction rollback (temp table **không** rollback được) | ❌ Tốn RAM + tempdb I/O (INSERT #temp copy toàn bộ data). ✅ Có index → giảm I/O sau đó |
+| **@table variable** | Dữ liệu rất nhỏ (< 30 rows), cần transaction safety (được rollback), dùng trong UDF | Dữ liệu > 100 rows (thiếu statistics → cardinality estimate sai 1 row → plan xấu), cần JOIN với bảng lớn | ✅ Ít RAM hơn #temp. ⚠️ **Không có statistics** → estimate sai → execution plan tồi |
+| **Derived table** (subquery FROM) | Query 1 lần, đơn giản, không cần tái sử dụng | Query phức tạp cần reference nhiều lần, cần index | ✅ Không tốn RAM/IO thêm. ⚠️ Khó maintain |
+
+### Quy tắc chọn lựa (theo thứ tự ưu tiên)
+
+1. **Query dùng 1 lần, đơn giản → CTE** (tiết kiệm RAM, không tạo bảng tạm)
+2. **Query cần index / dùng nhiều lần → #temp** (đánh đổi RAM lấy tốc độ, nhớ DROP)
+3. **Query rất nhỏ, cần rollback → @table**
+4. **Thay `SELECT INTO #tmp` bằng CTE khi có thể** — `SELECT INTO` gây I/O nặng, CTE thì không
+5. **Tránh @table khi JOIN với bảng lớn** — estimate sai gây Hash Match nặng thay vì Nested Loops
+
+### Mẫu chuyển từ #temp → CTE
+
+```sql
+-- ❌ CŨ: Dùng #temp cho query đơn giản
+SELECT EmployeeID, FullName INTO #tmpEmp FROM tblEmployee WHERE StatusID = 1;
+SELECT e.*, d.DepartmentName FROM #tmpEmp e JOIN tblDepartment d ON e.DepartmentID = d.DepartmentID;
+DROP TABLE #tmpEmp;
+
+-- ✅ MỚI: Dùng CTE, tiết kiệm RAM + I/O + không cần DROP
+WITH cteEmp AS (
+    SELECT EmployeeID, FullName, DepartmentID FROM tblEmployee WHERE StatusID = 1
+)
+SELECT e.*, d.DepartmentName FROM cteEmp e JOIN tblDepartment d ON e.DepartmentID = d.DepartmentID;
+```
+
+### Khi NÀO nên giữ #temp thay vì chuyển sang CTE
+
+- Cần tạo index riêng cho dữ liệu trung gian (ví dụ: lọc nhiều lần theo nhiều tiêu chí khác nhau)
+- Dataset trung gian được dùng > 2 lần trong cùng batch
+- Cần statistics để tối ưu join với bảng lớn
+- Cần `SELECT DISTINCT` + `INTO` để loại bỏ duplicate trước khi xử lý tiếp
+
+---
+
 ## Ghi chú
 
 - Workflow này sẽ được thay thế bằng MCP tool `fix_performance` (Python) khi đội kỹ thuật thống nhất phương án PA-A.
 - Tạm thời Agent thực hiện thủ công theo workflow trên.
 - Khi tạo script, luôn kiểm tra phiên bản SQL Server đích (`SELECT @@VERSION`) để chọn cú pháp phù hợp.
+
+---
+
+## Tham khảo bổ sung
+
+| Chủ đề | File |
+|---|---|
+| Chuẩn tạo Stored Procedure mới (trước khi tối ưu) | [24_CreateStoredProcedure.md](24_CreateStoredProcedure.md) |
+| Viết renderer HTML/JS an toàn, escape T-SQL | [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md) |
+| Tạo menu mới end-to-end (có SQL backend) | [12_CreateMenu.md](12_CreateMenu.md) |
+| Migrate/update menu có sẵn (script SQL) | [13_Migrate_Menu.md](13_Migrate_Menu.md) |
+| Bảng chấm công (`tblHasTA`, `tblTmpAttend`) — cần tối ưu thường xuyên | [05_db_attendance.md](05_db_attendance.md) |
+| Gọi API từ JS → Stored Procedure (API chậm do SQL chậm) | [23_CallAPI.md](23_CallAPI.md) |
+| Quy tắc an toàn DB, không tự thực thi DDL/DML | [CLAUDE.md](../CLAUDE.md) |
+| Quy trình 5 bước tra cứu DB (knowledge base) | [INDEX.md](INDEX.md) |

@@ -68,7 +68,7 @@ END
 
 | # | Quy tắc | Lý do |
 |---|---|---|
-| 1 | Mọi `'` trong HTML/JS embed escape `''` hoặc `&#039;` | T-SQL đóng N-string khi gặp `'` đơn |
+| 1 | Mọi `'` trong HTML/JS embed (kể cả comment, string literal, regex) đều phải escape `''` hoặc `&#039;` | T-SQL đóng N-string khi gặp `'` đơn — **kể cả comment `// can't` cũng gây lỗi** |
 | 2 | KHÔNG `.replace(/''/g, ...)` trong JS embed | T-SQL parse `''` thành `'` + chuỗi kế → vỡ boundary |
 | 3 | Text VN/EN nhúng JS qua biến `*Js` đã escape `\` + `"` | Backslash + `"` trong text có thể vỡ JS string |
 | 4 | `varbinary(max)` → `CAST(NULL AS VARBINARY(MAX))` (KHÔNG `N''`) | Msg 257 implicit conversion nvarchar → varbinary |
@@ -221,6 +221,29 @@ SET @html = @html + N'<script>(function(){'
 ```
 
 > `saveFunction`, `updateOrDeleteDataExample` chỉ cần khi `AutoSave=1`. Menu `AutoSave=0` thì KHÔNG cần polyfill 2 hàm này.
+
+### §3.6 Comment JavaScript — tuyệt đối tránh dấu nháy đơn
+
+Mọi ký tự bên trong `N'...'` đều được T-SQL parser xử lý. Comment JavaScript như `// can't connect` chứa `'` sẽ đóng N-string sớm, gây lỗi `Incorrect syntax near 't'` hoặc `Incorrect syntax near 'function'`.
+
+**Nguyên tắc:** Viết comment bằng từ đầy đủ, **không dùng dạng rút gọn chứa `'`**.
+
+| ❌ Không viết | ✅ Viết |
+|---|---|
+| `// can't do this` | `// cannot do this` |
+| `// haven't loaded` | `// have not loaded` |
+| `// won't work` | `// will not work` |
+| `// didn't match` | `// did not match` |
+| `// it's invalid` | `// it is invalid` |
+| `// don't retry` | `// do not retry` |
+
+**Đặc biệt với `reject` / `throw new Error`:**
+```sql
+-- SAi (can use double quotes in SQL comment since SQL ignores comments):
+SET @html = @html + N'reject(new Error(''Native timeout''));'
+```
+
+> Quy tắc tổng kết: KHÔNG có `'` nào trong `N'...'` được "vô hại" — kể cả comment, chuỗi lỗi, template literal. Tất cả đều phải escape `''`.
 
 ---
 
@@ -506,15 +529,16 @@ Msg 257, Implicit conversion from nvarchar to varbinary(max) is not allowed.
 
 ---
 
-## 6. Checklist 15 điểm + Triệu chứng lỗi
+## 6. Checklist 16 điểm + Triệu chứng lỗi
 
-### 6.1 Checklist 15 điểm (đối chiếu trước khi export)
+### 6.1 Checklist 16 điểm (đối chiếu trước khi export)
 
-**Quote boundary (4):**
+**Quote boundary (5):**
 - [ ] 1. `<script>`, `function`, `String(...)`, `AjaxHPAParadise(...)` đều BÊN TRONG chuỗi `@html`. 
 - [ ] 2. Không còn `.replace(/''/g` raw — đã dùng `CHAR(39)` hoặc `'` (chỉ SSMS).
 - [ ] 3. Mọi text label đa ngôn ngữ đi qua biến `*Js` đã escape `\` + `"`.
 - [ ] 4. JS regex literal chứa `'` dùng `'`, JS string literal dùng `''`.
+- [ ] 5. Không comment JavaScript nào chứa dấu nháy đơn `'` — đã thay `can't`/`don't`/`won't` bằng `cannot`/`do not`/`will not`.
 
 **Schema constraints (2):**
 - [ ] 5. `varbinary(max)` dùng `CAST(NULL AS VARBINARY(MAX))`, không `N''`.
@@ -546,6 +570,7 @@ Msg 257, Implicit conversion from nvarchar to varbinary(max) is not allowed.
 | Grid hiện nhưng không có data | `SPLoadData` sai tên / column SELECT không khớp `ColumnName` | Test `EXEC <SPLoadData> @LoginID=3` thủ công |
 | `dataSource` không update khi `ReloadData` | Trỏ sai `Instance<GridName><UID>` — UID đổi giữa các lần chạy | UID deterministic, không random |
 | `Msg 512 Subquery returned more than 1 value` (tại dòng `+(SELECT loadUI FROM tblCommonControlType_Signed WHERE UID=...)` trong renderer) | UID trong `tblCommonControlType_Signed` bị **trùng giữa 2 menu khác nhau** (UID chỉ unique trong 1 `TableName`, nhưng subquery `WHERE UID='...'` scan toàn bộ bảng) | Dùng UID có prefix riêng theo menu (vd `PUMG...` cho UserMgmt, `PCRM...` cho CRM), không dùng pattern generic như `P000...G01`. Verify: `SELECT UID, COUNT(*) FROM tblCommonControlType_Signed WHERE UID='<your_uid>' GROUP BY UID` → phải trả về 1 row duy nhất |
+| `Incorrect syntax near 't'` / `Incorrect syntax near 'String'` khi build cache | Comment JavaScript `// can't` hoặc `// don't` làm đóng N-string T-SQL sớm | Viết `cannot`, `do not`, `will not` thay cho `can't`, `don't`, `won't` — xem §3.6 |
 
 ---
 
@@ -752,3 +777,4 @@ FROM tblHtmlScriptCache WHERE TableName='sp_X_html' AND LanguageID='VN';
 | Phân quyền (LoginID = 3) | [11_permissions.md](11_permissions.md) |
 | Cờ 3 nền tảng Desktop/Web/Mobile | [01_architecture.md](01_architecture.md) |
 | MCP query (đọc-only, TOP N, `OBJECT_DEFINITION`) | [CLAUDE.md Bước 3](../CLAUDE.md) |
+| Tối ưu hiệu năng SQL (DMV, index, execution plan) | [26_QueryOptimization.md](26_QueryOptimization.md) |
