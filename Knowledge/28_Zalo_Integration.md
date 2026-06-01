@@ -120,3 +120,37 @@ WHERE DATEDIFF(hh, z.LastSendSMS, att.AttTime) > 10;
 | `sp_CallAPIZalo` trả về trạng thái `haveLogout` | Tài khoản cá nhân tại LoginID chưa đăng nhập hoặc cookie bị hết hạn. | Thực hiện quét mã QR Zalo trên Portal để làm mới login session và cập nhật cột `LoginInfo` của bảng `tblZalo_User`. |
 | Gửi ảnh bị lỗi `ADODB Write FAILED` | Lỗi xảy ra khi convert dữ liệu Base64 sang nhị phân hoặc không thể khởi tạo OLE objects trên SQL Server. | Kiểm tra xem SQL Server đã được cấu hình cho phép OLE Automation chưa: `sp_configure 'Ole Automation Procedures', 1`. |
 | Tin nhắn gửi đi thành công nhưng khách hàng không nhận được ảnh | Kích thước ảnh truyền vào JSON `@MessageSendPath` không đúng (width/height = 0 hoặc null). | Đảm bảo điền đúng chiều rộng và chiều cao thực tế của ảnh trong chuỗi JSON. |
+
+---
+
+## 6. Menu Danh bạ Zalo (Giao diện 2 cột Web)
+
+Hệ thống cung cấp menu **Danh bạ Zalo** (`MnuHRS503`) hiển thị dưới nhánh menu **Nhân sự** (`MnuHRS000`), cho phép quản trị viên và các User được phân quyền tra cứu trực quan danh sách bạn bè và nhóm chat của các tài khoản Zalo cá nhân.
+
+### 6.1. Kiến trúc & Các Procedure liên quan
+- **Wrapper Procedure**: `sp_ZaloContactBook` (đọc cache HTML).
+- **Renderer Procedure**: `sp_ZaloContactBook_html` (sinh HTML/CSS/JS thuần theo layout Zalo Web).
+- **API Procedure**: `sp_ZaloContactBook_GetData` (cung cấp dữ liệu động).
+
+### 6.2. Cú pháp gọi API dữ liệu
+Thủ tục `sp_ZaloContactBook_GetData` hỗ trợ các Action sau:
+* **Lấy danh sách tài khoản Zalo cá nhân hoạt động**:
+  ```sql
+  EXEC dbo.sp_ZaloContactBook_GetData @Action = 'GET_ZALO_USERS';
+  ```
+* **Lấy danh sách bạn bè của một tài khoản Zalo**:
+  ```sql
+  EXEC dbo.sp_ZaloContactBook_GetData @Action = 'GET_FRIENDS', @ZaloLoginID = 23;
+  ```
+* **Lấy danh sách nhóm chat của một tài khoản Zalo**:
+  ```sql
+  EXEC dbo.sp_ZaloContactBook_GetData @Action = 'GET_GROUPS', @ZaloLoginID = 23;
+  ```
+* **Lấy chi tiết thành viên của một nhóm Zalo**:
+  ```sql
+  EXEC dbo.sp_ZaloContactBook_GetData @Action = 'GET_GROUP_MEMBERS', @ZaloLoginID = 23, @GroupId = '8158996882542150263';
+  ```
+
+### 6.3. Chi tiết giao diện & Tương thích
+- **Thiết kế**: Sử dụng layout 2 cột (sidebar bên trái hiển thị danh bạ phân tab Bạn bè/Nhóm và ô tìm kiếm; nội dung bên phải hiển thị chi tiết liên hệ/nhóm và danh sách thành viên).
+- **Quy chuẩn Style**: Thiết kế theo chuẩn **Paradise Style** (sử dụng các token màu hệ thống `var(--paradise-*)`), không sử dụng các control HPA Paradise, hỗ trợ tương thích Dark Mode toàn cục.
