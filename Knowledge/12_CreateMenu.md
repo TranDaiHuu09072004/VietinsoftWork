@@ -156,7 +156,7 @@ Tự sinh `MenuID` mới: lấy `MAX(số sau 6 ký tự)` trong nhóm + 1 (proc
 
 ### Phase 0 — Khảo sát thông tin (BẮT BUỘC, trước mọi phase khác)
 
-> ⚠️ **Khi user yêu cầu tạo menu mới, Agent PHẢI hỏi đủ 8 câu dưới đây trước khi tiến hành bất kỳ thao tác kỹ thuật nào.** Không được bỏ qua bước này.
+> ⚠️ **Khi user yêu cầu tạo menu mới, Agent PHẢI hỏi đủ 8 câu dưới đây trước khi tiến hành bất kỳ thao tác kỹ thuật nào.** Không được bỏ qua bước này. (bắt buộc)
 
 Agent cần khảo sát tuần tự các thông tin sau:
 
