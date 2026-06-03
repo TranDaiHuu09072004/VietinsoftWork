@@ -8,7 +8,7 @@
 
 ## ⚠️ QUY TẮC BẮT BUỘC
 
-1. **KHÔNG TỰ ĐOÁN.** Mọi chẩn đoán phải dựa trên DMV query thực tế từ MCP `Vietinsoft_ForTest`.
+1. **KHÔNG TỰ ĐOÁN.** Mọi chẩn đoán phải dựa trên DMV query thực tế từ MCP `mssql-vietinsoft`.
 2. **KHÔNG TỰ THỰC THI DDL/DML.** Agent chỉ tạo script, không chạy.
 3. **ĐÁNH GIÁ ĐỘ PHỨC TẠP.** Nếu procedure quá rối (nhiều tầng lồng, dynamic SQL phức tạp, multi-branch logic) → DỪNG, báo cáo "quá phức tạp, cần review manual".
 4. **GIẢI THÍCH RÕ RÀNG.** Mỗi script tối ưu phải kèm phân tích: vấn đề là gì, tại sao chọn giải pháp này, risk là gì.

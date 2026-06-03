@@ -63,7 +63,77 @@ SET QUOTED_IDENTIFIER ON;
 - Sử dụng mệnh đề `CREATE OR ALTER PROCEDURE` để đảm bảo script có thể chạy nhiều lần mà không gây lỗi hoặc xung đột.
 - Khi tạo các bảng tạm toàn cục (`##...`), phải kiểm tra sự tồn tại và xóa trước khi tạo.
 
-### Rule 6 — Cấm gọi `sp_UpdateMenuInUserRight` tự động
+### Rule 6a — Hạn chế tuyệt đối dùng kiểu `CHAR`, `NCHAR`, luôn dùng `VARCHAR` hoặc `NVARCHAR`
+
+- **KHÔNG dùng** kiểu `CHAR(n)`, `NCHAR(n)` cho bất kỳ tham số hay biến nào trong stored procedure.
+- **LUÔN dùng** `VARCHAR(n)` hoặc `NVARCHAR(n)`.
+- Lý do: `CHAR` tự động padding khoảng trắng cố định → dữ liệu khó kiểm soát, dễ gây lỗi so sánh chuỗi, JOIN sai, và khó debug.
+
+| ❌ Không dùng | ✅ Dùng |
+|---|---|
+| `@LanguageID CHAR(2)` | `@LanguageID VARCHAR(5)` |
+| `@Code CHAR(10)` | `@Code VARCHAR(10)` |
+
+> Mọi biến `@LanguageID` trong hệ thống luôn khai báo là `VARCHAR(5)`.
+
+### Rule 6b — Luôn dùng prefix `N` khi nối chuỗi Unicode trong T-SQL
+
+- **Trong T-SQL, mọi literal string nằm cạnh hoặc được nối với dữ liệu Unicode phải có prefix `N`.**
+- Thiếu `N` → SQL Server ép về codepage mặc định → ký tự tiếng Việt (ủ, ạ, ơ, ư...) thành `?`.
+- Sai lầm này thường gặp ở các string nhỏ như `';'`, `'";'` trong `SET @html = @html + ...`.
+
+| ❌ Sai | ✅ Đúng |
+|---|---|
+| `+ ';'` | `+ N';'` |
+| `+ '";'` | `+ N'";'` |
+| `ISNULL(@Account, '')` | `ISNULL(@Account, N'')` |
+
+> Lưu ý: `N'...'` là literal tĩnh — còn biến `NVARCHAR` đã có sẵn prefix, không cần thêm `N`.
+
+### Rule 6c — KHÔNG dùng `write_to_file`/`replace_in_file` cho HTML entity trong T-SQL
+
+- **Các entity như `&`, `<`, `>`, `"` trong file SQL bị decode tự động bởi IDE/VS Code khi dùng `write_to_file` hay `replace_in_file`.**
+- Hậu quả: JS không chạy, HTML render sai.
+- **Cách AN TOÀN:** Dùng Python script binary patch với hex escape (`\x26amp;`).
+
+```python
+# ✅ Đúng — dùng raw bytes
+raw.replace(b'.replace(/&/g,\x22&\x22)', b'.replace(/&/g,\x22\x26amp;\x22)')
+
+# ❌ Sai — entity bị decode thành literal '&'
+new_js = 'replace(/&/g,"&")'  # → file nhận được "&" thôi
+```
+
+> File tham khảo: `SQL script/LongKa/patch_escape.py` (binary mode, verified).
+
+### Rule 6d — Dropdown trong tree overflow phải dùng `position: fixed`
+
+- Khi tree container có `overflow-y: auto`, dropdown con dùng `position: absolute` sẽ bị cắt bởi overflow.
+- **LUÔN dùng `position: fixed` + `z-index` cao** cho dropdown portal trong tree.
+
+```css
+/* ❌ Sai */
+.scr699-chip-dropdown { position: absolute; top: 100%; left: 0; }
+
+/* ✅ Đúng */
+.scr699-chip-dropdown { position: fixed; top: 100%; left: 0; z-index: 1000; }
+```
+
+### Rule 6e — Chiến lược dấu nháy trong JS nhúng T-SQL
+
+- **String tĩnh** → dùng `"..."` (nháy kép) — an toàn trong `N'...'` T-SQL.
+- **querySelector có `data-*` hoặc attribute có quote** → dùng `` ` `` (backtick) — tránh quote lồng.
+- **Template HTML có `${}`** → dùng `` ` `` (backtick).
+
+| Trường hợp | Dùng | Ví dụ |
+|---|---|---|
+| String tĩnh không quote lồng | `"..."` | `document.getElementById("scr699Root")` |
+| querySelector có attribute value | `` `...` `` | `` root.querySelector(`.scr699-tab[data-mode="0"] span`) `` |
+| Template HTML | `` `...` `` | `` `<div class="node" data-id="${id}">` `` |
+
+> **Tuyệt đối KHÔNG dùng nháy đơn `'` trong JS nhúng T-SQL** — nháy đơn đóng `N'...'` sớm → lỗi syntax T-SQL.
+
+### Rule 6f — Cấm gọi `sp_UpdateMenuInUserRight` tự động
 - Khi đăng ký thủ tục mới với hệ thống menu, chỉ cấp quyền truy cập đầy đủ (`FullAccess='32'`) cho quản trị viên `LoginID = 3` (qua bảng `tblSC_Right_Stored`).
 - **Cấm gọi** `sp_UpdateMenuInUserRight` tự động trong script vì nó sẽ mở quyền truy cập cho toàn bộ người dùng trong hệ thống CSDL.
 
@@ -227,3 +297,38 @@ BEGIN
 END
 GO
 ```
+
+---
+
+## 8. Pre-Flight Checklist — Agent tự kiểm tra TRƯỚC KHI gửi code
+
+> ⚠️ **BẮT BUỘC chạy qua checklist này trước mỗi lần `attempt_completion`.**  
+> Mục tiêu: Agent tự phát hiện lỗi, không đợi user chỉ ra.
+
+### A. T-SQL / Stored Procedure
+
+- [ ] **Kiểu dữ liệu**: Mọi tham số/biến dùng `VARCHAR`/`NVARCHAR`, không `CHAR`. `@LanguageID` = `VARCHAR(5)`. (Rule 6a)
+- [ ] **Prefix `N`**: Mọi literal string nối với `+` trong `SET @html = @html + ...` có prefix `N`, kể cả string ngắn như `N';'`, `N'";'`. (Rule 6b)
+- [ ] **Không có `CHAR(2)`** nào trong toàn bộ file.
+
+### B. JavaScript nhúng T-SQL
+
+- [ ] **Không dùng nháy đơn `'`** trong JS code — nháy đơn đóng `N'...'` của T-SQL sớm. Dùng `"..."` cho string tĩnh, `` ` `` cho querySelector phức tạp. (Rule 6e)
+- [ ] **`escapeHtml` tồn tại và có đủ 4 entity**: `&` `<` `>` `"`. KHÔNG có literal `&` `<` `>` `"` trong thân hàm.
+- [ ] **`querySelector` có `data-*`** dùng backtick, VD: `` root.querySelector(`.tab[data-mode="0"] span`) `` — đảm bảo không quote lồng.
+- [ ] **`data-text` trong renderNode dùng `normalize(rawName)`** — normalize trên raw string, không trên escaped string.
+
+### C. Dropdown / UI
+
+- [ ] **Dropdown trong container có `overflow-y: auto`** → `position: fixed; z-index: 1000`. (Rule 6d)
+- [ ] **Singleton portal dropdown** — chỉ 1 dropdown instance cho toàn tree, không render inline trong mỗi node.
+
+### D. Logic
+
+- [ ] **Cascade trước, đếm sau**: `updateSelected()` gọi SAU `cascadeChildren()` / `cascadeCheckboxChildren()`.
+- [ ] **Tree load default collapsed**: `renderNode` không set `is-open` mặc định (chỉ add khi search match).
+- [ ] **Search word-based**: `normalize(query).split(/\s+/).every(w => text.indexOf(w) >= 0)`.
+
+### E. Knowledge
+
+- [ ] Hàm `normalize` dùng đúng chuẩn Paradise JS → tham khảo `22_UI_Helpers.md §3`.
