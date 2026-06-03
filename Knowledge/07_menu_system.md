@@ -133,7 +133,7 @@ Logic auto-sinh ID đọc từ source:
 
 Hiện tại, hệ thống Web Portal hỗ trợ **2 cơ chế** thiết lập và hiển thị menu HTML-rendered. Khi tạo hoặc cập nhật menu, **luôn ưu tiên sử dụng Cách 2**.
 
-#### Cách 1: WebView qua Mobile Engine (Legacy)
+#### Cách 1: WebView qua Mobile Engine (Legacy — vẫn dùng cho menu lâu đời, viết mới ưu tiên Cách 2)
 * **Các cờ trên `MEN_Menu`:** `IsWeb=0`, `ViewOnWeb=0`, `isShowLayOutWeb=0`, `IsUseMobileDevice=1`, `isShowInMobileLayOut=0` (hoặc con `1` parent `1`).
 * **Yêu cầu Metadata:** **BẮT BUỘC** cấu hình 3 bảng metadata đầy đủ:
   - `tblDataSetting`: 1 dòng (`TableName = <ClassName>`, `IsProcedure=1`, `IsShowLayout=1`, `ColumnDataType='html&ViewHtml'`, `ColumnOrderBy='html&0'`).
