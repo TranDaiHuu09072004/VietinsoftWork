@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ParadiseHR Database Graph Visualizer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0a0f1d;
+            --sidebar-bg: rgba(15, 23, 42, 0.75);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            
+            --color-table: #3b82f6;
+            --color-proc: #a855f7;
+            --color-func: #06b6d4;
+            --color-menu: #10b981;
+            --color-control: #f97316;
+            --color-view: #14b8a6;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+        }
+
+        #sidebar {
+            width: 400px;
+            background: var(--sidebar-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-right: 1px solid var(--glass-border);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 10;
+            box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 22px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #a855f7, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        #upload-zone {
+            border: 2px dashed rgba(168, 85, 247, 0.4);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            background: rgba(168, 85, 247, 0.03);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        #upload-zone:hover {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        #upload-zone p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-top: 8px;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .search-box {
+            position: relative;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 15px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        input[type="text"]:focus {
+            border-color: #a855f7;
+            box-shadow: 0 0 10px rgba(168, 85, 247, 0.2);
+        }
+
+        #details-panel {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 16px;
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .details-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 18px;
+            font-weight: 700;
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .badge {
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .badge-table { background: var(--color-table); color: #fff; }
+        .badge-proc { background: var(--color-proc); color: #fff; }
+        .badge-view { background: var(--color-view); color: #fff; }
+        .badge-func { background: var(--color-func); color: #fff; }
+        .badge-menu { background: var(--color-menu); color: #fff; }
+        .badge-control { background: var(--color-control); color: #fff; }
+
+        .property-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+        }
+
+        .property-label {
+            color: var(--text-secondary);
+        }
+
+        .property-value {
+            font-family: monospace;
+            word-break: break-all;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #a855f7, #3b82f6);
+            border: none;
+            color: #fff;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(168, 85, 247, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: none;
+        }
+
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+            height: 100%;
+        }
+
+        #network-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        #legend {
+            position: absolute;
+            bottom: 24px;
+            right: 24px;
+            background: var(--sidebar-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 5;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        #loader {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            z-index: 100;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(168, 85, 247, 0.1);
+            border-top-color: #a855f7;
+            border-radius: 50%;
+            animation: spin 1s infinite linear;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <div>
+            <h1>ParadiseHR Code Graph</h1>
+            <div class="subtitle">Trực quan hóa và suy luận thông tin từ Đồ thị Tri thức ParadiseHR. Tải lên tệp <code>db_graph.json</code> để bắt đầu.</div>
+        </div>
+
+        <div id="upload-zone" onclick="document.getElementById('file-input').click()">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <p><strong>Chọn tệp tin Graph</strong></p>
+            <span class="subtitle">Kéo thả db_graph.json vào đây</span>
+            <input type="file" id="file-input" accept=".json">
+        </div>
+
+        <div class="input-group">
+            <label for="search-input">Tìm kiếm thực thể</label>
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="Ví dụ: tblEmployee, sp_..." disabled>
+            </div>
+            <button id="search-btn" class="btn" disabled>Tìm kiếm</button>
+        </div>
+
+        <div class="input-group">
+            <label>Phóng to luồng phân tích</label>
+            <button id="reset-vis-btn" class="btn btn-secondary" style="display: none;">Hiển thị toàn bộ Đồ thị</button>
+        </div>
+
+        <div id="details-panel">
+            <div class="details-title">
+                <span id="node-name">tblEmployee</span>
+                <span id="node-badge" class="badge badge-table">Table</span>
+            </div>
+            <div id="properties-container"></div>
+            
+            <button id="btn-impact" class="btn">Phân tích ảnh hưởng (Impact Analysis)</button>
+            <button id="btn-flow" class="btn" style="background: linear-gradient(135deg, #10b981, #06b6d4); display: none;">Xem luồng Giao diện -> DB</button>
+        </div>
+    </div>
+
+    <div id="canvas-container">
+        <div id="loader">
+            <div class="spinner"></div>
+            <p>Đang tải đồ thị (có thể mất vài giây do dữ liệu lớn)...</p>
+        </div>
+        <div id="network-canvas"></div>
+
+        <div id="legend">
+            <div class="legend-item"><div class="legend-dot" style="background: var(--color-table);"></div>Table (Bảng)</div>
+            <div class="legend-item"><div class="legend-dot" style="background: var(--color-proc);"></div>StoredProcedure (Thủ tục)</div>
+            <div class="legend-item"><div class="legend-dot" style="background: var(--color-view);"></div>View</div>
+            <div class="legend-item"><div class="legend-dot" style="background: var(--color-func);"></div>Function (Hàm)</div>
+            <div class="legend-item"><div class="legend-dot" style="background: var(--color-menu);"></div>Menu (Màn hình)</div>
+            <div class="legend-item"><div class="legend-dot" style="background: var(--color-control);"></div>Control (UI Grid/Input)</div>
+        </div>
+    </div>
+
+    <script>
+        let network = null;
+        let allNodes = [];
+        let allEdges = [];
+        let networkData = { nodes: new vis.DataSet([]), edges: new vis.DataSet([]) };
+        
+        const fileInput = document.getElementById('file-input');
+        const uploadZone = document.getElementById('upload-zone');
+        const loader = document.getElementById('loader');
+        const searchInput = document.getElementById('search-input');
+        const searchBtn = document.getElementById('search-btn');
+        const detailsPanel = document.getElementById('details-panel');
+        const resetVisBtn = document.getElementById('reset-vis-btn');
+
+        const colorMapping = {
+            'Table': varColor('--color-table'),
+            'StoredProcedure': varColor('--color-proc'),
+            'View': varColor('--color-view'),
+            'Function': varColor('--color-func'),
+            'Menu': varColor('--color-menu'),
+            'Control': varColor('--color-control')
+        };
+
+        function varColor(name) {
+            return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        }
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.style.borderColor = '#3b82f6';
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.style.borderColor = 'rgba(168, 85, 247, 0.4)';
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.style.borderColor = 'rgba(168, 85, 247, 0.4)';
+            if (e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            loader.style.display = 'flex';
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    processGraphData(data);
+                } catch (e) {
+                    alert('Lỗi định dạng file JSON: ' + e.message);
+                    loader.style.display = 'none';
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function processGraphData(data) {
+            allNodes = data.nodes;
+            allEdges = data.edges;
+
+            searchInput.disabled = false;
+            searchBtn.disabled = false;
+            uploadZone.style.display = 'none';
+
+            renderNetwork(allNodes, allEdges);
+        }
+
+        function renderNetwork(nodesList, edgesList) {
+            loader.style.display = 'flex';
+            
+            const formattedNodes = nodesList.map(node => {
+                const color = colorMapping[node.label] || '#94a3b8';
+                return {
+                    id: node.id,
+                    label: node.name,
+                    title: `${node.label}: ${node.name}`,
+                    color: {
+                        background: color,
+                        border: color,
+                        highlight: {
+                            background: '#ffffff',
+                            border: '#ffffff'
+                        }
+                    },
+                    font: { color: '#f8fafc', face: 'Outfit' },
+                    shape: node.label === 'Menu' ? 'box' : 'dot',
+                    size: node.label === 'Table' ? 25 : 15,
+                    borderWidth: 2
+                };
+            });
+
+            const formattedEdges = edgesList.map((edge, idx) => {
+                return {
+                    id: `edge_${idx}`,
+                    from: edge.source,
+                    to: edge.target,
+                    arrows: 'to',
+                    color: { color: 'rgba(255, 255, 255, 0.15)', highlight: '#a855f7' },
+                    title: edge.type,
+                    smooth: { type: 'continuous' }
+                };
+            });
+
+            const container = document.getElementById('network-canvas');
+            
+            networkData.nodes.clear();
+            networkData.edges.clear();
+            networkData.nodes.add(formattedNodes);
+            networkData.edges.add(formattedEdges);
+
+            const options = {
+                nodes: {
+                    scaling: { min: 10, max: 30 }
+                },
+                edges: {
+                    width: 1.5,
+                    selectionWidth: 3
+                },
+                interaction: {
+                    hover: true,
+                    hideEdgesOnDrag: true,
+                    tooltipDelay: 200
+                },
+                physics: {
+                    enabled: false
+                }
+            };
+
+            network = new vis.Network(container, networkData, options);
+            loader.style.display = 'none';
+
+            network.on("selectNode", function (params) {
+                if (params.nodes.length > 0) {
+                    showNodeDetails(params.nodes[0]);
+                }
+            });
+        }
+
+        let selectedNodeId = null;
+
+        function showNodeDetails(nodeId) {
+            selectedNodeId = nodeId;
+            const node = allNodes.find(n => n.id === nodeId);
+            if (!node) return;
+
+            detailsPanel.style.display = 'flex';
+            document.getElementById('node-name').innerText = node.name;
+            
+            const badge = document.getElementById('node-badge');
+            badge.innerText = node.label;
+            badge.className = `badge badge-${node.label.toLowerCase()}`;
+
+            const container = document.getElementById('properties-container');
+            container.innerHTML = '';
+
+            for (const [k, v] of Object.entries(node.properties)) {
+                const row = document.createElement('div');
+                row.className = 'property-row';
+                row.innerHTML = `<span class="property-label">${k}</span><span class="property-value">${v}</span>`;
+                container.appendChild(row);
+            }
+
+            const btnFlow = document.getElementById('btn-flow');
+            if (node.label === 'Menu') {
+                btnFlow.style.display = 'block';
+            } else {
+                btnFlow.style.display = 'none';
+            }
+        }
+
+        searchBtn.addEventListener('click', performSearch);
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') performSearch();
+        });
+
+        function performSearch() {
+            const query = searchInput.value.trim().toLowerCase();
+            if (!query) return;
+
+            const matchedNode = allNodes.find(n => n.name.toLowerCase().includes(query) || n.id.toLowerCase() === query);
+            if (matchedNode) {
+                network.selectNodes([matchedNode.id]);
+                network.focus(matchedNode.id, { scale: 1.5, animation: true });
+                showNodeDetails(matchedNode.id);
+            } else {
+                alert('Không tìm thấy thực thể nào khớp với từ khóa!');
+            }
+        }
+
+        resetVisBtn.addEventListener('click', () => {
+            renderNetwork(allNodes, allEdges);
+            resetVisBtn.style.display = 'none';
+        });
+
+        document.getElementById('btn-impact').addEventListener('click', () => {
+            if (!selectedNodeId) return;
+
+            loader.style.display = 'flex';
+            resetVisBtn.style.display = 'block';
+
+            const subgraphNodes = new Set([selectedNodeId]);
+            const subgraphEdges = [];
+            
+            let currentHop = [selectedNodeId];
+            for (let hop = 0; hop < 3; hop++) {
+                const nextHop = [];
+                for (const nid of currentHop) {
+                    const incomingEdges = allEdges.filter(e => e.target === nid);
+                    for (const edge of incomingEdges) {
+                        if (!subgraphNodes.has(edge.source)) {
+                            subgraphNodes.add(edge.source);
+                            nextHop.push(edge.source);
+                        }
+                        subgraphEdges.push(edge);
+                    }
+                }
+                currentHop = nextHop;
+            }
+
+            const filteredNodes = allNodes.filter(n => subgraphNodes.has(n.id));
+            renderNetwork(filteredNodes, subgraphEdges);
+            network.setOptions({ physics: { enabled: true, barnesHut: { gravitationalConstant: -2000 } } });
+        });
+
+        document.getElementById('btn-flow').addEventListener('click', () => {
+            if (!selectedNodeId) return;
+            
+            loader.style.display = 'flex';
+            resetVisBtn.style.display = 'block';
+
+            const subgraphNodes = new Set([selectedNodeId]);
+            const subgraphEdges = [];
+
+            const rendererEdges = allEdges.filter(e => e.source === selectedNodeId && e.type === 'CALLS_RENDERER');
+            for (const rEdge of rendererEdges) {
+                subgraphNodes.add(rEdge.target);
+                subgraphEdges.push(rEdge);
+
+                const controlEdges = allEdges.filter(e => e.source === rEdge.target && (e.type === 'CONTAINS' || e.type === 'CALLS_API'));
+                for (const cEdge of controlEdges) {
+                    subgraphNodes.add(cEdge.target);
+                    subgraphEdges.push(cEdge);
+
+                    const editEdges = allEdges.filter(e => e.source === cEdge.target && e.type === 'EDIT_TARGET');
+                    for (const eEdge of editEdges) {
+                        subgraphNodes.add(eEdge.target);
+                        subgraphEdges.push(eEdge);
+                    }
+
+                    const apiProcEdges = allEdges.filter(e => e.source === cEdge.target && e.type === 'DEPENDS_ON');
+                    for (const apEdge of apiProcEdges) {
+                        subgraphNodes.add(apEdge.target);
+                        subgraphEdges.push(apEdge);
+                    }
+                }
+
+                const directProcEdges = allEdges.filter(e => e.source === rEdge.target && e.type === 'DEPENDS_ON');
+                for (const dpEdge of directProcEdges) {
+                    subgraphNodes.add(dpEdge.target);
+                    subgraphEdges.push(dpEdge);
+                }
+            }
+
+            const filteredNodes = allNodes.filter(n => subgraphNodes.has(n.id));
+            renderNetwork(filteredNodes, subgraphEdges);
+            network.setOptions({ physics: { enabled: true, barnesHut: { gravitationalConstant: -2000 } } });
+        });
+    </script>
+</body>
+</html>

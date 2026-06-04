@@ -26,3 +26,7 @@ node_modules/
 
 # SQL script folder
 SQL script/
+
+# Database Graph generated files
+Clients/db_graph.json
+Clients/import_graph.cypher
