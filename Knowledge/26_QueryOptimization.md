@@ -1,7 +1,15 @@
 # 26 — Query Optimization Reference
 
 Reference: [24_CreateStoredProcedure.md](24_CreateStoredProcedure.md) (Stored procedures).
-*Rules*: Never execute DDL/DML optimization scripts directly; write to `SQL script/` for user review. Limit Transaction blocks to prevent lock contention.
+
+## ⚠️ MANDATORY RULES
+1. **Never Guess**: Diagnostics must be based on actual DMV queries from MCP `mssql-vietinsoft`.
+2. **Read-Only**: Write optimization scripts to `SQL script/`; do not execute DDL/DML directly.
+3. **Complexity Assessment**: Stop and request manual review if the procedure has multiple levels of nesting, complex dynamic SQL, or convoluted branching.
+4. **Explicit Rationale**: Every optimization script must explain: the issue, the solution, and any associated risks.
+5. **No Transactions**: Avoid `BEGIN TRANSACTION` blocks to prevent lock contention and conflicts with C# caller logic. Scripts must be idempotent.
+6. **Backward Compatibility**: Ensure SQL queries are compatible with SQL Server 2008 through 2022.
+7. **WITH (NOLOCK)**: Use `WITH (NOLOCK)` in read operations on highly concurrent tables to reduce lock contention.
 
 ---
 

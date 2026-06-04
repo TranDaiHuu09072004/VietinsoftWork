@@ -1,26 +1,27 @@
-# CLAUDE.md — Quy tắc bắt buộc khi làm việc với dự án Vietinsoft (ParadiseHR)
+# CLAUDE.md — Bridge file cho dự án Vietinsoft (ParadiseHR)
 
 > File này được Claude Code tự load mỗi session. **MỌI QUY TẮC TRONG FILE NÀY ĐỀU LÀ BẮT BUỘC.** Không có loại trừ nào, không có "ưu tiên", không có "thường thường" — chỉ có TUÂN THỦ.
+> BẮT BUỘC đọc [UserProfile.md](UserProfile.md) trước mỗi session để nạp ngữ cảnh người dùng (cách xưng hô, xưng "em" gọi "anh").
 
 ---
 
-## ⚠️ QUY TẮC TỐI QUAN TRỌNG (CRITICAL RULES) ⚠️
+## Cline-Specific Mappings
 
-Đây là các quy tắc **không bao giờ được vi phạm** dưới bất kỳ hoàn cảnh nào:
+### MCP Server Name
 
-1. **BẮT BUỘC HIỂU ĐÚNG YÊU CẦU TRƯỚC KHI LÀM.** Mỗi khi nhận câu hỏi hoặc yêu cầu từ người dùng, Agent phải đảm bảo chắc chắn đã hiểu đúng ý đồ của họ. Nếu có bất kỳ thông tin nào còn mơ hồ, chưa rõ ràng hoặc câu hỏi quá ngắn không đủ thông tin ngữ cảnh để hiểu rõ yêu cầu, Agent **bắt buộc phải hỏi lại hoặc phỏng vấn người dùng** để làm rõ trước khi bắt tay vào việc. Tuyệt đối không tự suy đoán ý đồ của người dùng.
+| Trong rules | Trong Cline |
+|---|---|
+| `mssql-vietinsoft` | `Vietinsoft_ForTest` |
 
-2. **TUYỆT ĐỐI KHÔNG TỰ SUY ĐOÁN.** Không bao giờ giả định cấu trúc bảng, tên cột, kiểu dữ liệu, mối quan hệ, quy tắc nghiệp vụ, công thức tính toán, hay hành vi của hệ thống. Mọi thông tin đều phải lấy từ nguồn xác thực.
+### Tool Name Mapping
 
-3. **MỌI CÂU TRẢ LỜI PHẢI CÓ CHỨNG CỨ XÁC THỰC (CONCRETE EVIDENCE).** Chứng cứ chấp nhận được:
-   - Nội dung trích trực tiếp từ **các file Knowledge** trong [Knowledge/](Knowledge/) (đã xác minh ở các session trước).
-   - Kết quả query trực tiếp từ MCP `mssql-vietinsoft` (schema, data, source của procedure/view).
-   - Nội dung trích từ file source trong repo (đọc qua `Read`/`Grep`).
-   - Phát biểu rõ ràng của user trong session hiện tại.
+| Trong rules | Trong Cline |
+|---|---|
+| `Read` | `read_file` |
+| `Grep` | `search_files` |
+| `read_query` | `execute_query` (qua `use_mcp_tool`) |
 
-4. **KHÔNG ĐƯA RA KẾT LUẬN VỘI VÃ.** Nếu chứng cứ chưa đủ, không được "đoán cho hợp lý". Phải:
-   - Hoặc tiếp tục tra cứu để có chứng cứ.
-   - Hoặc nói rõ với user: *"Không tìm thấy thông tin xác thực trong Knowledge và DB. Xin user cung cấp thêm chỉ dẫn / xác nhận."*
+### MCP Safety Rules (Cline-specific)
 
 5. **KHÔNG VIẾT/SỬA/XOÁ DỮ LIỆU DB KHI CHƯA ĐƯỢC USER YÊU CẦU RÕ RÀNG TRONG TURN HIỆN TẠI.** Mặc định chỉ dùng tool đọc. Permission một lần không đồng nghĩa permission vĩnh viễn.
 

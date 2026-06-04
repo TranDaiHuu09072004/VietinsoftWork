@@ -101,10 +101,15 @@ EXEC dbo.sp_s_CreateMenu
 ### 2 cơ chế hiển thị menu HTML-rendered
 1. **WebView qua Mobile Engine (Legacy)**:
    * **Cấu hình cờ**: `IsWeb=0`, `ViewOnWeb=0`, `IsUseMobileDevice=1`, `isShowInMobileLayOut=0`.
-   * **Yêu cầu**: Cấu hình đủ 3 bảng: `tblDataSetting`, `tblDataSettingLayout` (1 row `root` + 1 row `lblhtml` trỏ tới `ParadiseWebView2`), và `tblHtmlScriptCache`.
+   * **Yêu cầu**: Cấu hình đủ 3 bảng:
+     - `tblDataSetting`: 1 dòng (`TableName = <ClassName>`, `IsProcedure=1`, `IsShowLayout=1`, `ColumnDataType='html&ViewHtml'`, `ColumnOrderBy='html&0'`).
+     - `tblDataSettingLayout`: 2 dòng (`root` container + item `lblhtml` trỏ tới `ControlType='ParadiseWebView2'`).
+     - `tblHtmlScriptCache`: HTML/CSS/JS cache.
+   * **Ví dụ**: `MnuKPI007`, `MnuTM022`, `MnuWPT037`.
 2. **Pure HTML Render (Hiện đại - KHUYẾN NGHỊ)**:
    * **Cấu hình cờ**: `IsWeb=1`, `isShowLayOutWeb=1`, `IsUseMobileDevice=0`, `isShowInMobileLayOut=0`.
    * **Yêu cầu**: Chỉ cần cache HTML trong `tblHtmlScriptCache`. Bỏ qua cấu hình `tblDataSetting` và `tblDataSettingLayout`. Hệ thống tự động chạy ClassName (procedure wrapper) và lấy kết quả cột `html` để render thẳng.
+   * **Ví dụ**: `MnuAT009`, `MnuSCR605`, `MnuSCR010`.
 
 ---
 
