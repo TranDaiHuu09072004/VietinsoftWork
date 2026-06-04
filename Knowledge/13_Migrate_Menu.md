@@ -13,16 +13,18 @@
 * **Refresh**: Chỉ gọi `EXEC sp_Men_Menu_AfterSave_Simple @ClassName = N'<ClassName>'`.
 
 ### Rule 2 — Cờ Menu HTML-rendered
-Copy chính xác từ DB nguồn, tránh tự ý thay đổi cờ. Cờ chuẩn: `IsWeb = 0, ViewOnWeb = 0, isShowLayOutWeb = 0/1, isShowInMobileLayOut = 0, IsUseMobileDevice = 1`.
+Copy chính xác từ DB nguồn.
+* **Cách 1: Pure HTML Render (Khuyến nghị)**: `IsWeb = 1`, `ViewOnWeb = 1` hoặc `0`, `isShowLayOutWeb = 1/0`, `IsUseMobileDevice = 0`.
+* **Cách 2: WebView (Legacy)**: `IsWeb = 0`, `ViewOnWeb = 0`, `IsUseMobileDevice = 1`.
 
 ### Rule 3 — Parent Menu
 Kiểm tra xem parent menu có `IsVisible = 1` ở DB đích không. Tránh `MnuHEP000`.
 
-### Rule 4 — Bắt buộc di chuyển Metadata
-Bên cạnh các stored procedure, script di chuyển phải bao gồm dữ liệu cấu hình trong các bảng:
-* `tblDataSetting` (bản ghi cấu hình của ClassName).
-* `tblDataSettingLayout` (bản ghi layout root + lblhtml).
-* `tblCommonControlType_Signed` (nếu là menu config-driven, kèm theo chạy SP DUC).
+### Rule 4 — Di chuyển Metadata phù hợp với cơ chế chọn
+Bên cạnh stored procedure, script di chuyển phải bao gồm dữ liệu cấu hình:
+* **Nếu chọn Cách 1 (Pure HTML)**: Không cần di chuyển `tblDataSetting` hay `tblDataSettingLayout`.
+* **Nếu chọn Cách 2 (WebView)**: Bắt buộc di chuyển các bản ghi tương ứng trong `tblDataSetting` và `tblDataSettingLayout`.
+* *Chung*: Di chuyển `tblCommonControlType_Signed` (nếu dùng config-driven) và gán quyền `tblSC_Right_Stored`.
 
 ### Rule 5 — Renderer an toàn
 Tuân thủ [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md). Cache phải được build bằng `sp_GenerateHTMLScript` (CẤM insert cache thủ công).
@@ -125,10 +127,10 @@ BEGIN TRY
     DECLARE @AssemblyName varchar(100) = 'DataSetting';
     DECLARE @ObjectName varchar(200) = @AssemblyName + '.' + @ClassName;
 
-    -- A. Thêm hoặc cập nhật MEN_Menu
+    -- A. Thêm hoặc cập nhật MEN_Menu (Mặc định chọn Pure HTML Render)
     IF NOT EXISTS (SELECT 1 FROM MEN_Menu WHERE MenuID = @MenuID)
         INSERT INTO MEN_Menu (MenuID, ClassName, AssemblyName, ParentMenuID, Priority, IsVisible, IsWeb, ViewOnWeb, isShowLayOutWeb, IsUseMobileDevice, isShowInMobileLayOut, glyphicon, GroupID)
-        VALUES (@MenuID, @ClassName, @AssemblyName, 'MnuPARENT', 99, 1, 0, 0, 0, 1, 0, 'Info', 'MnuPARENT');
+        VALUES (@MenuID, @ClassName, @AssemblyName, 'MnuPARENT', 99, 1, 1, 1, 1, 0, 0, 'Info', 'MnuPARENT'); -- Pure HTML: IsWeb=1, isShowLayOutWeb=1, IsUseMobileDevice=0
     ELSE
         UPDATE MEN_Menu SET ClassName=@ClassName, AssemblyName=@AssemblyName, IsVisible=1 WHERE MenuID=@MenuID;
 
@@ -143,7 +145,19 @@ BEGIN TRY
     EXEC dbo.[1rename_Mess] @MenuID, 'VN', N'Tên tiếng Việt';
     EXEC dbo.[1rename_Mess] @MenuID, 'EN', 'Tên tiếng Anh';
 
-    -- D. Cấu hình tblDataSetting và Layout (Xem Rule 4)
+    -- D. Cấu hình tblDataSetting và Layout (Chỉ cần nếu dùng Legacy WebView - Bỏ qua ở Pure HTML)
+    /*
+    IF NOT EXISTS (SELECT 1 FROM tblDataSetting WHERE TableName = @ClassName)
+        INSERT INTO tblDataSetting (TableName, IsProcedure, IsShowLayout, ColumnDataType, ColumnOrderBy)
+        VALUES (@ClassName, 1, 1, 'html&ViewHtml', 'html&0');
+    
+    IF NOT EXISTS (SELECT 1 FROM tblDataSettingLayout WHERE TableName = @ClassName)
+    BEGIN
+        INSERT INTO tblDataSettingLayout (TableName, ControlName, ControlType, ParentControlName)
+        VALUES (@ClassName, 'root', 'Container', NULL),
+               (@ClassName, 'lblhtml', 'ParadiseWebView2', 'root');
+    END
+    */
     -- E. Cấp quyền duy nhất cho LoginID = 3
     IF NOT EXISTS (SELECT 1 FROM tblSC_Right_Stored WHERE ObjectID=@ObjectID AND LoginID=3)
         INSERT INTO tblSC_Right_Stored (ObjectID, LoginID, FullAccess) VALUES (@ObjectID, 3, '32');

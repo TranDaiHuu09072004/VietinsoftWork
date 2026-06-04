@@ -12,22 +12,24 @@
 * **CẤM** gọi `sp_UpdateMenuInUserRight` trong script tự động (sẽ cấp quyền tràn lan cho mọi user).
 * **Refresh**: Chỉ gọi `EXEC sp_Men_Menu_AfterSave_Simple @ClassName = N'<ClassName>'`.
 
-### Rule 2 — Cấu hình cờ `MEN_Menu` bắt buộc
-* `IsVisible = 1`
-* `IsWeb = 0` (Bỏ qua engine cũ)
-* `ViewOnWeb = 0`
-* `IsUseMobileDevice = 1` (Bắt buộc cho cả Web HTML-rendered và Mobile)
-* `isShowInMobileLayOut = 0` (Ẩn khỏi menu di động nếu chỉ chạy Web)
-* `isShowLayOutWeb = 1` (Ẩn khỏi tìm kiếm menu) hoặc `0` (Hiện)
-* `isLeftMenu = 0` (Hiện menubar) hoặc `1` (Ẩn)
+### Rule 2 — Cấu hình cờ `MEN_Menu` (Chọn 1 trong 2 cách hiển thị)
+* **Cách 1: Pure HTML Render (Hiện đại - KHUYẾN NGHỊ)**:
+  * `IsWeb = 1`, `ViewOnWeb = 1` hoặc `0`, `isShowLayOutWeb = 1` (hoặc `0` để hiện trên menu/search).
+  * `IsUseMobileDevice = 0`, `isShowInMobileLayOut = 0`.
+* **Cách 2: WebView qua Mobile Engine (Legacy)**:
+  * `IsWeb = 0`, `ViewOnWeb = 0`, `isShowLayOutWeb = 0`.
+  * `IsUseMobileDevice = 1`, `isShowInMobileLayOut = 0`.
+* *Chung*: `IsVisible = 1` (bắt buộc).
 
 ### Rule 3 — Parent Menu
 Phải có `IsVisible = 1`. Tránh chọn `MnuHEP000` (Trợ giúp - mặc định ẩn). Các parent an toàn: `MnuKPI000`, `MnuTM000`, `MnuWPT000`, `MnuHRS000`, `MnuPRL000`, `MnuTAD000`...
 
-### Rule 4 — Đầy đủ Metadata (Tránh màn hình trắng)
-* **`tblDataSetting`**: 1 dòng (`TableName = <ClassName>`, `IsProcedure = 1`, `IsShowLayout = 1`, `ColumnDataType = 'html&ViewHtml'`, `ColumnOrderBy = 'html&0'`).
-* **`tblDataSettingLayout`**: 2 dòng (`root` container và item `lblhtml` trỏ tới `ControlType = 'ParadiseWebView2'`).
-* **`tblHtmlScriptCache`**: Chứa cache HTML/CSS/JS.
+### Rule 4 — Cấu hình Metadata (Tránh màn hình trắng)
+* **Nếu chọn Cách 1 (Pure HTML)**: Chỉ cần lưu trữ cache HTML trong `tblHtmlScriptCache`. Không cần cấu hình `tblDataSetting` hay `tblDataSettingLayout`.
+* **Nếu chọn Cách 2 (WebView)**: Bắt buộc cấu hình đủ:
+  * `tblDataSetting`: 1 dòng (`TableName = <ClassName>`, `IsProcedure = 1`, `IsShowLayout = 1`, `ColumnDataType = 'html&ViewHtml'`, `ColumnOrderBy = 'html&0'`).
+  * `tblDataSettingLayout`: 2 dòng (`root` container và item `lblhtml` trỏ tới `ControlType = 'ParadiseWebView2'`).
+  * `tblHtmlScriptCache`: Chứa cache HTML/CSS/JS.
 
 ### Rule 5 — Renderer an toàn
 Mã nguồn renderer `<class>_html` phải tuân thủ [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md).
