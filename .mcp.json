@@ -1,19 +1,5 @@
 {
   "mcpServers": {
-    "mssql-vietinsoft": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@bilims/mcp-sqlserver"
-      ],
-      "env": {
-        "SQLSERVER_HOST": "${MSSQL_SERVER}",
-        "SQLSERVER_PORT": "${MSSQL_PORT}",
-        "SQLSERVER_USER": "${MSSQL_USER}",
-        "SQLSERVER_PASSWORD": "${MSSQL_PASSWORD}",
-        "SQLSERVER_DATABASE": "${MSSQL_DATABASE}"
-      }
-    },
     "Paradise_Dev": {
       "command": "npx",
       "args": [
@@ -57,6 +43,12 @@
         "SQLSERVER_PASSWORD": "LuaThieng1@3@2020",
         "SQLSERVER_DATABASE": "Paradise_STVN_Test"
       }
+    },
+    "local-graph": {
+      "command": "python",
+      "args": [
+        "Clients/mcp_graph_server.py"
+      ]
     }
   }
 }

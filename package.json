@@ -1,0 +1,16 @@
+{
+  "name": "vietinsoft-work",
+  "version": "1.0.0",
+  "description": "Vietinsoft Workspace Automation Tools",
+  "main": "index.js",
+  "scripts": {
+    "browser-inspect": "node scratch/browser_inspect.js",
+    "browser-login": "node scratch/browser_interactive.js"
+  },
+  "dependencies": {
+    "playwright": "^1.60.0"
+  },
+  "devDependencies": {
+    "ws": "^8.21.0"
+  }
+}

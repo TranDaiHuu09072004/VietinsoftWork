@@ -57,7 +57,24 @@
       "Bash(sqlcmd -S \"192.168.11.51,2222\" -U \"vts.sa\" -P \"LuaThieng1@3@2020\" -d \"Paradise_Dev\" -I -x -Q \"DELETE FROM dbo.tblHtmlScriptCache WHERE TableName='sp_LeadTrackingForMarketing'; EXEC dbo.sp_GenerateHTMLScript 'sp_LeadTrackingForMarketing_html';\")",
       "Bash(sqlcmd -S \"192.168.11.51,2222\" -U \"vts.sa\" -P \"LuaThieng1@3@2020\" -d \"Paradise_Dev\" -I -x -Q \"EXEC dbo.sp_Men_Menu_AfterSave_Simple @ClassName=N'sp_LeadTrackingForMarketing';\")",
       "Bash(gridElement)",
-      "Bash(\\\\\".datepicker-lead\\\\\")"
+      "Bash(\\\\\".datepicker-lead\\\\\")",
+      "Bash(cmd.exe /c start https://id.zalo.me/)",
+      "WebFetch(domain:id.zalo.me)",
+      "Bash(powershell -Command \"Start-Process 'https://id.zalo.me/'\")",
+      "Bash(explorer.exe \"https://id.zalo.me/\")",
+      "WebFetch(domain:stc-zlogin.zdn.vn)",
+      "WebSearch",
+      "WebFetch(domain:chat.zalo.me)",
+      "Bash(start https://chat.zalo.me/)",
+      "Bash(where msedge *)",
+      "Bash(reg query *)",
+      "Read(//c/Program Files \\(x86\\)/Microsoft/Edge/Application/**)",
+      "Read(//c/Program Files/Microsoft/Edge/Application/**)",
+      "Bash(taskkill /F /IM msedge.exe)",
+      "Bash(mkdir -p __TRACKED_VAR__/edge-debug-profile)",
+      "Bash(curl -s http://localhost:9222/json)",
+      "Bash(python3 -c ' *)",
+      "Bash(node .claude/cdp_read_zalo.mjs)"
     ],
     "additionalDirectories": [
       "\\tmp"
