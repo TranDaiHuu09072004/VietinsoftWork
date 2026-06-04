@@ -154,113 +154,123 @@ def extract_graph():
 
     # 6. Extract Menus
     print("Extracting menus...")
-    # Check if NotUsePlatform column exists in MEN_Menu (safeguard for older/different client DB schemas)
-    cursor.execute("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'MEN_Menu'")
-    menu_columns = [r[0].lower() for r in cursor.fetchall()]
-    has_not_use_platform = "notuseplatform" in menu_columns
+    cursor.execute("SELECT OBJECT_ID('dbo.MEN_Menu')")
+    has_menu_table = cursor.fetchone()[0] is not None
+    if not has_menu_table:
+        print("Warning: Table MEN_Menu does not exist, skipping menu extraction.")
+    else:
+        # Check if NotUsePlatform column exists in MEN_Menu (safeguard for older/different client DB schemas)
+        cursor.execute("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'MEN_Menu'")
+        menu_columns = [r[0].lower() for r in cursor.fetchall()]
+        has_not_use_platform = "notuseplatform" in menu_columns
 
-    sql_menu = """
-        SELECT 
-            MenuID,
-            ClassName,
-            IsWeb,
-            IsUseMobileDevice
-    """
-    if has_not_use_platform:
-        sql_menu += ", NotUsePlatform"
-    sql_menu += " FROM MEN_Menu"
-
-    cursor.execute(sql_menu)
-    for row in cursor.fetchall():
-        menu_id = row[0]
-        class_name = row[1]
-        is_web = bool(row[2])
-        is_mobile = bool(row[3])
-        not_use_platform = row[4] if has_not_use_platform else None
-        
-        nodes[f"menu:{menu_id.lower()}"] = {
-            "id": f"menu:{menu_id.lower()}",
-            "label": "Menu",
-            "name": menu_id,
-            "properties": {
-                "class_name": class_name,
-                "is_web": is_web,
-                "is_mobile": is_mobile,
-                "not_use_platform": not_use_platform
-            }
-        }
-        
-        if class_name:
-            proc_key = f"proc:{class_name.lower()}"
-            if proc_key in nodes:
-                edges.append({
-                    "source": f"menu:{menu_id.lower()}",
-                    "target": proc_key,
-                    "type": "CALLS_RENDERER",
-                    "properties": {}
-                })
-
-    # 7. Extract Controls
-    print("Extracting controls...")
-    try:
-        cursor.execute("""
+        sql_menu = """
             SELECT 
-                TableName,
-                ColumnName,
-                [Type],
-                TableEditor,
-                DisplayName
-            FROM tblCommonControlType_Signed
-            WHERE TableName IS NOT NULL AND ColumnName IS NOT NULL
-        """)
+                MenuID,
+                ClassName,
+                IsWeb,
+                IsUseMobileDevice
+        """
+        if has_not_use_platform:
+            sql_menu += ", NotUsePlatform"
+        sql_menu += " FROM MEN_Menu"
+
+        cursor.execute(sql_menu)
         for row in cursor.fetchall():
-            table_name = row[0]
-            col_name = row[1]
-            ctrl_type = row[2]
-            table_editor = row[3]
-            display_name = row[4]
+            menu_id = row[0]
+            class_name = row[1]
+            is_web = bool(row[2])
+            is_mobile = bool(row[3])
+            not_use_platform = row[4] if has_not_use_platform else None
             
-            ctrl_id = f"control:{table_name.lower()}:{col_name.lower()}"
-            nodes[ctrl_id] = {
-                "id": ctrl_id,
-                "label": "Control",
-                "name": col_name,
+            nodes[f"menu:{menu_id.lower()}"] = {
+                "id": f"menu:{menu_id.lower()}",
+                "label": "Menu",
+                "name": menu_id,
                 "properties": {
-                    "control_type": ctrl_type,
-                    "table_editor": table_editor,
-                    "display_name": display_name
+                    "class_name": class_name,
+                    "is_web": is_web,
+                    "is_mobile": is_mobile,
+                    "not_use_platform": not_use_platform
                 }
             }
             
-            parent_proc = f"proc:{table_name.lower()}"
-            parent_table = f"table:{table_name.lower()}"
-            
-            if parent_proc in nodes:
-                edges.append({
-                    "source": parent_proc,
-                    "target": ctrl_id,
-                    "type": "CONTAINS",
-                    "properties": {}
-                })
-            elif parent_table in nodes:
-                edges.append({
-                    "source": parent_table,
-                    "target": ctrl_id,
-                    "type": "CONTAINS",
-                    "properties": {}
-                })
-                
-            if table_editor:
-                target_table = f"table:{table_editor.lower()}"
-                if target_table in nodes:
+            if class_name:
+                proc_key = f"proc:{class_name.lower()}"
+                if proc_key in nodes:
                     edges.append({
-                        "source": ctrl_id,
-                        "target": target_table,
-                        "type": "EDIT_TARGET",
+                        "source": f"menu:{menu_id.lower()}",
+                        "target": proc_key,
+                        "type": "CALLS_RENDERER",
                         "properties": {}
                     })
-    except Exception as e:
-        print(f"Warning: Could not extract controls from tblCommonControlType_Signed: {e}")
+
+    # 7. Extract Controls
+    print("Extracting controls...")
+    cursor.execute("SELECT OBJECT_ID('dbo.tblCommonControlType_Signed')")
+    has_controls_table = cursor.fetchone()[0] is not None
+    if not has_controls_table:
+        print("Warning: Table tblCommonControlType_Signed does not exist, skipping controls extraction.")
+    else:
+        try:
+            cursor.execute("""
+                SELECT 
+                    TableName,
+                    ColumnName,
+                    [Type],
+                    TableEditor,
+                    DisplayName
+                FROM tblCommonControlType_Signed
+                WHERE TableName IS NOT NULL AND ColumnName IS NOT NULL
+            """)
+            for row in cursor.fetchall():
+                table_name = row[0]
+                col_name = row[1]
+                ctrl_type = row[2]
+                table_editor = row[3]
+                display_name = row[4]
+                
+                ctrl_id = f"control:{table_name.lower()}:{col_name.lower()}"
+                nodes[ctrl_id] = {
+                    "id": ctrl_id,
+                    "label": "Control",
+                    "name": col_name,
+                    "properties": {
+                        "control_type": ctrl_type,
+                        "table_editor": table_editor,
+                        "display_name": display_name
+                    }
+                }
+                
+                parent_proc = f"proc:{table_name.lower()}"
+                parent_table = f"table:{table_name.lower()}"
+                
+                if parent_proc in nodes:
+                    edges.append({
+                        "source": parent_proc,
+                        "target": ctrl_id,
+                        "type": "CONTAINS",
+                        "properties": {}
+                    })
+                elif parent_table in nodes:
+                    edges.append({
+                        "source": parent_table,
+                        "target": ctrl_id,
+                        "type": "CONTAINS",
+                        "properties": {}
+                    })
+                    
+                if table_editor:
+                    target_table = f"table:{table_editor.lower()}"
+                    if target_table in nodes:
+                        edges.append({
+                            "source": ctrl_id,
+                            "target": target_table,
+                            "type": "EDIT_TARGET",
+                            "properties": {}
+                        })
+        except Exception as e:
+            print(f"Warning: Could not extract controls from tblCommonControlType_Signed: {e}")
 
     # 8. Extract JS dependencies (SPA Routing & API Calls) from HTML renderers
     print("Extracting JS dependencies (SPA Routing & API Calls) from HTML renderers...")
