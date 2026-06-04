@@ -140,6 +140,10 @@ def setup_client_workspace(client_name):
             "local-graph": {
                 "command": "python",
                 "args": ["Clients/mcp_graph_server.py"]
+            },
+            "local-debugger": {
+                "command": "python",
+                "args": ["Clients/mcp_db_debugger.py"]
             }
         }
     }
