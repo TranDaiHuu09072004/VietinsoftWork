@@ -154,21 +154,29 @@ def extract_graph():
 
     # 6. Extract Menus
     print("Extracting menus...")
-    cursor.execute("""
+    # Check if NotUsePlatform column exists in MEN_Menu (safeguard for older/different client DB schemas)
+    cursor.execute("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'MEN_Menu'")
+    menu_columns = [r[0].lower() for r in cursor.fetchall()]
+    has_not_use_platform = "notuseplatform" in menu_columns
+
+    sql_menu = """
         SELECT 
             MenuID,
             ClassName,
             IsWeb,
-            IsUseMobileDevice,
-            NotUsePlatform
-        FROM MEN_Menu
-    """)
+            IsUseMobileDevice
+    """
+    if has_not_use_platform:
+        sql_menu += ", NotUsePlatform"
+    sql_menu += " FROM MEN_Menu"
+
+    cursor.execute(sql_menu)
     for row in cursor.fetchall():
         menu_id = row[0]
         class_name = row[1]
         is_web = bool(row[2])
         is_mobile = bool(row[3])
-        not_use_platform = row[4]
+        not_use_platform = row[4] if has_not_use_platform else None
         
         nodes[f"menu:{menu_id.lower()}"] = {
             "id": f"menu:{menu_id.lower()}",
