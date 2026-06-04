@@ -30,7 +30,7 @@ All components referencing Zalo OA (Official Account API, follower tracking, aut
 ## 3. Idempotent Cleanup SQL Template
 Place cleanup script in `SQL script/cleanup_obsolete_menu_aspx.sql`:
 ```sql
-USE [DatabaseName];
+SET NOCOUNT ON; SET XACT_ABORT ON;
 GO
 BEGIN TRY
     BEGIN TRANSACTION;
