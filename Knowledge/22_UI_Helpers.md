@@ -1,59 +1,33 @@
----
-name: ui-helpers
-description: >
-  Các hàm tiện ích giao diện chung (UI Helpers) của hệ thống Paradise: showAlert, showConfirmPopup.
-  Sử dụng khi cần hiển thị thông báo thành công/lỗi hoặc hộp thoại xác nhận đồng ý/hủy bỏ.
----
+# 22 — Global UI Helpers Reference
 
-# Paradise UI Helpers
+Reference: [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md) (Script integration), [14_ParadiseStyle.md](14_ParadiseStyle.md) (Visuals).
 
-> File này tài liệu hóa các hàm JS tiện ích toàn cục (Global UI Helpers) được tích hợp sẵn trong hệ thống Paradise để hiển thị thông báo alert hoặc popup xác nhận.
+Use these global JavaScript UI helpers to display notifications or prompt for confirmation dialogs.
 
----
-
-## 1. Hiển thị thông báo nhanh (`uiManager.showAlert`)
-
-Sử dụng để hiển thị các toast notification thông báo kết quả hành động hoặc cảnh báo nhập liệu cho người dùng.
-
-### Cú pháp
+## 1. Toast Notification Alerts (`uiManager.showAlert`)
+Displays standard toast notifications.
 ```javascript
 uiManager.showAlert({
-    type: "warning", // Các loại hỗ trợ: "success", "error", "warning" (hoặc "danger")
-    message: "Nội dung thông báo cần hiển thị"
+    type: "success", // Options: "success" (green), "warning" (yellow), "error" / "danger" (red)
+    message: "Action completed successfully."
 });
 ```
 
-### Chi tiết các loại Alert Type:
-- **`success`**: Sử dụng khi thao tác thành công (ví dụ: *"Lưu thành công!"*, *"Xóa thành công!"*).
-- **`warning`**: Sử dụng khi cảnh báo validate dữ liệu (ví dụ: *"Vui lòng nhập Mã nhân viên và chọn ít nhất 1 nhóm phân quyền!"*).
-- **`error` / `danger`**: Sử dụng khi gặp sự cố, lỗi kết nối hoặc lưu thất bại (ví dụ: *"Không thể kết nối đến máy chủ!"*).
-
----
-
-## 2. Hộp thoại xác nhận (`showConfirmPopup`)
-
-Sử dụng khi cần người dùng xác nhận lại trước khi thực hiện các hành động nguy hiểm hoặc không thể hoàn tác (như xóa dữ liệu, hủy bỏ tài liệu).
-
-### Cú pháp
+## 2. Confirmation Popup Dialogs (`showConfirmPopup`)
+Triggers a modal dialog to confirm actions that cannot be undone. Always wrap with a safety type-check to prevent runtime errors on legacy runtimes.
 ```javascript
 if (typeof showConfirmPopup === "function") {
     showConfirmPopup({
-        title: "Tiêu đề popup?",
-        message: "Nội dung câu hỏi xác nhận?",
-        YesText: "Nút Đồng ý", // Ví dụ: "Xóa", "Đồng ý"
-        NoText: "Nút Hủy bỏ",   // Ví dụ: "Hủy", "Quay lại"
-
+        title: "Delete Record?",
+        message: "Are you sure you want to permanently delete this item?",
+        YesText: "Delete",
+        NoText: "Cancel",
         onYes: () => {
-            console.log("Người dùng chọn Đồng ý");
-            // Gọi hàm nghiệp vụ thực tế ở đây
+            // Delete action callback
         },
         onNo: () => {
-            console.log("Người dùng chọn Hủy bỏ");
-            // Xử lý khi hủy bỏ (nếu có)
+            // Cancel/Close callback
         }
     });
 }
 ```
-
-> [!WARNING]
-> Luôn bọc ngoài cuộc gọi bằng kiểm tra điều kiện `typeof showConfirmPopup === "function"` để tránh gặp lỗi runtime JS trên các môi trường hoặc nền tảng cũ chưa cập nhật thư viện này.

@@ -1,6 +1,6 @@
 # UserProfile — Nhận dạng ngữ cảnh
 
-> File này bổ sung ngữ cảnh đặc thù của team mà `Vietinsoft_Agent_Skill.md` chưa đề cập.
+> File này bổ sung ngữ cảnh đặc thù của team mà `CLAUDE.md` chưa đề cập.
 
 ---
 

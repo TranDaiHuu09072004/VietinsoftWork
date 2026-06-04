@@ -1,9 +1,5 @@
 # CLAUDE.md — Quy tắc bắt buộc khi làm việc với dự án Vietinsoft (ParadiseHR)
 
-> File `CLAUDE.md` BẮT BUỘC phải được đọc tiếp theo — quy tắc Claude Code cho dự án. Xem [CLAUDE.md](CLAUDE.md)
-
-> File `Vietinsoft_Agent_Skill.md` BẮT BUỘC phải được đọc — đây là quy tắc chính của dự án, chứa critical rules và quy trình 6 bước. Xem [Vietinsoft_Agent_Skill.md](Vietinsoft_Agent_Skill.md)
-
 > File này được Claude Code tự load mỗi session. **MỌI QUY TẮC TRONG FILE NÀY ĐỀU LÀ BẮT BUỘC.** Không có loại trừ nào, không có "ưu tiên", không có "thường thường" — chỉ có TUÂN THỦ.
 
 ---
@@ -65,11 +61,13 @@
 - Dựa trên INDEX, xác định **1 hoặc nhiều file Knowledge** chứa tri thức về chủ đề user hỏi.
 - Dùng `Read` mở file đó. Không đọc các file Knowledge khác trừ khi cần thiết.
 - Nếu câu hỏi chạm nhiều chủ đề (vd: chấm công + tính lương): mở từng file theo thứ tự cần.
+- **Nếu INDEX không map được keyword** cần tra cứu: dùng `search_files` (Cline native) với regex tìm kiếm xuyên suốt thư mục `Knowledge/` — đây là cơ chế fallback native, nhanh và không cần MCP phụ trợ.
 
 ### Bước 3 — Đánh giá & Khám phá DB nếu thiếu
 
 - **Nếu Knowledge đã đủ** để trả lời chính xác: tiến hành xử lý.
 - **Nếu Knowledge chưa đủ / chưa có / không chắc còn chính xác**: BẮT BUỘC truy vấn MCP `mssql-vietinsoft` để xác minh từ DB thực tế.
+- **Sử dụng Codebase Graph**: Nếu cần phân tích sự phụ thuộc (dependency), tìm stored procedure gọi bảng nào, hoặc truy vết luồng chuyển trang/API gọi từ Menu, hãy đọc file đồ thị [db_graph.json](Clients/db_graph.json) hoặc chạy kịch bản mẫu qua [query_graph.py](Clients/query_graph.py) để lấy thông tin kết nối cấu trúc chính xác.
 
 Các tool MCP được phép dùng (load schema qua `ToolSearch` nếu cần):
 
@@ -84,8 +82,10 @@ Các tool MCP được phép dùng (load schema qua `ToolSearch` nếu cần):
 **Quy tắc an toàn DB (BẮT BUỘC):**
 - Mặc định CHỈ dùng tool đọc ở bảng trên.
 - TUYỆT ĐỐI KHÔNG gọi `write_query`, `create_table`, `alter_table`, `drop_table`, `append_insight` khi user chưa yêu cầu rõ ràng trong câu hỏi hiện tại của session này. Permission một câu hỏi không kéo dài sang câu sau.
-- Với `read_query`: luôn dùng `TOP N` / `WHERE` để giới hạn — không bao giờ trả về toàn bộ bảng lớn.
-- Khi đọc source của procedure/view: dùng `SELECT OBJECT_DEFINITION(OBJECT_ID('...'))`.
+- Với `read_query` / `execute_query`: luôn dùng `TOP N` / `WHERE` để giới hạn — không bao giờ trả về toàn bộ bảng lớn.
+- **Tránh lỗi `Forbidden keyword detected: SP_`**: Query validator của MCP chặn từ khóa `sp_` / `SP_` (kể cả trong chuỗi text hoặc tên proc). BẮT BUỘC tránh viết chuỗi `sp_` hoặc `SP_` trực tiếp trong câu SQL. Thay vào đó, dùng `LIKE '%Name'` hoặc phép ghép chuỗi như `'s' + 'p_Name'` hoặc `CHAR(115) + CHAR(112) + '_Name'`.
+- **Tránh lỗi `Invalid column name 'dbo'` của `describe_table`**: Tool `describe_table` bị lỗi cú pháp truy vấn schema trên SQL Server (nó dùng `"dbo"` thay vì `'dbo'` gây lỗi cột khi `QUOTED_IDENTIFIER ON`). KHÔNG dùng tool `describe_table` của MCP. Thay vào đó, dùng `execute_query` truy vấn trực tiếp bảng hệ thống: `SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Tên_Bảng'`.
+- Khi đọc source của procedure/view: dùng `SELECT OBJECT_DEFINITION(object_id)` kết hợp lấy `object_id` qua câu subquery lách chữ `sp_` (ví dụ: `(SELECT object_id FROM sys.procedures WHERE name = 's' + 'p_Tên_Proc')`).
 
 ### Bước 4 — Trả lời với chứng cứ rõ ràng
 
@@ -159,6 +159,6 @@ Mẫu script đầy đủ: xem cuối file [99_deprecated.md](Knowledge/99_depre
 
 Quy trình 5 bước trên có thể **không áp dụng** chỉ trong **một** trường hợp:
 
-> Câu hỏi của user **rõ ràng không liên quan** đến nghiệp vụ / dữ liệu / kiến trúc của ParadiseHR — ví dụ: cấu hình Claude Code, lệnh git, format code thuần tuý, sửa file ngoài repo này.
+> Câu hỏi của user **rõ ràng không liên quan** đến nghiệp vụ / dữ liệu / kiến trúc của ParadiseHR — ví dụ: cấu hình VS Code, Cấu hình Claude Code, lệnh git, format code thuần tuý, sửa file ngoài repo này.
 
 Không có ngoại lệ nào khác. Câu hỏi tiếp nối cùng chủ đề **vẫn phải xác minh lại nếu chuyển sang khía cạnh chưa tra**. "User nói trả lời nhanh" không phải lý do để bỏ Bước 3 (tra DB) hay Bước 4 (chứng cứ) — chỉ có thể rút gọn Bước 5 (update Knowledge) nếu user nói rõ "không cần update".

@@ -1,60 +1,41 @@
----
-name: call-api
-description: >
-  Quy chuẩn và hướng dẫn gọi API từ JS Client tới SQL Server Stored Procedure
-  trong hệ thống ParadiseHR sử dụng hàm tiện ích AjaxHPAParadise.
----
+# 23 — JavaScript Client API Calling Reference
 
-# Gọi API trong ParadiseHR (`AjaxHPAParadise`)
+Reference: [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md) (Script safety), [22_UI_Helpers.md](22_UI_Helpers.md) (Error alerts).
 
-> Hướng dẫn và quy chuẩn gọi Stored Procedure từ Javascript Client bằng hàm tiện ích `AjaxHPAParadise` của hệ thống ParadiseHR.
+Use the global async helper `AjaxHPAParadise` to execute SQL Server Stored Procedures from JavaScript client scripts.
 
----
-
-## 1. Cú pháp cơ bản của `AjaxHPAParadise`
-
-Hàm `AjaxHPAParadise` là một wrapper API bất đồng bộ (AJAX) được xây dựng sẵn trong hệ thống ParadiseHR để giao tiếp với cơ sở dữ liệu SQL Server.
-
-### Cấu trúc tiêu chuẩn
+## 1. Standard API Calling Template
 ```javascript
 AjaxHPAParadise({
     data: {
-        name: "sp_ProcedureName", // Tên Stored Procedure nghiệp vụ cần chạy
-        param: [                  // MẢNG PHẲNG chứa tham số
+        name: "sp_ProcedureName",
+        param: [
             "LoginID", window.UserID || window.LoginID,
             "LanguageID", window.LanguageID || "VN",
-            "ParamName1", value1,
-            "ParamName2", value2
+            "FilterKey1", val1,
+            "FilterKey2", val2
         ]
     },
     success: function (res) {
         try {
-            // 1. Giải mã dữ liệu nếu backend mã hóa đường truyền
-            if (typeof res === "string" && !IsNullOrEmpty(res)) {
+            // Decrypt payload if encrypted
+            if (typeof res === "string" && res.trim() !== "") {
                 res = res.includes("{") ? res : EncryptionStringDecryption(res);
             }
-            
-            // 2. Parse dữ liệu sang JSON Object
             const json = typeof res === "string" ? JSON.parse(res) : res;
             
-            // 3. Lấy các table kết quả từ SQL Server
-            const mainData = json?.data?.[0] || []; // Result-set 1 (bảng SELECT thứ nhất)
-            const extraData = json?.data?.[1] || []; // Result-set 2 (nếu procedure có nhiều SELECT)
-
-            if (mainData && mainData.length > 0) {
-                // Thực hiện logic xử lý dữ liệu và UI ở đây
-            }
+            // Extract result-sets
+            const mainData = json?.data?.[0] || [];  -- Select 1 (Main rows)
+            const extraData = json?.data?.[1] || []; -- Select 2 (e.g. TotalCount)
+            
+            // Perform operations with data...
         } catch (e) {
-            console.error("[callAPI] Lỗi xử lý phản hồi:", e);
+            console.error("API response parsing error:", e);
         }
     },
     error: function (err) {
-        // Luôn hiển thị thông báo lỗi cho người dùng bằng UI Helper hệ thống
-        if (window.uiManager && typeof window.uiManager.showAlert === "function") {
-            window.uiManager.showAlert({
-                type: "error",
-                message: "Không thể tải dữ liệu từ máy chủ. Vui lòng kiểm tra kết nối mạng!"
-            });
+        if (window.uiManager?.showAlert) {
+            window.uiManager.showAlert({ type: "error", message: "Failed to load data from server." });
         }
     }
 });
@@ -62,107 +43,48 @@ AjaxHPAParadise({
 
 ---
 
-## 2. 4 Quy tắc bắt buộc khi truyền tham số (`param`)
-
-> [!IMPORTANT]
-> Vi phạm bất kỳ quy tắc nào dưới đây sẽ dẫn đến lỗi runtime JS hoặc lỗi HTTP 500 từ phía server.
-
-1. **BẮT BUỘC dùng mảng phẳng (Flat Array)**:
-   * Tham số phải được truyền dưới dạng mảng phẳng tuần tự cặp tên-giá trị: `["Tên_Tham_Số_1", Giá_Trị_1, "Tên_Tham_Số_2", Giá_Trị_2]`.
-   * **CẤM** truyền dạng Object như `{ ParamName: value }`.
-2. **KHÔNG viết ký tự `@`**:
-   * Tên tham số truyền trong mảng phải viết dạng text thuần (ví dụ: `"LoginID"`, `"LanguageID"`, `"Keyword"`).
-   * Framework phía Backend sẽ tự động tiền tố `@` khi liên kết với Stored Procedure.
-3. **BẮT BUỘC truyền tham số hệ thống**:
-   * Luôn truyền `"LoginID"` (dùng `window.UserID || window.LoginID`).
-   * Luôn truyền `"LanguageID"` (dùng `window.LanguageID || "VN"`) để hỗ trợ lọc đa ngôn ngữ.
-4. **Sử dụng push động khi cần**:
-   * Bạn có thể khởi tạo mảng `param` rỗng và `push()` các giá trị động tùy thuộc vào các bộ lọc (Filters) trên giao diện.
+## 2. Four Rules for Parameters (`param`)
+1.  **Flat Array Format**: Always pass parameters as a linear array of key-value pairs: `["Key1", val1, "Key2", val2]`. Do **not** send an object `{Key1: val1}`.
+2.  **No `@` Prefix**: Write parameter keys as clean text (e.g. `"LoginID"`, not `"@LoginID"`). The backend binder appends the prefix.
+3.  **Mandatory System Context**: Always pass `"LoginID"` (`window.UserID || window.LoginID`) and `"LanguageID"` (`window.LanguageID || "VN"`).
+4.  **Dynamic Assembly**: Instantiate an empty array `let params = [...]` and run `params.push("Key", val)` dynamically based on filters.
 
 ---
 
-## 3. Cấu trúc dữ liệu phản hồi (Response Structure)
-
-Mỗi lệnh `SELECT` thực thi thành công trong Stored Procedure ở Backend sẽ được hệ thống gom nhóm lại thành một mảng các bảng dữ liệu trong thuộc tính `.data` của JSON trả về.
-
-```
-Response JSON:
-{
-    "data": [
-        [ { "Col1": "Val1" }, { "Col1": "Val2" } ],   // json.data[0]: Bảng SELECT thứ 1
-        [ { "TotalCount": 150 } ]                    // json.data[1]: Bảng SELECT thứ 2
-    ]
-}
-```
-
-* **`json.data[0]`**: Luôn là kết quả của câu lệnh `SELECT` đầu tiên (chứa dữ liệu danh sách/bản ghi chính).
-* **`json.data[1]`**: Kết quả của câu lệnh `SELECT` thứ hai (thường dùng để trả về `TotalCount` cho Grid phân trang).
-* **`json.data[2]`**: Kết quả của câu lệnh `SELECT` thứ ba (thường dùng để trả về thông tin tổng hợp/Summary).
+## 3. Response Structure (`json.data`)
+Every `SELECT` statement in the procedure maps to an index in the returned `data` array:
+*   `json.data[0]`: First `SELECT` output (records).
+*   `json.data[1]`: Second `SELECT` output (usually `TotalCount` for grids).
+*   `json.data[2]`: Third `SELECT` output (usually metrics summaries).
 
 ---
 
-## 4. Tải file hoặc ảnh qua API
-
-Khi cần tải file vật lý, tài liệu hoặc hình ảnh từ server thông qua procedure api, sử dụng API đặc thù `paradisefile_sp_GetFileAPI` kết hợp cấu hình `xhrFields`.
-
+## 4. Binary File / Image Ingestion
+To load binary documents or profile images from the database, call `paradisefile_sp_GetFileAPI` and configure the request as a binary blob:
 ```javascript
 AjaxHPAParadise({
     data: {
         name: "paradisefile_sp_GetFileAPI",
-        param: [
-            "LoginID", window.UserID || window.LoginID,
-            "FileID", fileId,
-            "TableName", "tblEmployee"
-        ]
+        param: [ "LoginID", window.UserID || window.LoginID, "FileID", fileId, "TableName", "tblEmployee" ]
     },
-    xhrFields: { 
-        responseType: "blob" // Quan trọng: Yêu cầu trả về định dạng binary Blob
-    },
+    xhrFields: { responseType: "blob" }, // Prerequisite: Request raw binary blob
     success: function (blob) {
         if (blob) {
-            // Chuyển đổi blob thành đường dẫn URL tạm thời để hiển thị lên thẻ img.src
-            const imageUrl = URL.createObjectURL(blob);
-            $("#employeeAvatar").attr("src", imageUrl);
+            $("#employeeAvatar").attr("src", URL.createObjectURL(blob));
         }
-    },
-    error: function () {
-        console.error("Lỗi tải ảnh đại diện nhân viên.");
     }
 });
 ```
 
 ---
 
-## 5. Lỗi thường gặp và cách xử lý (Troubleshooting)
-
-| Triệu chứng lỗi | Nguyên nhân phổ biến | Cách khắc phục |
-|---|---|---|
-| Lỗi cú pháp Javascript tại thuộc tính `name` | Lỗi viết shorthand sai hoặc thiếu giá trị gán, ví dụ: `name: "", procedureName` | Đảm bảo thuộc tính `name` được gán trực tiếp: `name: procedureName` hoặc `name: "sp_ExampleList"`. |
-| API trả về lỗi HTTP 500 | Truyền tham số `param` dạng Object `{}` thay vì mảng phẳng `[]` | Sửa cấu trúc `param` thành mảng: `["ParamName", value]`. |
-| Dữ liệu hiển thị trống dù DB có bản ghi | 1. Quên giải mã bằng hàm `EncryptionStringDecryption`<br>2. Thiếu tham số bắt buộc `LoginID` hoặc `LanguageID` | 1. Thêm khối kiểm tra giải mã trước khi parse JSON.<br>2. Kiểm tra log Network xem payload gửi lên đã đủ tham số chưa. |
-| JS lỗi `IsNullOrEmpty is not defined` hoặc `EncryptionStringDecryption is not defined` | Các hàm toàn cục (global helpers) của hệ thống chưa được nạp | Đảm bảo đoạn script gọi API chạy sau khi trang đã tải hoàn tất các thư viện tiện ích chung. |
+## 5. Pagination Wrappers vs Direct Actions
+*   **Grid Lists with Pagination**: To load DevExtreme grid views that require paging, search, filtering, and summaries, pass the business SP through the paging wrapper `sp_LoadGridUsingAPI` (which expects parameters like `Take`, `Skip`, `SearchValue`, `Filters`).
+*   **Detail Views**: When retrieving a single detail card by ID, call the SP directly via `AjaxHPAParadise` (e.g., `name: "sp_GetRecordDetail"`). Pass the primary key directly; do not use the pagination wrapper.
 
 ---
 
-## 6. Phân biệt `sp_LoadGridUsingAPI` và gọi trực tiếp Procedure
-
-Trong hệ thống ParadiseHR, việc lấy dữ liệu qua API được chia làm 2 trường hợp rõ ràng, cần phân biệt để tránh sai thiết kế:
-
-### 6.1. Dùng cho Danh sách (Grid / List Form)
-Sử dụng wrapper API `sp_LoadGridUsingAPI` **chỉ khi** bạn đang tải một lưới dữ liệu (ví dụ DevExtreme DataGrid) có yêu cầu phân trang (pagination), tìm kiếm, lọc (filtering) và tính tổng (summary).
-
-**Đặc điểm:**
-* Hàm này sinh ra để tiếp nhận các tham số chuẩn từ DevExtreme như `Take`, `Skip`, `SearchValue`, `Filters`, `TotalSummary`.
-* Truyền SP nghiệp vụ thông qua tham số `@ProcName`.
-* Trả về định dạng chuẩn JSON nhiều mảng (mảng data, mảng totalCount, summary) mà DevExtreme bắt buộc phải có.
-* **KHÔNG** được lạm dụng wrapper này cho các Form chi tiết.
-
-### 6.2. Dùng cho Chi tiết (Detail Form)
-Khi mở một Form chi tiết và cần tải duy nhất một bản ghi dựa theo khóa chính (Primary Key), hãy **gọi thẳng** tên Stored Procedure lấy chi tiết qua `AjaxHPAParadise`.
-
-**Đặc điểm:**
-* Khai báo trực tiếp tên SP nghiệp vụ vào thuộc tính `name` (Ví dụ: `name: "sp_GetRecordDetail"`).
-* **Tuyệt đối không** dùng `sp_LoadGridUsingAPI`.
-* Không cần truyền các tham số phân trang dư thừa (`Take`, `Skip`...).
-* Chỉ truyền trực tiếp khóa chính (ví dụ: `param: ["TemplateName", paramData.TemplateName]`).
-* Giúp code gọn nhẹ, hiệu suất cao, trả về kết quả mảng data[0] và lấy phần tử đầu tiên một cách trực quan, đúng chuẩn kiến trúc.
+## 6. Common Issues Checklist
+*   *HTTP 500 error*: Check if `param` was passed as an object instead of a flat array.
+*   *Empty data*: Check if payload requires decrypting via `EncryptionStringDecryption(res)`, or check if `LoginID`/`LanguageID` are missing.
+*   *JS runtime errors*: Ensure scripts execute inside page load handlers after system helpers are loaded.
