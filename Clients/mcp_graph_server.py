@@ -3,6 +3,15 @@ import os
 import re
 import sys
 
+# Ensure stdout/stderr use UTF-8. MCP uses stdout for JSON-RPC, so logs must stay on stderr.
+try:
+    if sys.stdout.encoding != "utf-8":
+        sys.stdout.reconfigure(encoding="utf-8")
+    if sys.stderr.encoding != "utf-8":
+        sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 # Ensure stderr is used for logging to avoid corrupting stdout JSON-RPC communication
 def log(msg):
     sys.stderr.write(f"[GraphServer] {msg}\n")
@@ -242,8 +251,9 @@ def main():
             req_id = req.get("id")
             
             if method == "initialize":
+                client_protocol = req.get("params", {}).get("protocolVersion", "2024-11-05")
                 respond(req_id, {
-                    "protocolVersion": "2024-11-05",
+                    "protocolVersion": client_protocol,
                     "capabilities": {
                         "tools": {}
                     },
@@ -327,9 +337,17 @@ def main():
                 if req_id is not None:
                     respond(req_id, error={"code": -32601, "message": f"Method not found: {method}"})
                     
+        except json.JSONDecodeError as e:
+            log(f"Invalid JSON-RPC payload: {e}")
+            continue
         except Exception as e:
             log(f"Error in main loop: {e}")
-            break
+            try:
+                if 'req_id' in locals() and req_id is not None:
+                    respond(req_id, error={"code": -32603, "message": f"Internal error: {e}"})
+            except Exception as respond_error:
+                log(f"Failed to send error response: {respond_error}")
+            continue
 
 if __name__ == "__main__":
     main()

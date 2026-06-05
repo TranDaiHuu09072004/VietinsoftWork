@@ -1,3 +1,6 @@
+# Python cache
+__pycache__/
+
 # Temporary and Backup files
 *.bak
 *.tmp
