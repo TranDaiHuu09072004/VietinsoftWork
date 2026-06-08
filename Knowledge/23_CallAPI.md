@@ -4,6 +4,22 @@ Reference: [17_RendererHtmlJsSafe.md](17_RendererHtmlJsSafe.md) (Script safety),
 
 Use the global async helper `AjaxHPAParadise` to execute SQL Server Stored Procedures from JavaScript client scripts.
 
+## 0. Mandatory Pre-Code Rule for `AjaxHPAParadise`
+
+> **RULE #1:** When writing (vibe) code that calls `AjaxHPAParadise` with a stored procedure `name: "sp_X"`, the Agent **MUST** verify the procedure exists in the database first.
+
+**Process:**
+
+1. **Check DB first**: `SELECT OBJECT_ID('dbo.sp_X') AS ProcExists`
+2. **If not found (`ProcExists IS NULL`)**: MUST ask the user:
+   > *"Procedure `sp_X` does not exist in the DB. Do you want me to create and handle it?"*
+3. **Only create after user agrees** — never auto-create procedures.
+4. **If exists**: verify source via `OBJECT_DEFINITION(OBJECT_ID('dbo.sp_X'))` to ensure parameters match the client call.
+
+**Why mandatory:** Prevents HTTP 500 runtime errors when a menu runs but the procedure does not exist, and ensures every procedure is created intentionally and reviewed by the user.
+
+---
+
 ## 1. Standard API Calling Template
 ```javascript
 AjaxHPAParadise({
@@ -88,3 +104,23 @@ AjaxHPAParadise({
 *   *HTTP 500 error*: Check if `param` was passed as an object instead of a flat array.
 *   *Empty data*: Check if payload requires decrypting via `EncryptionStringDecryption(res)`, or check if `LoginID`/`LanguageID` are missing.
 *   *JS runtime errors*: Ensure scripts execute inside page load handlers after system helpers are loaded.
+
+---
+
+## 7. List SP vs Detail SP — Mandatory Separation
+
+> **MANDATORY:** Every menu with both a list grid and a detail form must have **2 separate SPs**. NEVER reuse the same SP for both list and detail.
+
+| SP Type | Purpose | Called via | Required Parameters |
+|---|---|---|---|
+| **List SP** (`sp_X_List`) | Lightweight grid data | `sp_LoadGridUsingAPI` → `@ProcName` | `@TempTableAPIName`, `@Skip`, `@Take`, `@SearchValue` |
+| **Detail SP** (`sp_X_Detail`) | Full detail form | `AjaxHPAParadise` directly | Primary key (e.g. `@TemplateName`) |
+
+**List SP requirements:**
+- Only columns needed for grid display (no heavy `NVARCHAR(MAX)` columns)
+- `SELECT ... INTO @TempTableAPIName` — `sp_LoadGridUsingAPI` auto-reads & formats response
+- Pagination via `OFFSET/FETCH NEXT` based on `@Skip`/`@Take`
+
+**Detail SP returns:**
+- All columns needed by the form (including `Body NVARCHAR(MAX)`, config columns, etc.)
+- Direct `SELECT`, no `INTO` temp table

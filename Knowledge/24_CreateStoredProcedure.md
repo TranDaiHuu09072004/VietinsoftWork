@@ -12,6 +12,8 @@ Before writing any database script, ask the user to confirm:
 4.  **Input Parameters**: Types and sizes (e.g. `@LoginID`, `@ViewDate`).
 *Constraint*: Do not generate code until these inputs are confirmed.
 
+> **Related:** When writing client-side code that calls procedures via `AjaxHPAParadise`, also see the mandatory procedure-existence check rule at [23_CallAPI.md §0](23_CallAPI.md).
+
 ---
 
 ## 2. Six Golden Rules of Database Programming

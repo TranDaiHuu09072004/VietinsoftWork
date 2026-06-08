@@ -18,6 +18,40 @@
 
 ---
 
+### 1.8 Quy tắc khai báo hàm JS cục bộ (Tránh ô nhiễm Global Scope)
+
+Trong kiến trúc SPA (Single Page Application), các menu được tải động vào cùng một trang. Nếu khai báo hàm toàn cục (như `window.closeForm = function()...`), hàm này sẽ đè lên hàm của menu khác nếu vô tình trùng tên.
+
+**Quy tắc:**
+- **Tuyệt đối KHÔNG** gán hàm xử lý sự kiện cục bộ của một trang vào đối tượng `window` (ví dụ: `window.onClickBtn = ...`).
+- **Tuyệt đối KHÔNG** dùng các thuộc tính sự kiện nội tuyến trong HTML (`onclick="onClickBtn()"`), vì chúng buộc phải gọi hàm từ Global Scope.
+
+**Cách làm đúng:**
+- Gắn `id` cho phần tử HTML.
+- Sử dụng `addEventListener` bên trong khối hàm tự gọi (IIFE) `(async () => { ... })();` để bắt sự kiện. Bằng cách này, hàm xử lý sẽ được đóng gói hoàn toàn (Encapsulation), không bị rò rỉ ra ngoài và không bao giờ gây xung đột với các menu khác.
+
+```sql
+-- ❌ SAI (Ô nhiễm biến toàn cục)
+SET @html = @html + N'
+<button onclick="closeMyForm()">Đóng</button>
+<script>
+    window.closeMyForm = function() { ... };
+</script>';
+
+-- ✅ ĐÚNG (Hàm cục bộ hoàn toàn)
+SET @html = @html + N'
+<button id="btnClose">Đóng</button>
+<script>
+    (async () => {
+        document.getElementById("btnClose").addEventListener("click", function() {
+            // Logic đóng form
+        });
+    })();
+</script>';
+```
+
+---
+
 ## 2. Kỹ thuật Escape nháy đơn trong JavaScript nhúng
 
 ### Case A: JS String Literal (Nháy đơn trong chuỗi)

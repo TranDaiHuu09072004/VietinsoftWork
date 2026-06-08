@@ -43,8 +43,31 @@ Nếu menu hiển thị danh sách dạng `dxDataGrid`, bắt buộc cấu hình
 * `remoteOperations`: Cả 4 cờ `paging`, `filtering`, `sorting`, `grouping` phải set `true`.
 * `dataSource`: Dùng `CustomStore` kết nối API `sp_LoadGridUsingAPI` (truyền `@Skip` / `@Take`).
 
-### Rule 7 — Đa ngôn ngữ qua `%Placeholder%`
-Text giao diện viết dạng `%MessageID%` trong HTML. Hàm `sp_GenerateHTMLScript` sẽ tự động quét và replace bằng dữ liệu từ `tblMD_Message`. Phải chèn dịch VN và EN vào `tblMD_Message`.
+### Rule 7 — Đa ngôn ngữ (`tblMD_Message`)
+
+Bảng `tblMD_Message` là từ điển đa ngôn ngữ của hệ thống, được sử dụng trong **2 mục đích hoàn toàn tách biệt**:
+
+**1. Dịch tên Menu (Tên hiển thị trên cây Menu/Tab)**
+- Khi đăng ký một menu mới vào `MEN_Menu`, hệ thống dùng `MenuID` (vd: `MnuREC101`) để tìm tên hiển thị.
+- **Bắt buộc:** Phải insert vào `tblMD_Message` với **`MessageID` CHÍNH LÀ `MenuID`** (TUYỆT ĐỐI KHÔNG dùng `ClassName`).
+  *(Lưu ý: Nếu tạo menu bằng hàm `sp_s_CreateMenu` thì hàm đã tự làm việc này. Chỉ phải lưu ý quy tắc này khi INSERT thủ công vào `MEN_Menu` cho các form chi tiết ẩn).*
+
+**2. Dịch `%Placeholder%` trong HTML/JS/Controls**
+- Mọi text hiển thị bên trong nội dung menu (HTML, Label, Column Name) dùng cơ chế `%Placeholder%`:
+  ```
+  HTML: <div>%EmployeeID%</div>  → Build Cache → VN: <div>Mã nhân viên</div> | EN: <div>Employee ID</div>
+  ```
+
+**Tổng hợp các nơi áp dụng `tblMD_Message`**:
+| Nơi dùng | Giá trị `MessageID` cần lưu | Cần `tblMD_Message`? |
+|---|---|---|
+| Tên Menu (Gắn với `MEN_Menu`) | **`MenuID`** (vd: `MnuREC101`) | ✅ Bắt buộc |
+| `tblCommonControlType_Signed.DisplayName` | Nội dung `%...%` (vd: `FullName`) | ✅ Bắt buộc |
+| HTML trong renderer | Nội dung `%...%` (vd: `EmployeeID`) | ✅ Bắt buộc |
+| Label tĩnh trong T-SQL | ❌ Không có (xử lý bằng IF @LanguageID) | ❌ Không |
+
+**Bắt buộc trong migration script**:
+- Mọi `%MessageID%` dùng trong `tblCommonControlType_Signed` hoặc renderer HTML → phải có `tblMD_Message` entry cho **cả VN và EN**
 
 ---
 
@@ -89,6 +112,8 @@ Sử dụng khi muốn tự sinh UI grid/form nhanh từ metadata của bảng.
 ---
 
 ## 4. Javascript CustomStore mẫu cho Grid (Infinite Scroll)
+
+> ⚠️ **Before writing code that calls `AjaxHPAParadise`:** MUST check that the target procedure `name` exists in the DB. If not → ask user whether to create it. See [23_CallAPI.md §0](23_CallAPI.md).
 
 ```javascript
 var gridInstance;
