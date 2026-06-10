@@ -1,0 +1,101 @@
+TỔNG KẾT CÁC TASK VÀ BUG ĐÃ FIX TRONG SÁNG NAY (09/06/2026)
+
+Dưới đây là danh sách chi tiết các trang đã được xử lý, mô tả lỗi, phương pháp khắc phục và các file script tương ứng.
+
+================================================================================
+1. MODULE CRM & HPSF - FIX RESPONSIVE GIAO DIỆN SUB-QUOTATION
+================================================================================
+* Các trang ảnh hưởng: 
+  - Màn hình Sub-Quotation (Báo giá phụ) trên CRM & HPSF_TEST.
+  
+* Lỗi (Bug) đã fix:
+  - Thanh Toolbar bị rớt thành 3 dòng trên màn hình máy tính do thiếu không gian và cấu trúc flex chưa chuẩn.
+  - Box Search bị phình to hoặc thu nhỏ bất thường.
+  - Lỗi font chữ tiếng Việt bị mã hóa sai trong script SQL.
+  - Khoảng trắng bên dưới Grid quá nhiều do hàm lấy chiều cao (getGridHeight) set chiều cao cứng không linh hoạt.
+  
+* Cách fix:
+  - Xóa hàm fix chiều cao bằng Javascript, thay thế bằng CSS wrapper class `.ttv-grid-wrap`.
+  - Bổ sung cấu trúc flexbox và media queries để thanh Toolbar tự điều chỉnh: Nằm ngang 1 dòng trên màn hình lớn, và tự gập gọn hợp lý trên màn hình tablet/mobile.
+  - Giới hạn max-width của ô Search để không bị tràn.
+  - Viết lại/decode các chuỗi tiếng Việt bị lỗi trực tiếp trong script SQL.
+  
+* File tương ứng:
+  -> Fix_CRM_SubQuotation_Responsive.sql
+
+================================================================================
+2. MODULE CRM - CHUẨN HÓA GIAO DIỆN "SALE IN CRM" & "CUSTOMER DATA"
+================================================================================
+* Các trang ảnh hưởng:
+  - Khách hàng gần đây (Recent Customers), Sale In CRM Dashboard.
+  
+* Lỗi (Bug) đã fix:
+  - Lỗi cấu trúc Responsive tương tự làm rớt dòng thanh Toolbar.
+  - Lỗi thiếu biến ngôn ngữ, gây hiển thị raw code dạng %CompanyFullName%.
+  
+* Cách fix:
+  - Clone và chuẩn hóa template Responsive từ module "Service Tracking" sang.
+  - Can thiệp vào bảng `tblCommonControlType_Signed` để nhúng CSS mới.
+  - Chạy script khai báo lại đầy đủ các biến ngôn ngữ (Language dictionary) để web thay thế chính xác khi render.
+  
+* Các file tương ứng:
+  -> Fix_CRM_SaleInCRM_Responsive.sql
+  -> Add_Language_RecentCus.sql
+
+================================================================================
+3. MODULE TRAINING - FIX LỖI GIAO DIỆN TỐI (DARK MODE) TRANG CHỦ ĐÀO TẠO NEW
+================================================================================
+* Các trang ảnh hưởng:
+  - Trang chủ đào tạo New (`sp_Train_Dashboard_New_html`).
+  
+* Lỗi (Bug) đã fix:
+  - Khi user chuyển web sang Dark Mode, toàn bộ ứng dụng đổi màu tối, nhưng các thẻ KPI, Panel, Bảng Xếp Hạng của màn hình này bị "hard-code" nền màu trắng và chữ xám.
+  - Kết quả: giao diện chói sáng, nền trắng chữ trắng/nhạt không thể đọc được.
+  
+* Cách fix:
+  - Tuyệt đối giữ nguyên CSS cũ để không phá vỡ Light Mode.
+  - Viết thêm khối CSS ghi đè có điều kiện: chỉ kích hoạt khi màn hình bị ép class `.dark-mode` hoặc `[data-bs-theme="dark"]`.
+  - Sử dụng CSS Selector bao bọc bằng ID chính (`#sp_Train_Dashboard_New_html`) kết hợp từ khóa `!important` để ép màu nền (background) sang xám tối `#242a32`, và đổi màu chữ sang xám nhạt/sáng `#9ca3af`.
+  - Đóng gói tài liệu kinh nghiệm fix lỗi CSS này vào file định dạng markdown để AI hoặc dev có thể sử dụng giải quyết các module khác về sau.
+  
+* Các file tương ứng:
+  -> Fix_Train_Dashboard_New_DarkMode.sql
+  -> agent_sql_proc_darkmode_css_only.md (Tri thức Knowledge)
+
+================================================================================
+HOÀN TẤT BÁO CÁO. TẤT CẢ FILE ĐÃ ĐƯỢC ĐÓNG GÓI VÀO FOLDER NÀY.
+
+================================================================================
+4. MODULE CRM - FIX LỖI RESPONSIVE CHO SP_CRM_LISTCONFIGKPI
+================================================================================
+* Các trang ảnh hưởng:
+  - Thiết lập KPI nhân viên (sp_CRM_ListConfigKPI_html).
+
+* Lỗi (Bug) đã fix:
+  - Thanh công cụ (Toolbar) bị đè lên nhau (overlap) trên màn hình máy tính do thêm các ô chức năng tìm kiếm (Nhân viên, Từ ngày, Đến ngày) mà không cho phép tự xuống dòng.
+  - Lỗi vỡ giao diện, tràn viền trên màn hình Mobile do các ô input bị cố định kích thước pixel (140px, 200px).
+
+* Cách fix:
+  - Viết CSS đè riêng biệt vào cuối thẻ <style> của thủ tục, KHÔNG thay đổi logic hiện tại.
+  - Mở rộng chiều cao, bật flex-wrap để thanh Toolbar tự xuống dòng khi hết chỗ.
+  - Thêm media query cho thiết bị dưới 768px: chuyển các bộ lọc đổ dọc xuống (column), chiều ngang 100% để hiển thị vừa khít trên Mobile.
+
+* File tương ứng:
+  -> Fix_CRM_ListConfigKPI_Responsive.sql
+
+================================================================================
+5. MODULE CRM - CẬP NHẬT GIAO DIỆN BÁO GIÁ PHẦN MỀM (SUB-QUOTATION)
+================================================================================
+* Các trang ảnh hưởng:
+  - Màn hình Quản lý Báo giá phần mềm tùy chỉnh (sp_Sub_SubQuotation_html).
+
+* Lỗi (Bug) đã fix:
+  - Sửa lỗi chính tả bị mã hóa sai ở nhãn ngày tháng (hiển thị 'T?' thay vì 'Từ').
+  - Nút 'Tạo báo giá mới' bị đẩy xuống hàng dưới, không thẳng hàng với các bộ lọc ở hàng đầu tiên.
+
+* Cách fix:
+  - Tìm và thay thế trực tiếp chuỗi 'T?' thành 'Từ' trong cấu hình cột của DevExtreme.
+  - Áp dụng kỹ thuật CSS position: absolute cho Desktop (min-width: 992px) để nhấc nút 'Tạo báo giá mới' lên góc trên cùng bên phải, thẳng hàng với bộ lọc mà không phá vỡ cấu trúc flex của DevExtreme Grid.
+
+* File tương ứng:
+  -> Fix_CRM_SubQuotation_Label.sql
