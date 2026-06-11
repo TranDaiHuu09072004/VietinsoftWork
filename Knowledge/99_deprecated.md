@@ -25,6 +25,16 @@ All components referencing Zalo OA (Official Account API, follower tracking, aut
 *   **Table `tblTask`**: Legacy table containing static fields (10 columns: `TaskID`, `DueDate`). Replaced by the append-only versioning system `tblTask_Tasks` (see [19_task_assignment.md](19_task_assignment.md)).
 *   **hpaControlRichTextEditor**: Legacy rich text input control. Replaced by `hpaControlRichTextEditorPremium`.
 
+### 2.4. Removed KPI Input Type Menus
+User requested removal of the KPI input type management menus and related menu objects.
+*   **Obsolete Menu IDs (in `MEN_Menu`)**: `MnuKPI049` (KPI Type Management), `MnuKPI050` (Add/Edit/Delete KPI Type).
+*   **Type**: Menu cleanup request.
+*   **Reason**: User requested deleting these menus and related objects.
+*   **Source file**: [create_kpi_input_type_menu_20260610.sql](../SQL%20script/create_kpi_input_type_menu_20260610.sql).
+*   **Marked date**: `2026-06-10`.
+*   **Related Objects**: `tblSC_Object.Description IN ('MnuKPI049', 'MnuKPI050')`, menu name rows in `tblMD_Message`, related rows in `tblSC_Right_Stored` / `tblSC_GroupRight`, HTML cache rows for `sp_KPIInputType*`.
+*   **Cleanup script**: [cleanup_kpi_input_type_menu_20260610.sql](../SQL%20script/cleanup_kpi_input_type_menu_20260610.sql).
+
 ---
 
 ## 3. Idempotent Cleanup SQL Template

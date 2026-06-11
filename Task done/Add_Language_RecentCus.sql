@@ -1,4 +1,4 @@
--- =========================================================================
+﻿-- =========================================================================
 -- Kịch bản thêm ngôn ngữ cho biến %RecentCus% trong bảng tblMD_Message
 -- =========================================================================
 
@@ -91,194 +91,194 @@ GO
 -- =========================================================================
 
 -- @CompanyFullName (VN)
-IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = '@CompanyFullName' AND Language = 'VN')
+IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = '@COMPANYFULLNAME' AND Language = 'VN')
 BEGIN
-    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('@CompanyFullName', 'VN', N'Tên công ty');
-    PRINT N'Đã thêm ngôn ngữ Tiếng Việt cho %@CompanyFullName%';
+    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('@COMPANYFULLNAME', 'VN', N'Tên công ty');
+    PRINT N'Đã thêm ngôn ngữ Tiếng Việt cho %@COMPANYFULLNAME%';
 END
 ELSE
 BEGIN
-    UPDATE tblMD_Message SET Content = N'Tên công ty' WHERE MessageID = '@CompanyFullName' AND Language = 'VN';
+    UPDATE tblMD_Message SET Content = N'Tên công ty' WHERE MessageID = '@COMPANYFULLNAME' AND Language = 'VN';
 END
 GO
 
 -- @CompanyFullName (EN)
-IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = '@CompanyFullName' AND Language = 'EN')
+IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = '@COMPANYFULLNAME' AND Language = 'EN')
 BEGIN
-    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('@CompanyFullName', 'EN', N'Company Name');
-    PRINT N'Đã thêm ngôn ngữ Tiếng Anh cho %@CompanyFullName%';
+    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('@COMPANYFULLNAME', 'EN', N'Company Name');
+    PRINT N'Đã thêm ngôn ngữ Tiếng Anh cho %@COMPANYFULLNAME%';
 END
 ELSE
 BEGIN
-    UPDATE tblMD_Message SET Content = N'Company Name' WHERE MessageID = '@CompanyFullName' AND Language = 'EN';
+    UPDATE tblMD_Message SET Content = N'Company Name' WHERE MessageID = '@COMPANYFULLNAME' AND Language = 'EN';
 END
 GO
 
 -- StatusID (VN)
-IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'StatusID' AND Language = 'VN')
+IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'STATUSID' AND Language = 'VN')
 BEGIN
-    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('StatusID', 'VN', N'Trạng thái');
-    PRINT N'Đã thêm ngôn ngữ Tiếng Việt cho %StatusID%';
+    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('STATUSID', 'VN', N'Trạng thái');
+    PRINT N'Đã thêm ngôn ngữ Tiếng Việt cho %STATUSID%';
 END
 ELSE
 BEGIN
-    UPDATE tblMD_Message SET Content = N'Trạng thái' WHERE MessageID = 'StatusID' AND Language = 'VN';
+    UPDATE tblMD_Message SET Content = N'Trạng thái' WHERE MessageID = 'STATUSID' AND Language = 'VN';
 END
 GO
 
 -- StatusID (EN)
-IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'StatusID' AND Language = 'EN')
+IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'STATUSID' AND Language = 'EN')
 BEGIN
-    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('StatusID', 'EN', N'Status');
-    PRINT N'Đã thêm ngôn ngữ Tiếng Anh cho %StatusID%';
+    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('STATUSID', 'EN', N'Status');
+    PRINT N'Đã thêm ngôn ngữ Tiếng Anh cho %STATUSID%';
 END
 ELSE
 BEGIN
-    UPDATE tblMD_Message SET Content = N'Status' WHERE MessageID = 'StatusID' AND Language = 'EN';
+    UPDATE tblMD_Message SET Content = N'Status' WHERE MessageID = 'STATUSID' AND Language = 'EN';
 END
 GO
 
 -- TaxCode (VN)
-IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'TaxCode' AND Language = 'VN')
+IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'TAXCODE' AND Language = 'VN')
 BEGIN
-    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('TaxCode', 'VN', N'Mã số thuế');
-    PRINT N'Đã thêm ngôn ngữ Tiếng Việt cho %TaxCode%';
+    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('TAXCODE', 'VN', N'Mã số thuế');
+    PRINT N'Đã thêm ngôn ngữ Tiếng Việt cho %TAXCODE%';
 END
 ELSE
 BEGIN
-    UPDATE tblMD_Message SET Content = N'Mã số thuế' WHERE MessageID = 'TaxCode' AND Language = 'VN';
+    UPDATE tblMD_Message SET Content = N'Mã số thuế' WHERE MessageID = 'TAXCODE' AND Language = 'VN';
 END
 GO
 
 -- TaxCode (EN)
-IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'TaxCode' AND Language = 'EN')
+IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'TAXCODE' AND Language = 'EN')
 BEGIN
-    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('TaxCode', 'EN', N'Tax Code');
-    PRINT N'Đã thêm ngôn ngữ Tiếng Anh cho %TaxCode%';
+    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('TAXCODE', 'EN', N'Tax Code');
+    PRINT N'Đã thêm ngôn ngữ Tiếng Anh cho %TAXCODE%';
 END
 ELSE
 BEGIN
-    UPDATE tblMD_Message SET Content = N'Tax Code' WHERE MessageID = 'TaxCode' AND Language = 'EN';
+    UPDATE tblMD_Message SET Content = N'Tax Code' WHERE MessageID = 'TAXCODE' AND Language = 'EN';
 END
 GO
 
 -- InchargePerson (VN)
-IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'InchargePerson' AND Language = 'VN')
+IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'INCHARGEPERSON' AND Language = 'VN')
 BEGIN
-    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('InchargePerson', 'VN', N'Người phụ trách');
-    PRINT N'Đã thêm ngôn ngữ Tiếng Việt cho %InchargePerson%';
+    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('INCHARGEPERSON', 'VN', N'Người phụ trách');
+    PRINT N'Đã thêm ngôn ngữ Tiếng Việt cho %INCHARGEPERSON%';
 END
 ELSE
 BEGIN
-    UPDATE tblMD_Message SET Content = N'Người phụ trách' WHERE MessageID = 'InchargePerson' AND Language = 'VN';
+    UPDATE tblMD_Message SET Content = N'Người phụ trách' WHERE MessageID = 'INCHARGEPERSON' AND Language = 'VN';
 END
 GO
 
 -- InchargePerson (EN)
-IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'InchargePerson' AND Language = 'EN')
+IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'INCHARGEPERSON' AND Language = 'EN')
 BEGIN
-    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('InchargePerson', 'EN', N'In-charge Person');
-    PRINT N'Đã thêm ngôn ngữ Tiếng Anh cho %InchargePerson%';
+    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('INCHARGEPERSON', 'EN', N'In-charge Person');
+    PRINT N'Đã thêm ngôn ngữ Tiếng Anh cho %INCHARGEPERSON%';
 END
 ELSE
 BEGIN
-    UPDATE tblMD_Message SET Content = N'In-charge Person' WHERE MessageID = 'InchargePerson' AND Language = 'EN';
+    UPDATE tblMD_Message SET Content = N'In-charge Person' WHERE MessageID = 'INCHARGEPERSON' AND Language = 'EN';
 END
 GO
 
 -- PhoneNumber (VN)
-IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'PhoneNumber' AND Language = 'VN')
+IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'PHONENUMBER' AND Language = 'VN')
 BEGIN
-    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('PhoneNumber', 'VN', N'Số điện thoại');
-    PRINT N'Đã thêm ngôn ngữ Tiếng Việt cho %PhoneNumber%';
+    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('PHONENUMBER', 'VN', N'Số điện thoại');
+    PRINT N'Đã thêm ngôn ngữ Tiếng Việt cho %PHONENUMBER%';
 END
 ELSE
 BEGIN
-    UPDATE tblMD_Message SET Content = N'Số điện thoại' WHERE MessageID = 'PhoneNumber' AND Language = 'VN';
+    UPDATE tblMD_Message SET Content = N'Số điện thoại' WHERE MessageID = 'PHONENUMBER' AND Language = 'VN';
 END
 GO
 
 -- PhoneNumber (EN)
-IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'PhoneNumber' AND Language = 'EN')
+IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'PHONENUMBER' AND Language = 'EN')
 BEGIN
-    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('PhoneNumber', 'EN', N'Phone Number');
-    PRINT N'Đã thêm ngôn ngữ Tiếng Anh cho %PhoneNumber%';
+    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('PHONENUMBER', 'EN', N'Phone Number');
+    PRINT N'Đã thêm ngôn ngữ Tiếng Anh cho %PHONENUMBER%';
 END
 ELSE
 BEGIN
-    UPDATE tblMD_Message SET Content = N'Phone Number' WHERE MessageID = 'PhoneNumber' AND Language = 'EN';
+    UPDATE tblMD_Message SET Content = N'Phone Number' WHERE MessageID = 'PHONENUMBER' AND Language = 'EN';
 END
 GO
 
 -- ContractName (VN)
-IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'ContractName' AND Language = 'VN')
+IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'CONTRACTNAME' AND Language = 'VN')
 BEGIN
-    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('ContractName', 'VN', N'Tên hợp đồng');
-    PRINT N'Đã thêm ngôn ngữ Tiếng Việt cho %ContractName%';
+    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('CONTRACTNAME', 'VN', N'Tên hợp đồng');
+    PRINT N'Đã thêm ngôn ngữ Tiếng Việt cho %CONTRACTNAME%';
 END
 ELSE
 BEGIN
-    UPDATE tblMD_Message SET Content = N'Tên hợp đồng' WHERE MessageID = 'ContractName' AND Language = 'VN';
+    UPDATE tblMD_Message SET Content = N'Tên hợp đồng' WHERE MessageID = 'CONTRACTNAME' AND Language = 'VN';
 END
 GO
 
 -- ContractName (EN)
-IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'ContractName' AND Language = 'EN')
+IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'CONTRACTNAME' AND Language = 'EN')
 BEGIN
-    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('ContractName', 'EN', N'Contract Name');
-    PRINT N'Đã thêm ngôn ngữ Tiếng Anh cho %ContractName%';
+    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('CONTRACTNAME', 'EN', N'Contract Name');
+    PRINT N'Đã thêm ngôn ngữ Tiếng Anh cho %CONTRACTNAME%';
 END
 ELSE
 BEGIN
-    UPDATE tblMD_Message SET Content = N'Contract Name' WHERE MessageID = 'ContractName' AND Language = 'EN';
+    UPDATE tblMD_Message SET Content = N'Contract Name' WHERE MessageID = 'CONTRACTNAME' AND Language = 'EN';
 END
 GO
 
 -- contract.StartDate (VN)
-IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'contract.StartDate' AND Language = 'VN')
+IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'CONTRACT.STARTDATE' AND Language = 'VN')
 BEGIN
-    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('contract.StartDate', 'VN', N'Ngày bắt đầu');
-    PRINT N'Đã thêm ngôn ngữ Tiếng Việt cho %contract.StartDate%';
+    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('CONTRACT.STARTDATE', 'VN', N'Ngày bắt đầu');
+    PRINT N'Đã thêm ngôn ngữ Tiếng Việt cho %CONTRACT.STARTDATE%';
 END
 ELSE
 BEGIN
-    UPDATE tblMD_Message SET Content = N'Ngày bắt đầu' WHERE MessageID = 'contract.StartDate' AND Language = 'VN';
+    UPDATE tblMD_Message SET Content = N'Ngày bắt đầu' WHERE MessageID = 'CONTRACT.STARTDATE' AND Language = 'VN';
 END
 GO
 
 -- contract.StartDate (EN)
-IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'contract.StartDate' AND Language = 'EN')
+IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'CONTRACT.STARTDATE' AND Language = 'EN')
 BEGIN
-    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('contract.StartDate', 'EN', N'Start Date');
-    PRINT N'Đã thêm ngôn ngữ Tiếng Anh cho %contract.StartDate%';
+    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('CONTRACT.STARTDATE', 'EN', N'Start Date');
+    PRINT N'Đã thêm ngôn ngữ Tiếng Anh cho %CONTRACT.STARTDATE%';
 END
 ELSE
 BEGIN
-    UPDATE tblMD_Message SET Content = N'Start Date' WHERE MessageID = 'contract.StartDate' AND Language = 'EN';
+    UPDATE tblMD_Message SET Content = N'Start Date' WHERE MessageID = 'CONTRACT.STARTDATE' AND Language = 'EN';
 END
 GO
 
 -- contract.EndDate (VN)
-IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'contract.EndDate' AND Language = 'VN')
+IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'CONTRACT.ENDDATE' AND Language = 'VN')
 BEGIN
-    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('contract.EndDate', 'VN', N'Ngày kết thúc');
-    PRINT N'Đã thêm ngôn ngữ Tiếng Việt cho %contract.EndDate%';
+    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('CONTRACT.ENDDATE', 'VN', N'Ngày kết thúc');
+    PRINT N'Đã thêm ngôn ngữ Tiếng Việt cho %CONTRACT.ENDDATE%';
 END
 ELSE
 BEGIN
-    UPDATE tblMD_Message SET Content = N'Ngày kết thúc' WHERE MessageID = 'contract.EndDate' AND Language = 'VN';
+    UPDATE tblMD_Message SET Content = N'Ngày kết thúc' WHERE MessageID = 'CONTRACT.ENDDATE' AND Language = 'VN';
 END
 GO
 
 -- contract.EndDate (EN)
-IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'contract.EndDate' AND Language = 'EN')
+IF NOT EXISTS (SELECT 1 FROM tblMD_Message WHERE MessageID = 'CONTRACT.ENDDATE' AND Language = 'EN')
 BEGIN
-    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('contract.EndDate', 'EN', N'End Date');
-    PRINT N'Đã thêm ngôn ngữ Tiếng Anh cho %contract.EndDate%';
+    INSERT INTO tblMD_Message (MessageID, Language, Content) VALUES ('CONTRACT.ENDDATE', 'EN', N'End Date');
+    PRINT N'Đã thêm ngôn ngữ Tiếng Anh cho %CONTRACT.ENDDATE%';
 END
 ELSE
 BEGIN
-    UPDATE tblMD_Message SET Content = N'End Date' WHERE MessageID = 'contract.EndDate' AND Language = 'EN';
+    UPDATE tblMD_Message SET Content = N'End Date' WHERE MessageID = 'CONTRACT.ENDDATE' AND Language = 'EN';
 END
 GO
 

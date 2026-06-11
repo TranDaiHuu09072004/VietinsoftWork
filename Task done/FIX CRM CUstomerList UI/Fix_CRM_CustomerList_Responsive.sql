@@ -91,18 +91,18 @@ BEGIN
         gap: 10px;
     }
     
-    /* Làm cho ô tìm kiếm giãn ra lấp đầy khoảng trống (nhắm đúng ô search, bỏ qua nút column chooser) */
+    /* Thu gọn ô tìm kiếm search ngắn lại - theo yêu cầu người dùng */
     .crm-customer-list-page #gridCustomerList .dx-toolbar-after .dx-item {
         flex: 0 0 auto !important;
     }
     .crm-customer-list-page #gridCustomerList .dx-toolbar-after .dx-item:has(.dx-datagrid-search-panel) {
-        flex: 1 1 auto !important;
-        width: 100%;
-        max-width: 350px;
+        flex: 0 0 220px !important;
+        width: 220px !important;
+        max-width: 220px !important;
     }
     .crm-customer-list-page #gridCustomerList .dx-datagrid-search-panel {
-        width: 100% !important;
-        max-width: 100% !important;
+        width: 220px !important;
+        max-width: 220px !important;
     }
 
     /* Tablet & Mobile (Hiển thị 3 hàng) */
@@ -127,9 +127,14 @@ BEGIN
             width: 100% !important;
             max-width: 100% !important;
         }
-        .crm-customer-list-page .stock-filter {
-            width: 100% !important;
-            justify-content: flex-start;
+        
+        /* Bộ lọc trạng thái trên màn hình nhỏ vẫn giữ hàng ngang, tự wrap khi quá hẹp */
+        .stock-filter {
+            width: auto !important;
+            display: inline-flex !important;
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            justify-content: flex-start !important;
         }
         
         /* Hàng 3 (Tìm kiếm và Tuỳ chọn cột) */
@@ -137,7 +142,13 @@ BEGIN
             margin-top: 10px;
         }
         .crm-customer-list-page #gridCustomerList .dx-toolbar-after .dx-item:has(.dx-datagrid-search-panel) {
-            max-width: 100%;
+            max-width: 100% !important;
+            width: 100% !important;
+            flex: 1 1 auto !important;
+        }
+        .crm-customer-list-page #gridCustomerList .dx-datagrid-search-panel {
+            width: 100% !important;
+            max-width: 100% !important;
         }
     }
 
@@ -178,53 +189,51 @@ BEGIN
         border-color: var(--paradise-bg-primary-subtle);
     }
 
-    .crm-customer-list-page .stock-filter {
-        display: flex;
-        flex-wrap: wrap;
+    /* Định dạng Stock Filter và Stock Button (bỏ bớt cờ crm-customer-list-page để tăng tính bao phủ và fallback an toàn) */
+    .stock-filter {
+        display: inline-flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
         justify-content: center;
         align-items: center;
-        gap: var(--paradise-space-2);
-        width: fit-content;
-        max-width: 100%;
-        border-radius: var(--paradise-border-radius-pill);
-        border: 1px solid var(--paradise-border-color);
-        padding: var(--paradise-space-1);
-        position: relative;
-        background-color: var(--paradise-bg-body);
+        gap: var(--paradise-space-2, 8px) !important;
+        width: fit-content !important;
+        max-width: 100% !important;
+        border-radius: var(--paradise-border-radius-pill, 30px) !important;
+        border: 1px solid var(--paradise-border-color, #444) !important;
+        padding: var(--paradise-space-1, 4px) !important;
+        position: relative !important;
+        background-color: var(--paradise-bg-body, #1e1e24) !important;
+        box-sizing: border-box !important;
     }
 
-    .crm-customer-list-page .stock-btn {
-        border-radius: var(--paradise-border-radius-pill);
-        padding: var(--paradise-space-2) var(--paradise-space-4);
-        font-size: var(--paradise-font-size-sm, 0.85rem);
-        border: none;
-        background: transparent;
-        color: var(--paradise-text-muted);
-        cursor: pointer;
-        transition: var(--paradise-transition-fast);
-        position: relative;
-        z-index: 2;
-        white-space: nowrap;
-        font-weight: 600;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
+    .stock-btn {
+        border-radius: var(--paradise-border-radius-pill, 30px) !important;
+        padding: var(--paradise-space-2, 6px) var(--paradise-space-4, 16px) !important;
+        font-size: var(--paradise-font-size-sm, 0.85rem) !important;
+        border: none !important;
+        background: transparent !important;
+        color: var(--paradise-text-muted, #888) !important;
+        cursor: pointer !important;
+        transition: var(--paradise-transition-fast, all 0.15s ease) !important;
+        position: relative !important;
+        z-index: 2 !important;
+        white-space: nowrap !important;
+        font-weight: 600 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
 
-    .crm-customer-list-page .stock-btn:hover {
-        color: var(--paradise-text-body);
-        background-color: var(--paradise-bg-2);
+    .stock-btn:hover {
+        color: var(--paradise-text-body, #fff) !important;
+        background-color: rgba(255, 255, 255, 0.05) !important;
     }
 
-    .crm-customer-list-page .stock-btn.active {
-        background: var(--paradise-color-primary);
-        color: var(--paradise-text-on-primary, #fff);
-        box-shadow: var(--paradise-shadow-sm);
-    }
-
-    .crm-customer-list-page .stock-btn.active:hover {
-        background: var(--paradise-color-primary);
-        color: var(--paradise-text-on-primary, #fff);
+    .stock-btn.active {
+        background: var(--paradise-color-primary, #28a745) !important;
+        color: var(--paradise-text-on-primary, #fff) !important;
+        box-shadow: var(--paradise-shadow-sm, 0 1px 3px rgba(0,0,0,0.2)) !important;
     }
 
     /* Input select-wrapper as premium input field */

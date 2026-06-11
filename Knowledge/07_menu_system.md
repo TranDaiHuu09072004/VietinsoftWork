@@ -52,7 +52,7 @@
 ## 5. Quy trình tạo menu thủ công (Tóm tắt)
 
 1. **Tạo nguồn dữ liệu** (View/Procedure).
-2. **Chọn `MenuID`**: `MAX` trong nhóm + 1.
+2. **Chọn `MenuID`**: `MAX` trong nhóm + 1. (⚠️ **BẮT BUỘC** query kiểm tra tính khả dụng trong `MEN_Menu`, `tblMD_Message`, `tblSC_Object` trước khi chốt số, tuyệt đối không dùng ID đã có trong DB dù không hiện trên UI. Xem Rule 0 ở file `12_CreateMenu.md`).
 3. **Thêm `MEN_Menu`**:
    ```sql
    INSERT INTO MEN_Menu (MenuID, ClassName, AssemblyName, ParentMenuID, Priority, IsVisible, glyphicon, GroupID, IsWeb, IsUseMobileDevice)
