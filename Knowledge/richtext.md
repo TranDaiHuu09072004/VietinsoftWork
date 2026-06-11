@@ -1,76 +1,119 @@
-# richtext: Rich Text Editor Base64 Encoding & Decoding
+# Rich Text Editor (hpaControlRichTextEditorPremium) — Encode/Decode Base64
 
-Reference: [20_ControlSystem.md](20_ControlSystem.md) (Control properties), [23_CallAPI.md](23_CallAPI.md) (API communications).
+> Dùng khi làm việc với control `hpaControlRichTextEditorPremium`: lưu HTML vào DB (encode Base64 UTF-16LE) và đọc ngược lại (decode). File này bổ trợ cho [20_ControlSystem.md](20_ControlSystem.md).
 
-The control `hpaControlRichTextEditorPremium` requires HTML contents to be encoded in Base64 UTF-16LE format when stored in the database, and decoded upon loading.
+## 1. Luồng dữ liệu
 
----
+```
+┌─ User nhập HTML (tiếng Việt, ảnh, định dạng) trong editor
+├─ JS: utf16_le_to_b64_<ColName><UID>(html) → Base64 UTF-16LE
+├─ SQL: lưu chuỗi Base64 vào cột NVARCHAR
+├─ SQL: decode Base64 → CAST về NVARCHAR → hiển thị
+└─ JS: Instance<ColName><UID>.getHtml() → lấy HTML hiện tại
+```
 
-## 1. SQL Server decoding (Base64 UTF-16LE to NVARCHAR)
-Extracts Base64 string raw bytes to VARBINARY and casts back to NVARCHAR:
+## 2. SQL — Decode Base64 UTF-16LE
+
 ```sql
 DECLARE @ActualHTML NVARCHAR(MAX);
+
 BEGIN TRY
     IF @Data IS NULL OR @Data = ''
         SET @ActualHTML = N'';
-    ELSE IF @Data LIKE 'PHNjcmlwdA%' OR @Data LIKE '<%'  -- HTML or script fallback
+    ELSE IF @Data LIKE 'PHNjcmlwdA%' OR @Data LIKE '<%'  -- HTML thô hoặc script
         SET @ActualHTML = @Data;
     ELSE
-        -- Convert Base64 string -> VARBINARY (UTF-16LE bytes) -> NVARCHAR
-        SET @ActualHTML = CAST(CAST(N'' AS XML).value('xs:base64Binary(sql:variable("@Data"))', 'VARBINARY(MAX)') AS NVARCHAR(MAX));
+        -- XML convert Base64 → VARBINARY (byte UTF-16LE) → CAST sang NVARCHAR
+        SET @ActualHTML = CAST(
+            CAST(N'' AS XML).value('xs:base64Binary(sql:variable("@Data"))', 'VARBINARY(MAX)')
+            AS NVARCHAR(MAX)
+        );
 END TRY
 BEGIN CATCH
-    SET @ActualHTML = @Data; -- Fail-safe fallback
+    -- Fallback: nếu decode lỗi thì dùng raw
+    SET @ActualHTML = @Data;
 END CATCH
 ```
 
----
+> **Nguyên lý:** Client gửi Base64 của UTF-16LE. `xs:base64Binary` trả về `VARBINARY` (chính là byte UTF-16LE). `CAST(VARBINARY AS NVARCHAR)` hiển thị đúng tiếng Việt.
 
-## 2. JavaScript encoding (String to Base64 UTF-16LE)
-Converts standard JS strings to UTF-16 Little Endian byte buffers, and encodes to Base64:
+## 3. JavaScript — Encode Base64 UTF-16LE
+
 ```javascript
 function utf16_le_to_b64_<ColumnName><UID>(str) {
+    // B1: Chuyển chuỗi JavaScript (UTF-16) thành mảng byte UTF-16LE
     var buf = new ArrayBuffer(str.length * 2);
     var view = new Uint8Array(buf);
     for (var i = 0; i < str.length; i++) {
         var code = str.charCodeAt(i);
-        view[i * 2]     = code & 0xFF;         // Low byte (little-endian)
-        view[i * 2 + 1] = (code >> 8) & 0xFF;  // High byte
+        view[i * 2]     = code & 0xFF;         // byte thấp (little-endian)
+        view[i * 2 + 1] = (code >> 8) & 0xFF;  // byte cao
     }
+
+    // B2: ArrayBuffer → Base64
     var binary = '';
-    for (var j = 0; j < view.length; j++) {
-        binary += String.fromCharCode(view[j]);
+    var bytes = new Uint8Array(buf);
+    for (var j = 0; j < bytes.length; j++) {
+        binary += String.fromCharCode(bytes[j]);
     }
     return btoa(binary);
 }
 ```
 
----
+## 4. Hai trường hợp sử dụng
 
-## 3. Integration Patterns
+### TH1 — `_autoSave = false` (mặc định, xử lý thủ công)
 
-### 3.1. Manual Saving Mode (`_autoSave = false`)
-Used when `AutoSave = 0` (or `_autoSave<ColumnName><UID> = false`). Execute custom extraction:
+Khi control có `AutoSave = 0` (mặc định trong `tblCommonControlType_Signed`), hoặc `_autoSave<ColumnName><UID> = false`. Renderer tự gọi `getHtml()` và encode rồi gửi API thủ công:
+
 ```javascript
-let html = Instance<ColName><UID>.getHtml();
-let b64 = utf16_le_to_b64_<ColName><UID>(html);
+// Lấy HTML từ editor
+var html = Instance<ColName><UID>.getHtml();
 
+// Encode Base64 UTF-16LE
+var b64 = utf16_le_to_b64_<ColName><UID>(html);
+
+// Gửi lên server thủ công
 AjaxHPAParadise({
-    data: { name: "sp_SaveContent", param: ["LoginID", LoginID, "HTMLContent", b64] }
+    data: {
+        name: "sp_MySaveProc",
+        param: ["LoginID", LoginID, "Content", b64]
+    }
 });
 ```
 
-### 3.2. Automated AutoSave Mode (`_autoSave = true`)
-Toggle the flag **before** executing `loadUI`. The framework automatically intercept changes, encodes the buffer, and submits the update.
+### TH2 — AutoSave
+
+Chỉ cần set `_autoSave<ColumnName><UID> = true` trước khi loadUI. Hệ thống tự động:
+1. Gọi `Instance<ColName><UID>.getHtml()` để lấy HTML
+2. Gọi `utf16_le_to_b64_<ColName><UID>(html)` để encode
+3. Gửi Base64 lên server qua `AjaxHPAParadise`
+4. SQL SP decode Base64 → lưu NVARCHAR
+
 ```javascript
-window["_autoSave_<ColumnName><UID>"] = true;
-// Followed by standard: select loadUI and select loadData calls.
+// Set TRƯỚC khi inject loadUI
+_autoSave<ColumnName><UID> = true;
+
+// Load UI + Load Data — dùng select loadUI và select loadData như bình thường
++(select loadUI from tblCommonControlType_Signed where UID = '<UID>')
++(select loadData from tblCommonControlType_Signed where UID = '<UID>')
 ```
 
----
+> **Load giao diện & load data:** Luôn dùng `select loadUI` và `select loadData` từ `tblCommonControlType_Signed` — không cần code tay.
 
-## 4. Client-Side API References
-*   `Instance<ColName><UID>.getHtml()`: Fetches current editor text as raw HTML.
-*   `Instance<ColName><UID>.setHtml(html)`: Binds a raw HTML string into the editor.
-*   `Instance<ColName><UID>.value`: Directly reads/updates the unformatted text value.
-*   `rteObj_<ColName><UID>`: Direct reference to the raw editor premium instance.
+## 5. JS API
+
+| Hàm | Mô tả |
+|-----|-------|
+| `Instance<ColName><UID>.getHtml()` | Lấy nội dung HTML hiện tại từ editor |
+| `Instance<ColName><UID>.setHtml(html)` | Gán HTML vào editor |
+| `Instance<ColName><UID>.value` | Get/set value (raw) |
+| `rteObj_<ColName><UID>` | Object editor gốc (Premium) |
+| `utf16_le_to_b64_<ColName><UID>(str)` | Encode chuỗi JS → Base64 UTF-16LE |
+| `_autoSave<ColumnName><UID> = true` | Bật AutoSave (đặt trước loadUI) |
+
+## 6. Lưu ý
+
+- `hpaControlRichTextEditor` (không Premium) đã **không còn sử dụng** ([20_ControlSystem.md §A.2](20_ControlSystem.md))
+- Ảnh trong HTML được xử lý qua `data-original-url` → `convertPathToBlobUrl()` → `blob:http://...`
+- Khi đọc từ DB ra hiển thị: dùng decode SQL (section 2), gán vào `setHtml()`

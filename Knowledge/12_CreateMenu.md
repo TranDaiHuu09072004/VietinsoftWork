@@ -20,33 +20,24 @@
 
 > **Nếu menu có SQL backend chạy chậm, xem [26_QueryOptimization.md](26_QueryOptimization.md) để tối ưu query.**
 
-## 1. 6 Quy tắc bắt buộc
+## 1. 7 Quy tắc bắt buộc
 
 ### Rule 1 — Cấp quyền: CHỈ LoginID = 3
-
 - ✅ `INSERT tblSC_Right_Stored(ObjectID, LoginID = 3, FullAccess = '32')` — chỉ admin.
 - ❌ **KHÔNG** gọi `sp_UpdateMenuInUserRight` (tự cấp `FullAccess=32` cho **MỌI** LoginID > 0 → mở quyền toàn hệ thống).
 - ➡️ User/group khác: cấp sau qua UI app hoặc script riêng.
 
-### Rule 2 — Cờ menu HTML-rendered và chuẩn giao diện ParadiseStyle.
-
-Tất cả menu HTML-rendered (`MnuKPI007`, `MnuTM022`, `MnuWPT037`...) dùng **CÙNG PATTERN**:
-
-| Cờ `MEN_Menu` | Giá trị | Lý do |
-|---|---|---|
-| `IsVisible` | `1` | Cho phép hiển thị |
-| `IsWeb` | **`0`** | Không phải ASPX cũ |
-| `ViewOnWeb` | **`0`** | ⚠️ SAI nếu để `1` |
-| `isShowLayOutWeb` | `0` hoặc `1` | `1` = ẩn khỏi **danh sách tìm kiếm menu**, `0` = hiển thị |
-| `isShowInMobileLayOut` | **`0`** | ⚠️ SAI nếu để `1` |
-| `IsUseMobileDevice` | `1` | Bật cho Web HTML-rendered + Mobile |
-| `isLeftMenu` | `0` hoặc `1` | `0` = **hiển thị trên menubar**, `1` = không hiển thị |
-| `isHiddenInTree` | `0` hoặc `1` | `0` = hiển thị trong cây menu, `1` = ẩn |
+### Rule 2 — Cấu hình cờ `MEN_Menu` (Chọn 1 trong 2 cách hiển thị)
+* **Cách 1: Pure HTML Render (Hiện đại - KHUYẾN NGHỊ)**:
+  * `IsWeb = 1`, `ViewOnWeb = 1` hoặc `0`, `isShowLayOutWeb = 1` (hoặc `0` để hiện trên menu/search).
+  * `IsUseMobileDevice = 0`, `isShowInMobileLayOut = 0`.
+* **Cách 2: WebView qua Mobile Engine (Legacy)**:
+  * `IsWeb = 0`, `ViewOnWeb = 0`, `isShowLayOutWeb = 0`.
+  * `IsUseMobileDevice = 1`, `isShowInMobileLayOut = 0`.
+* *Chung*: `IsVisible = 1` (bắt buộc).
 
 #### phải thiết kế giao diện theo đúng chuẩn ParadiseStyle 
 - Tham khảo tri thức tại file 14_ParadiseStyle.md
-
-> Hệ thống nhận diện "menu Web HTML-rendered" qua `AssemblyName='DataSetting'` + `ClassName` trỏ cặp wrapper/renderer + có cache `tblHtmlScriptCache`. **KHÔNG** qua các cờ `ViewOnWeb`/`isShowLayOutWeb`.
 
 ### Rule 3 — Parent menu phải `IsVisible = 1`
 
@@ -57,16 +48,12 @@ SELECT IsVisible FROM MEN_Menu WHERE MenuID = '<ParentMenuID>';
 
 Parent đã verify an toàn: `MnuKPI000` · `MnuTM000` · `MnuWPT000` · `MnuHRS000` · `MnuCSM000` · `MnuMDT000`· `MnuPRL000`· `MnuTAD000` · `MnuTM000`· `MnuSCR000`. ❌ Tránh `MnuHEP000` (Trợ giúp — `IsVisible=0`).
 
-### Rule 4 — BẮT BUỘC `tblDataSetting` 
-
-Mỗi menu HTML-rendered phải có **3 bảng metadata**:
-
-| Bảng | Số dòng | Vai trò |
-|---|---|---|
-| `tblDataSetting` | 1 | Báo cho app: procedure HTML-rendered (`IsProcedure=1, IsShowLayout=1, ColumnDataType='html&ViewHtml', ColumnOrderBy='html&0'`) |
-| `tblHtmlScriptCache` | ≥ 1/lang | HTML/CSS/JS thực |
-
-
+### Rule 4 — Cấu hình Metadata (Tránh màn hình trắng)
+* **Nếu chọn Cách 1 (Pure HTML)**: Chỉ cần lưu trữ cache HTML trong `tblHtmlScriptCache`. Không cần cấu hình `tblDataSetting` hay `tblDataSettingLayout`.
+* **Nếu chọn Cách 2 (WebView)**: Bắt buộc cấu hình đủ:
+  * `tblDataSetting`: 1 dòng (`TableName = <ClassName>`, `IsProcedure = 1`, `IsShowLayout = 1`, `ColumnDataType = 'html&ViewHtml'`, `ColumnOrderBy = 'html&0'`).
+  * `tblDataSettingLayout`: 2 dòng (`root` container và item `lblhtml` trỏ tới `ControlType = 'ParadiseWebView2'`).
+  * `tblHtmlScriptCache`: Chứa cache HTML/CSS/JS.
 
 ### Rule 5 — Renderer HTML/JS an toàn
 
@@ -94,27 +81,28 @@ Template đầy đủ + kiến trúc 3 lớp + menu mẫu `sp_CRM_ProductType_ht
 
 > **Why**: ≥30 procedure trong DB đã dùng pattern này (verify: `OBJECT_DEFINITION LIKE '%scrolling.mode%infinite%'`).
 
-### Rule 7 — Đa ngôn ngữ: `%Placeholder%` → `tblMD_Message`
+### Rule 7 — Đa ngôn ngữ (`tblMD_Message`)
 
-Mọi text hiển thị trên UI phải hỗ trợ đa ngôn ngữ qua cơ chế placeholder `%MessageID%`:
+Bảng `tblMD_Message` là từ điển đa ngôn ngữ của hệ thống, được sử dụng trong **2 mục đích hoàn toàn tách biệt**:
 
-```
-Renderer HTML:        <div>%EmployeeID%</div>
-                              ↓
-sp_GenerateHTMLScript quét tất cả %...% trong HTML
-                              ↓
-Lookup tblMD_Message WHERE MessageID = 'EmployeeID' AND Language = @Language
-                              ↓
-Cache VN:  <div>Mã nhân viên</div>
-Cache EN:  <div>Employee ID</div>
-```
+**1. Dịch tên Menu (Tên hiển thị trên cây Menu/Tab)**
+- Khi đăng ký một menu mới vào `MEN_Menu`, hệ thống dùng `MenuID` (vd: `MnuREC101`) để tìm tên hiển thị.
+- **Bắt buộc:** Phải insert vào `tblMD_Message` với **`MessageID` CHÍNH LÀ `MenuID`** (TUYỆT ĐỐI KHÔNG dùng `ClassName`).
+  *(Lưu ý: Nếu tạo menu bằng hàm `sp_s_CreateMenu` thì hàm đã tự làm việc này. Chỉ phải lưu ý quy tắc này khi INSERT thủ công vào `MEN_Menu` cho các form chi tiết ẩn).*
 
-**Áp dụng ở đâu**:
-| Nơi dùng | Ví dụ | Cần tblMD_Message? |
+**2. Dịch `%Placeholder%` trong HTML/JS/Controls**
+- Mọi text hiển thị bên trong nội dung menu (HTML, Label, Column Name) dùng cơ chế `%Placeholder%`:
+  ```
+  HTML: <div>%EmployeeID%</div>  → Build Cache → VN: <div>Mã nhân viên</div> | EN: <div>Employee ID</div>
+  ```
+
+**Tổng hợp các nơi áp dụng `tblMD_Message`**:
+| Nơi dùng | Giá trị `MessageID` cần lưu | Cần `tblMD_Message`? |
 |---|---|---|
-| `tblCommonControlType_Signed.DisplayName` | `'%STT%'`, `'%FullName%'`, `'%OwnerID%'` | ✅ Bắt buộc |
-| HTML trong renderer | `<div>%EmployeeID%</div>` | ✅ Bắt buộc |
-| Label tĩnh trong T-SQL | `@title = N'Danh sách'` | ❌ Không (đã là text cứng, xử lý riêng trong renderer) |
+| Tên Menu (Gắn với `MEN_Menu`) | **`MenuID`** (vd: `MnuREC101`) | ✅ Bắt buộc |
+| `tblCommonControlType_Signed.DisplayName` | Nội dung `%...%` (vd: `FullName`) | ✅ Bắt buộc |
+| HTML trong renderer | Nội dung `%...%` (vd: `EmployeeID`) | ✅ Bắt buộc |
+| Label tĩnh trong T-SQL | ❌ Không có (xử lý bằng IF @LanguageID) | ❌ Không |
 
 **Bắt buộc trong migration script**:
 - Mọi `%MessageID%` dùng trong `tblCommonControlType_Signed` hoặc renderer HTML → phải có `tblMD_Message` entry cho **cả VN và EN**
@@ -383,6 +371,8 @@ EXEC dbo.sp_Men_Menu_AfterSave_Simple @ClassName = N'sp_HelloWorldVietinsoft';
 ## 6. `AjaxHPAParadise` runtime API
 
 ### 6.1 Cú pháp chuẩn
+
+> ⚠️ **Before writing code that calls `AjaxHPAParadise`:** MUST check that the target procedure `name` exists in the DB. If not → ask user whether to create it. See [23_CallAPI.md §0](23_CallAPI.md).
 
 ```javascript
 AjaxHPAParadise({

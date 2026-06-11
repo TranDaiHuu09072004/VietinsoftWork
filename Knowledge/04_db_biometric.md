@@ -1,47 +1,61 @@
-# 04 — Database: Biometrics (Fingerprint & Face)
+# 04 — Database: Sinh trắc học — Vân tay & Khuôn mặt (Biometric)
 
-Reference: [02_db_employee.md](02_db_employee.md) (linked via `BADGENUMBER` <=> `EmployeeID`), [05_db_attendance.md](05_db_attendance.md) (`USERINFO` mapping).
+> Schema bảng vân tay, khuôn mặt, lòng bàn tay. Liên quan: [02_db_employee.md](02_db_employee.md) (link qua `BADGENUMBER`), [05_db_attendance.md](05_db_attendance.md) (`USERINFO` dùng làm định danh chấm công).
 
-The system integrates ZKTeco schemas. Biometric templates map via `USERINFO.USERID` rather than directly inside `tblEmployee`.
-**Key Bridge**: `USERINFO.BADGENUMBER = tblEmployee.EmployeeID`.
+Hệ thống tích hợp **schema chuẩn ZKTeco** (ZKTime/ZKAccess). Template sinh trắc **không gắn trực tiếp** vào `tblEmployee`, mà lưu ở các bảng riêng, định danh qua `USERINFO.USERID`.
 
-## 1. User Identity Mapping: `USERINFO`
-Represents the registered user on physical attendance machines.
-*   **Primary Key**: `USERID` (int).
-*   **Key Columns**: `BADGENUMBER` (maps to `EmployeeID`), `NAME`, `GENDER`, `BIRTHDAY`, `HIREDDAY`, `CardNo`, `PHOTO` (varbinary - profile image stored on terminal), `Deleted`, `FaceGroup`, `VERIFICATIONMETHOD`, `SecurityLevel`, `VerifyCode`.
+**Cầu nối định danh:** `USERINFO.BADGENUMBER = tblEmployee.EmployeeID`.
 
-## 2. Fingerprint Templates
-*   `TEMPLATE`: Active fingerprint templates.
-    *   *Columns*: `TEMPLATEID` (PK), `USERID` (FK), `FINGERID` (0–9), `TEMPLATE`/`TEMPLATE1-4` (varbinary multi-version templates), `BITMAPPICTURE`/`BITMAPPICTURE2-4` (bitmap image), `Template_Text` (base64 string for API calls), `SN` (machine serial number), `EMACHINENUM`, `DivisionFP`, `Flag`, `DownloadDate`.
-*   `TEMPLATE_History`: Past template registry entries (`FINGERID`, `TEMPLATE`, `isBestTemplate`).
-*   `tblRegisterFingerPrintOnlineImage`: Scanned finger image from web UI (`FingerIndexID` (PK), `FingerImage` (varbinary)).
+## Bảng `USERINFO` — user trên máy chấm công
 
-## 3. Facial Templates
-*   `FaceTemp`: Active face templates.
-    *   *Columns*: `TEMPLATEID` (PK), `USERID`, `USERNO`, `FACEID`, `TEMPLATE` (varbinary), `Template_Text`, `SIZE`, `VALID`, `VFCOUNT`, `PIN`, `DivisionFP`, `SN`, `DownloadDate`.
-*   `FaceTemp_History`: Facial history logs (`FACEID`, `TEMPLATE`, `isBestTemplate`).
-*   `tblPending_ProcessFaceTempFromEmployeePhoto`: Queue for extracting facial templates from profile photos (`EmployeeID`, `PhotoImage` (varbinary), `PhotoImagePath`).
+- Khoá chính: `USERID` (int).
+- Cột định danh chính: `BADGENUMBER` (mã chấm công ↔ `EmployeeID`), `NAME`, `GENDER`, `BIRTHDAY`, `HIREDDAY`, `CardNo`, `PHOTO` (varbinary — ảnh user lưu trên máy), `Deleted`.
+- Cột liên quan sinh trắc: `FaceGroup` (nhóm khuôn mặt), `VERIFICATIONMETHOD`, `SecurityLevel`, `VerifyCode`.
 
-## 4. Palm Templates & Hardware Management
-*   `Palm`, `PalmTemp`: Palm biometric schemas (similar structure to `TEMPLATE`).
-*   `Machines`: Attendance machine config (`FingerCapacity`, `FingerCount`, `FaceCapacity`, `FaceCount`).
-*   `MachinesBadgeNumberUploaded`: Logs which user templates have been sent to each machine (`Finger`, `Face` binary flags).
-*   `tblWorkingDevice`, `tblDeviceCodeInfo`: Device identifier mappings.
+## Vân tay (Fingerprint)
 
-## 5. SQL Usage Examples
-Avoid `SELECT *` due to heavy `varbinary(MAX)` columns.
+| Bảng | Mục đích | Cột chính |
+|---|---|---|
+| `TEMPLATE` | **Lưu template vân tay đã đăng ký** | `TEMPLATEID` (PK), `USERID` (FK → `USERINFO.USERID`), `FINGERID` (0–9, vị trí ngón), `TEMPLATE`/`TEMPLATE1`/`TEMPLATE2`/`TEMPLATE3`/`TEMPLATE4` (varbinary — template multi-version), `BITMAPPICTURE`/`BITMAPPICTURE2-4` (ảnh bitmap), `Template_Text` (text-encoded để gửi API), `SN` (serial máy đăng ký), `EMACHINENUM`, `DivisionFP`, `Flag`, `DownloadDate` |
+| `TEMPLATE_History` | Lịch sử các lần đăng ký | `FINGERID`, `TEMPLATE`, `isBestTemplate` (đánh dấu mẫu tốt nhất) |
+| `tblRegisterFingerPrintOnlineImage` | Ảnh đăng ký vân tay qua web/form | `FingerIndexID` (PK), `FingerImage` (varbinary) |
+
+## Khuôn mặt (Face)
+
+| Bảng | Mục đích | Cột chính |
+|---|---|---|
+| `FaceTemp` | **Lưu template khuôn mặt** | `TEMPLATEID` (PK), `USERID`, `USERNO`, `FACEID`, `TEMPLATE` (varbinary), `Template_Text`, `SIZE`, `VALID`, `VFCOUNT`, `PIN`, `DivisionFP`, `SN`, `DownloadDate` |
+| `FaceTemp_History` | Lịch sử template khuôn mặt | `FACEID`, `TEMPLATE`, `isBestTemplate` |
+| `tblPending_ProcessFaceTempFromEmployeePhoto` | Hàng đợi sinh face template từ ảnh nhân viên | `EmployeeID`, `PhotoImage` (varbinary), `PhotoImagePath` |
+
+## Lòng bàn tay (Palm) — bổ sung
+
+`Palm`, `PalmTemp` — cấu trúc tương tự `TEMPLATE` nhưng cho lòng bàn tay (`TEMPLATEID`, `TEMPLATE` varbinary).
+
+## Thiết bị & trạng thái upload template
+
+| Bảng | Mục đích |
+|---|---|
+| `Machines` | Thiết bị chấm công. Cột giám sát sinh trắc: `FingerCapacity`, `FingerCount`, `FaceCapacity`, `FaceCount` |
+| `MachinesBadgeNumberUploaded` | Track từng nhân viên đã được đẩy template lên từng máy: cột `Finger`, `Face` (0/1) |
+| `tblWorkingDevice`, `tblDeviceCodeInfo` | Mapping/định danh thiết bị làm việc |
+
+## Câu SQL mẫu
+
 ```sql
--- Count registered fingerprints of an employee
+-- Đếm số ngón tay đã đăng ký của 1 nhân viên
 SELECT u.BADGENUMBER, u.NAME, COUNT(t.TEMPLATEID) AS FingerCount
 FROM USERINFO u
 LEFT JOIN TEMPLATE t ON t.USERID = u.USERID
 WHERE u.BADGENUMBER = N'<EmployeeID>'
 GROUP BY u.BADGENUMBER, u.NAME;
 
--- Count registered face templates
+-- Đếm số mẫu khuôn mặt đã đăng ký
 SELECT u.BADGENUMBER, COUNT(f.TEMPLATEID) AS FaceCount
 FROM USERINFO u
 LEFT JOIN FaceTemp f ON f.USERID = u.USERID
 WHERE u.BADGENUMBER = N'<EmployeeID>'
 GROUP BY u.BADGENUMBER;
 ```
+
+> Ghi chú: cột `TEMPLATE`, `BITMAPPICTURE*`, `PHOTO`, `FingerImage` đều `varbinary(MAX)` — nặng. Tránh `SELECT *`, chỉ lấy ID/USERID/FINGERID/FACEID trừ khi thực sự cần binary.

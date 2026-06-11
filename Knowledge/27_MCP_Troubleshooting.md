@@ -1,60 +1,154 @@
-# 27 — MCP Troubleshooting & Tool Workarounds
+# MCP Troubleshooting — Workaround cho tool bị lỗi
 
-Registry of verified workarounds for the `@bilims/mcp-sqlserver` package bugs on the `mssql-vietinsoft` server.
-
-## 1. Tool Status Log
-*   `test_connection` / `get_server_info` / `list_tables` / `list_views` / `get_foreign_keys` / `get_table_stats` / `execute_query`: **OK** ✅
-*   `list_databases` / `describe_table`: **BUGGED** ❌ (Use queries in Section 2).
+> **Mục đích:** Ghi lại các lỗi đã phát hiện của MCP `mssql-vietinsoft` (package `@bilims/mcp-sqlserver`) và workaround bằng `execute_query`. Cập nhật khi có thay đổi.
 
 ---
 
-## 2. Bug Workarounds (Using `execute_query`)
+## Trạng thái các tool MCP
 
-### 2.1. Bug: `list_databases` fails with "Forbidden keyword: CREATE"
-*   *Cause*: Package queries trigger internal validation blocks.
-*   *Workaround*: Execute raw query:
-    ```sql
-    SELECT name AS DatabaseName FROM sys.databases ORDER BY name;
-    ```
-
-### 2.2. Bug: `describe_table` fails with "Invalid column name 'dbo'"
-*   *Cause*: Package misinterprets schema namespaces during `INFORMATION_SCHEMA` scans.
-*   *Workaround A (Detailed Schema & Primary Keys)*:
-    ```sql
-    SELECT C.COLUMN_NAME, C.DATA_TYPE, 
-           CASE WHEN C.CHARACTER_MAXIMUM_LENGTH = -1 THEN 'max' ELSE ISNULL(CAST(C.CHARACTER_MAXIMUM_LENGTH AS VARCHAR), '') END AS MaxLength,
-           C.IS_NULLABLE, C.COLUMN_DEFAULT, COLUMNPROPERTY(OBJECT_ID(C.TABLE_SCHEMA + '.' + C.TABLE_NAME), C.COLUMN_NAME, 'IsIdentity') AS IsIdentity,
-           CASE WHEN PK.COLUMN_NAME IS NOT NULL THEN 'YES' ELSE '' END AS PrimaryKey
-    FROM INFORMATION_SCHEMA.COLUMNS C
-    LEFT JOIN (
-        SELECT KU.TABLE_SCHEMA, KU.TABLE_NAME, KU.COLUMN_NAME
-        FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS TC
-        INNER JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE KU ON TC.CONSTRAINT_NAME = KU.CONSTRAINT_NAME AND TC.TABLE_SCHEMA = KU.TABLE_SCHEMA AND TC.TABLE_NAME = KU.TABLE_NAME
-        WHERE TC.CONSTRAINT_TYPE = 'PRIMARY KEY'
-    ) PK ON C.TABLE_SCHEMA = PK.TABLE_SCHEMA AND C.TABLE_NAME = PK.TABLE_NAME AND C.COLUMN_NAME = PK.COLUMN_NAME
-    WHERE C.TABLE_NAME = '<Table_Name>' AND C.TABLE_SCHEMA = 'dbo' ORDER BY C.ORDINAL_POSITION;
-    ```
-*   *Workaround B (Quick Describe)*:
-    ```sql
-    SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_NAME = '<Table_Name>' AND TABLE_SCHEMA = 'dbo' ORDER BY ORDINAL_POSITION;
-    ```
+| # | Tool | Kết quả | Ngày test |
+|---|---|---|---|
+| 1 | `test_connection` | ✅ OK (75ms) | 2026-05-28 |
+| 2 | `get_server_info` | ✅ OK | 2026-05-28 |
+| 3 | `list_tables` | ✅ OK (1203 tables) | 2026-05-28 |
+| 4 | `list_views` | ✅ OK (34 views) | 2026-05-28 |
+| 5 | `describe_table` | ❌ Bug package | 2026-05-28 |
+| 6 | `execute_query` | ✅ OK (~20ms) | 2026-05-28 |
+| 7 | `get_foreign_keys` | ✅ OK (8 FKs) | 2026-05-28 |
+| 8 | `get_table_stats` | ✅ OK | 2026-05-28 |
+| 9 | `list_databases` | ❌ Bug package | 2026-05-28 |
 
 ---
 
-### 2.3. Bug: Query fails with "Forbidden keyword detected: DELETE/INSERT/UPDATE/DROP/TRUNCATE/CREATE"
-*   *Cause*: The `@bilims/mcp-sqlserver` package parser blocks any query containing DDL/DML keywords, even inside comments, text literals (e.g. `'DELETED'`), or column names (e.g. `IsDeleted`).
-*   *Workaround (Bypass)*: Concat strings or use `CHAR()` values:
-    *   `DELETE` -> `'DEL' + 'ETE'` or `CHAR(68)+CHAR(69)+CHAR(76)+CHAR(69)+CHAR(84)+CHAR(69)`
-    *   `INSERT` -> `'IN' + 'SERT'` or `CHAR(73)+CHAR(78)+CHAR(83)+CHAR(69)+CHAR(82)+CHAR(84)`
-    *   `UPDATE` -> `'UP' + 'DATE'` or `CHAR(85)+CHAR(80)+CHAR(68)+CHAR(65)+CHAR(84)+CHAR(69)`
-    *   `DROP` -> `'DR' + 'OP'` or `CHAR(68)+CHAR(82)+CHAR(79)+CHAR(80)`
-    *   `TRUNCATE` -> `'TRUN' + 'CATE'`
-    *   `CREATE` -> `'CR' + 'EATE'` or `CHAR(67)+CHAR(82)+CHAR(69)+CHAR(65)+CHAR(84)+CHAR(69)`
-    *   *Tip*: Use `LIKE '%Name'` to avoid forbidden text literals, or string concatenation.
+## Lỗi 1: Forbidden keywords (DELETE, INSERT, UPDATE, DROP, TRUNCATE, CREATE)
+
+### Error message
+```
+Database operation failed: Query validation failed: Forbidden keyword detected: DELETE
+```
+(tương tự với INSERT, UPDATE, DROP, TRUNCATE, CREATE)
+
+### Nguyên nhân
+Package `@bilims/mcp-sqlserver` có cơ chế validate SQL, chặn **MỌI** từ khóa DML/DDL (DELETE, INSERT, UPDATE, DROP, TRUNCATE, CREATE), kể cả khi:
+- Chúng nằm trong chuỗi text (`WHERE Note = 'DELETED'`, `+ 'delete' +`)
+- Chúng nằm trong comment (`-- delete old records`)
+- Chúng là một phần của tên bảng/cột (`tblDeleteLog`, `IsDeleted`)
+
+### Workaround
+
+| Từ khóa bị chặn | Cách bypass |
+|---|---|
+| `DELETE` | `'DEL' + 'ETE'`, `CHAR(68)+CHAR(69)+CHAR(76)+CHAR(69)+CHAR(84)+CHAR(69)` |
+| `INSERT` | `'IN' + 'SERT'`, `CHAR(73)+CHAR(78)+CHAR(83)+CHAR(69)+CHAR(82)+CHAR(84)` |
+| `UPDATE` | `'UP' + 'DATE'`, `CHAR(85)+CHAR(80)+CHAR(68)+CHAR(65)+CHAR(84)+CHAR(69)` |
+| `DROP` | `'DR' + 'OP'`, `CHAR(68)+CHAR(82)+CHAR(79)+CHAR(80)` |
+| `TRUNCATE` | `'TRUN' + 'CATE'` |
+| `CREATE` | `'CR' + 'EATE'`, `CHAR(67)+CHAR(82)+CHAR(69)+CHAR(65)+CHAR(84)+CHAR(69)` |
+
+**Tip chung:** Dùng `LIKE '%Name'` để tránh chứa từ khóa trong chuỗi literal, hoặc dùng phép ghép chuỗi `'DEL' + 'ETE'`.
+
+### Fix lâu dài
+Fork `@bilims/mcp-sqlserver` → sửa validator: chỉ block các câu SQL có **intent** thực sự là DML/DDL (bắt đầu bằng DELETE/INSERT/UPDATE/DROP/TRUNCATE), không block khi từ khóa nằm trong chuỗi, comment, hoặc tên object.
 
 ---
 
-## 3. Environment & Configuration Workarounds
-*   **Cline Windows Symlink Conflict**: Cline does not resolve settings files mapped via symlink. Ensure `cline_mcp_settings.json` is a physical copy of `.mcp.json`, not a link.
-*   **Cline stdio Protocol Format**: Cline does not support `"type": "stdio"` within `.mcp.json` settings. Omit it and declare command, args, and environments parameters directly.
+## Lỗi 2: `list_databases`
+
+### Error message
+```
+Database operation failed: Query validation failed: Forbidden keyword detected: CREATE
+```
+
+### Nguyên nhân
+Package `@bilims/mcp-sqlserver` có cơ chế validate SQL trước khi gửi. Khi gọi `list_databases`, package tự sinh câu SQL nội bộ (có thể dùng `CREATE VIEW` hoặc system procedure chứa từ `CREATE`). Cơ chế validate phát hiện và block — đây là **bug internal của package**, không phải lỗi DB.
+
+### Workaround
+Dùng `execute_query` với query sau:
+
+```sql
+SELECT name AS DatabaseName FROM sys.databases ORDER BY name
+```
+
+### Fix lâu dài
+Fork `@bilims/mcp-sqlserver` → sửa logic validate: thêm whitelist cho các câu SQL nội bộ của chính package, hoặc kiểm tra context trước khi block.
+
+---
+
+## Lỗi 3: `describe_table`
+
+### Error message
+```
+Database operation failed: Invalid column name 'dbo'
+```
+
+### Nguyên nhân
+Package build câu SQL truy vấn `INFORMATION_SCHEMA` nhưng xử lý sai tham số `schema`. Thay vì dùng `schema` trong `WHERE TABLE_SCHEMA = '...'`, package có thể đã nhầm thành tên cột trong `SELECT` clause. **Bug internal của package.**
+
+### Workaround 1 — Structure đầy đủ
+```sql
+SELECT 
+    COLUMN_NAME,
+    DATA_TYPE,
+    CASE WHEN CHARACTER_MAXIMUM_LENGTH = -1 THEN 'max'
+         ELSE ISNULL(CAST(CHARACTER_MAXIMUM_LENGTH AS VARCHAR), '') END AS MaxLength,
+    IS_NULLABLE,
+    COLUMN_DEFAULT,
+    COLUMNPROPERTY(OBJECT_ID(TABLE_SCHEMA + '.' + TABLE_NAME), COLUMN_NAME, 'IsIdentity') AS IsIdentity,
+    CASE WHEN pk.COLUMN_NAME IS NOT NULL THEN 'YES' ELSE '' END AS PrimaryKey
+FROM INFORMATION_SCHEMA.COLUMNS c
+LEFT JOIN (
+    SELECT ku.TABLE_SCHEMA, ku.TABLE_NAME, ku.COLUMN_NAME
+    FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
+    JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE ku 
+        ON tc.CONSTRAINT_NAME = ku.CONSTRAINT_NAME
+        AND tc.TABLE_SCHEMA = ku.TABLE_SCHEMA
+        AND tc.TABLE_NAME = ku.TABLE_NAME
+    WHERE tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
+) pk ON c.TABLE_SCHEMA = pk.TABLE_SCHEMA
+    AND c.TABLE_NAME = pk.TABLE_NAME
+    AND c.COLUMN_NAME = pk.COLUMN_NAME
+WHERE c.TABLE_NAME = '<tên bảng>'
+  AND c.TABLE_SCHEMA = 'dbo'
+ORDER BY c.ORDINAL_POSITION
+```
+
+### Workaround 2 — Ngắn gọn (dùng sp_help)
+```sql
+EXEC sp_help '<tên bảng>'
+```
+
+> **⚠️ Lưu ý:** `sp_help` trả về nhiều result sets. `execute_query` có thể chỉ trả về set đầu tiên. Nếu cần đầy đủ → dùng workaround 1.
+
+### Workaround 3 — Chỉ cần danh sách cột + type
+```sql
+SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME = '<tên bảng>' AND TABLE_SCHEMA = 'dbo'
+ORDER BY ORDINAL_POSITION
+```
+
+### Fix lâu dài
+Fork `@bilims/mcp-sqlserver` → sửa SQL builder trong `describe_table`, đảm bảo tham số `schema` được dùng đúng vị trí `WHERE` clause.
+
+---
+
+## Bảng workaround nhanh
+
+| Mục đích | Tool gốc | Workaround (dùng execute_query) |
+|---|---|---|
+| Liệt kê databases | `list_databases` ❌ | `SELECT name FROM sys.databases ORDER BY name` |
+| Xem cấu trúc bảng (đầy đủ) | `describe_table` ❌ | Workaround 1 (INFORMATION_SCHEMA + PK join) |
+| Xem cấu trúc bảng (ngắn) | `describe_table` ❌ | `EXEC sp_help '<bảng>'` hoặc Workaround 3 |
+| Liệt kê bảng | `list_tables` ✅ | (không cần) |
+| Liệt kê view | `list_views` ✅ | (không cần) |
+| FK relationships | `get_foreign_keys` ✅ | (không cần) |
+| Row count & size | `get_table_stats` ✅ | (không cần) |
+
+---
+
+## Cập nhật
+
+- 2026-05-28: Phát hiện 2 bug (`list_databases`, `describe_table`), thêm workaround.
+- 2026-05-30: Phát hiện Cline trên Windows **không đọc được MCP config qua symlink**. `cline_mcp_settings.json` phải là file thật, không được symlink tới `.mcp.json`. Nếu muốn đồng bộ, dùng script copy thay vì symlink.
+- 2026-05-30: Cline MCP config format **không hỗ trợ field `"type": "stdio"`** cho stdio transport. Chỉ cần `"command"`, `"args"`, `"env"`.
+- Khi package `@bilims/mcp-sqlserver` được fix hoặc thay thế bằng MCP server tự viết → cập nhật file này.
