@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "sql-server-vietinsoft": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@bilims/mcp-sqlserver"
+      ],
+      "env": {
+        "SQLSERVER_HOST": "192.168.11.51",
+        "SQLSERVER_PORT": "2222",
+        "SQLSERVER_USER": "vts",
+        "SQLSERVER_PASSWORD": "LuaThieng1@3@2020",
+        "SQLSERVER_DATABASE": "Paradise_DEV"
+      }
+    }
+  }
+}

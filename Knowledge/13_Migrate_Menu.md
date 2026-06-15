@@ -232,6 +232,20 @@ END
 
 Nếu wrapper khác pattern này — đọc source + giữ logic, không tự đơn giản hoá.
 
+### Phase D2 — ⚠️ Verify quote escaping khi copy OBJECT_DEFINITION
+
+> **Tiền lệ 2026-06-12** ([migrate_menu_MnuHRS505_FamilyInfo_20260612.sql](../SQL%20script/migrate_menu_MnuHRS505_FamilyInfo_20260612.sql)): OBJECT_DEFINITION trả về source T-SQL trong đó `''` là escape sequence của `'` bên trong chuỗi `N'...'`. Khi copy source này vào script migrate, Agent phải **giữ nguyên** `''`. Tuy nhiên, tool Write có thể âm thầm convert `''` → `'` → vỡ N-string. Ngoài ra, pattern `' + ISNULL(...) + N'` nằm NGOÀI chuỗi `N'...'` → string literal trong đó dùng `'...'` (single quote chuẩn SQL), KHÔNG dùng `''...''`.
+
+**Các lỗi thường gặp khi copy renderer source:**
+
+| Triệu chứng | Nguyên nhân | Fix |
+|---|---|---|
+| `Msg 102, Incorrect syntax near 'TableName'` | Dùng `''TableName''` trong ISNULL nằm NGOÀI N'...' | Dùng `'TableName'` (single quote SQL chuẩn) |
+| `Uncaught SyntaxError: Unexpected string` ở browser | JS string sinh sai do `''"''` thừa ở cuối → `'"'"` | Xác định JS mong muốn → escape ngược: `''"` cho `'"`, `"''"` cho `"'` |
+| File .sql bị mất `''` (chỉ còn `'`) | Write tool convert escape sequence | Sau Write, BẮT BUỘC Read lại các dòng có single quote trong JS |
+
+> Chi tiết: [17_RendererHtmlJsSafe.md §3.7](17_RendererHtmlJsSafe.md).
+
 ### Phase E — Tìm wrapper + renderer + scan API surface
 
 Tìm wrapper (`sp_X`) + renderer (`sp_X_html`). Trong source renderer, tìm keywords: `AjaxHPAParadise`, `sp_`, `openFormParam`, `OpenFormParamMobile`, `paradisefile_`, `GetFileAPI`, `loadDataSourceCommon`, `@ProcName`.

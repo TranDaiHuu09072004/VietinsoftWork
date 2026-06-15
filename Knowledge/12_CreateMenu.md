@@ -435,6 +435,44 @@ Verified từ: `sp_Train_Ranking_Template_html`, `sp_KPIProcessCustomer_html`.
 
 ### Hành vi `sp_UpdateMenuInUserRight` (THAM KHẢO — KHÔNG dùng)
 
+| Màn hình trắng do lệch key cache | `sp_GenerateHTMLScript` mặc định loại bỏ hậu tố `_html` khi lưu vào `tblHtmlScriptCache`, nhưng procedure wrapper lại SELECT tìm key có đuôi `_html` hoặc ngược lại | Kiểm tra cột `TableName` trong `tblHtmlScriptCache` so với truy vấn SELECT trong wrapper. BẮT BUỘC dùng mẫu code wrapper có fallback chạy trực tiếp renderer để tăng độ an toàn (xem chi tiết bên dưới). |
+
+### Giải pháp wrapper có cơ chế fallback chạy trực tiếp renderer (BẮT BUỘC CHO AN TOÀN)
+
+Để tránh hoàn toàn lỗi màn hình trắng khi cache HTML chưa kịp build hoặc bị lệch tên key, procedure wrapper nên được bọc một lớp fallback chạy trực tiếp renderer (`_html`) trên bộ nhớ tạm:
+
+```sql
+CREATE OR ALTER PROCEDURE [dbo].[sp_REC_MeetRoom]
+    @LoginID INT = NULL,
+    @LanguageID VARCHAR(5) = 'VN'
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @html NVARCHAR(MAX);
+
+    -- 1. Thử lấy từ cache
+    SELECT TOP 1 @html = html
+    FROM dbo.tblHtmlScriptCache
+    WHERE TableName = 'sp_REC_MeetRoom' -- Tên key không có đuôi _html
+      AND ScreenType = -1
+      AND LanguageID = @LanguageID;
+
+    -- 2. Fallback: Nếu cache trống, thực thi trực tiếp thủ tục render giao diện
+    IF @html IS NULL OR @html = N''
+    BEGIN
+        DECLARE @result TABLE (html NVARCHAR(MAX));
+        INSERT INTO @result
+        EXEC dbo.sp_REC_MeetRoom_html @LoginID = @LoginID, @LanguageID = @LanguageID;
+        SELECT TOP 1 @html = html FROM @result;
+    END
+
+    SELECT @html AS html;
+END
+```
+
+### Hành vi `sp_UpdateMenuInUserRight` (THAM KHẢO — KHÔNG dùng)
+
+
 Verify từ source DB: insert `tblSC_Right_Stored(ObjectID, LoginID, FullAccess=32)` cho **MỌI LoginID > 0** trong `tblSC_Login`; update `FullAccess=32` cho row đã có → mở quyền menu cho tất cả user.
 
 ---

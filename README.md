@@ -25,7 +25,8 @@ Database SQL Server với hàng ngàn bảng/procedure mã hoá nghiệp vụ ti
 ```
 VietinsoftWork/
 ├── README.md                         ← file này (mô tả mục đích dự án)
-├── CLAUDE.md                         ← quy tắc bắt buộc cho Agent mỗi session (bao gồm CRITICAL RULES)
+├── CLAUDE.md                         ← quy tắc bắt buộc cho Agent mỗi session
+├── Vietinsoft_Agent_Skill.md         ← CRITICAL RULES gốc
 ├── UserProfile.md                    ← technology preferences & coding style của team
 ├── .clinerules / .gemini_rules       ← bridge files load mandatory rules
 ├── .mcp.json                         ← cấu hình MCP server
@@ -61,16 +62,14 @@ VietinsoftWork/
 │   ├── 99_deprecated.md              ← Danh sách item lỗi thời
 │   ├── email_batching_guide.md       ← Email Batch (Graph API)
 │   └── LOAD_EMPLOYEE_AVATAR_GUIDE.md ← Load Avatar Nhân Viên
-├── Clients/                          ← Công cụ đồ thị trực quan & kết nối (Codebase Graph)
-├── SQL script/                       ← Script SQL (user tự review & chạy)
-│   ├── user_for_AI.sql               ← script phụ trợ (đọc, không thực thi)
-│   └── *.sql                         ← các script cleanup, deploy, fix, optimize
-└── init_client.py                    ← Khởi tạo không gian làm việc cho dự án con mới
+└── SQL script/                       ← Script SQL (user tự review & chạy)
+    ├── user_for_AI.sql               ← script phụ trợ (đọc, không thực thi)
+    └── *.sql                         ← các script cleanup, deploy, fix, optimize
 ```
 
 ## Bắt đầu nhanh
 
-- **Agent** (Claude / Antigravity / cline): đọc [CLAUDE.md](CLAUDE.md) session → load [UserProfile.md](UserProfile.md) - quy trình bắt buộc mỗi session. Entry point tra cứu là [Knowledge/INDEX.md](Knowledge/INDEX.md).
+- **Agent** (Claude / Antigravity / cline): đọc [CLAUDE.md](CLAUDE.md) session → load [UserProfile.md](UserProfile.md) + [Vietinsoft_Agent_Skill.md](Vietinsoft_Agent_Skill.md) - quy trình bắt buộc mỗi session. Entry point tra cứu là [Knowledge/INDEX.md](Knowledge/INDEX.md).
 - **Người dùng**: mở thẳng file Knowledge muốn xem (vd: [Knowledge/09_workflow_payroll.md](Knowledge/09_workflow_payroll.md) để xem quy trình tính lương).
 - **Tra cứu theo keyword / tên bảng / tên procedure**: mở [Knowledge/INDEX.md](Knowledge/INDEX.md) — có 4 bảng map giúp tìm đúng file.
 
@@ -81,7 +80,7 @@ VietinsoftWork/
 3. Tri thức mới phát hiện qua DB → ghi ngay vào đúng file Knowledge → INDEX.md được cập nhật nếu tạo file mới.
 4. **KHÔNG TỰ Ý COMMIT/PUSH CODE** — chỉ commit khi user yêu cầu rõ ràng.
 
-Chi tiết các quy tắc: xem [CLAUDE.md](CLAUDE.md).
+Chi tiết các quy tắc: xem [Vietinsoft_Agent_Skill.md](Vietinsoft_Agent_Skill.md).
 
 ## Nguồn dữ liệu
 

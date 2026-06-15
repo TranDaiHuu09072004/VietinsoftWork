@@ -9,7 +9,7 @@ Module CRM trong DB hiện dùng nhóm bảng/procedure tiền tố `tblCRM_*`, 
 | Nhóm | Bảng/procedure | Vai trò |
 |---|---|---|
 | Công ty | `tblCRM_CompanyInfo` | Master công ty/đơn vị khách hàng. Khóa `Company_ID`; có `TaxCode`, `Company`, `Industry_ID`, `CompanySize_ID`, `Source`, `StatusID`, địa chỉ bill/ship. |
-| Người liên hệ/lead | `tblCRM_CustomerPersonInfo` | Master người liên hệ/lead. Khóa `CRM_CustomerID`; gắn `CRM_CompanyID`, `OwnerID`, `StatusID`, phone/email/Zalo. |
+| Người liên hệ/lead | `tblCRM_CustomerPersonInfo` | Master người liên hệ/lead. Khóa `CRM_CustomerID`; gắn `CRM_CompanyID`, `OwnerID`, `StatusID`, phone/email/Zalo. Có trường `LinkWeb` để lưu link website nguồn khi đổ từ web ngoài về. |
 | Owner sales | `tblCRM_CustomerOwner` | Gán khách hàng cho nhân viên phụ trách; PK kép `CRM_CustomerID`, `OwnerID`, cờ `IsPrimary`. |
 | Pipeline status | `tblCRM_ContactCustommerStatus` | Danh mục trạng thái lead: Lead, Đã liên hệ, Demo & báo giá, Cần chăm sóc, Sắp chốt đơn, Thành công, Thất bại, Dữ liệu thu thập. |
 | Ghi chú/lịch sử | `tblCRM_NotesHistory` | Timeline ghi chú, trao đổi, file/ticket/chat theo customer/company. |
@@ -86,6 +86,7 @@ flowchart TD
 
 1. **Tạo nguồn lead/data collection**
    - Lead có thể được tạo từ form CRM (`sp_CRM_CreateLead` render HTML, `sp_CRM_SaveLead` lưu dữ liệu) hoặc từ data collection (`tblCRM_KPIDataCollection`, `sp_ExecuteDateCRMDataCollection`).
+   - Đối với lead đổ về từ các website khác (Form liên hệ ngoài), dữ liệu được gửi qua API/Procedure `sp_ContactCustommer_Update` với cờ `IsCRMLead = 1`. Trường `LinkWeb` trong `tblCRM_CustomerPersonInfo` lưu lại URL của website nguồn để phân loại lead đến từ nguồn/link nào.
    - Khi insert data collection, nếu `@isPotential = 1` thì người liên hệ được đưa vào trạng thái `StatusID = 0` (Lead); nếu không thì `StatusID = 7` (Dữ liệu thu thập).
    - Nếu `TaxCode = 'auto'`, hệ thống tự sinh mã tax code dạng `99...01`.
 

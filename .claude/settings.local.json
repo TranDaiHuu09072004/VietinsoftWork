@@ -74,7 +74,8 @@
       "Bash(mkdir -p __TRACKED_VAR__/edge-debug-profile)",
       "Bash(curl -s http://localhost:9222/json)",
       "Bash(python3 -c ' *)",
-      "Bash(node .claude/cdp_read_zalo.mjs)"
+      "Bash(node .claude/cdp_read_zalo.mjs)",
+      "Bash(git commit -m 'fix: improve MCP graph server encoding, error handling, and protocol negotiation *)"
     ],
     "additionalDirectories": [
       "\\tmp"

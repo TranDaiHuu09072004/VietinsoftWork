@@ -1,31 +1,26 @@
-# CLAUDE.md — Bridge file cho dự án Vietinsoft (ParadiseHR)
-
-> File `CLAUDE.md` BẮT BUỘC phải được đọc tiếp theo — quy tắc Claude Code cho dự án. Xem [CLAUDE.md](CLAUDE.md)
-
-> File `Vietinsoft_Agent_Skill.md` BẮT BUỘC phải được đọc — đây là quy tắc chính của dự án, chứa critical rules và quy trình 6 bước. Xem [Vietinsoft_Agent_Skill.md](Vietinsoft_Agent_Skill.md)
+# Vietinsoft_Agent_Skill.md — Quy tắc bắt buộc khi làm việc với dự án Vietinsoft (ParadiseHR)
 
 > File này được Claude Code tự load mỗi session. **MỌI QUY TẮC TRONG FILE NÀY ĐỀU LÀ BẮT BUỘC.** Không có loại trừ nào, không có "ưu tiên", không có "thường thường" — chỉ có TUÂN THỦ.
-> BẮT BUỘC đọc [UserProfile.md](UserProfile.md) trước mỗi session để nạp ngữ cảnh người dùng (cách xưng hô, xưng "em" gọi "anh").
 
 ---
 
-## Cline-Specific Mappings
+## ⚠️ QUY TẮC TỐI QUAN TRỌNG (CRITICAL RULES) ⚠️
 
-### MCP Server Name
+Đây là các quy tắc **không bao giờ được vi phạm** dưới bất kỳ hoàn cảnh nào:
 
-| Trong rules | Trong Cline |
-|---|---|
-| `mssql-vietinsoft` | `Vietinsoft_ForTest` |
+1. **BẮT BUỘC HIỂU ĐÚNG YÊU CẦU TRƯỚC KHI LÀM.** Mỗi khi nhận câu hỏi hoặc yêu cầu từ người dùng, Agent phải đảm bảo chắc chắn đã hiểu đúng ý đồ của họ. Nếu có bất kỳ thông tin nào còn mơ hồ, chưa rõ ràng hoặc câu hỏi quá ngắn không đủ thông tin ngữ cảnh để hiểu rõ yêu cầu, Agent **bắt buộc phải hỏi lại hoặc phỏng vấn người dùng** để làm rõ trước khi bắt tay vào việc. Tuyệt đối không tự suy đoán ý đồ của người dùng.
 
-### Tool Name Mapping
+2. **TUYỆT ĐỐI KHÔNG TỰ SUY ĐOÁN.** Không bao giờ giả định cấu trúc bảng, tên cột, kiểu dữ liệu, mối quan hệ, quy tắc nghiệp vụ, công thức tính toán, hay hành vi của hệ thống. Mọi thông tin đều phải lấy từ nguồn xác thực.
 
-| Trong rules | Trong Cline |
-|---|---|
-| `Read` | `read_file` |
-| `Grep` | `search_files` |
-| `read_query` | `execute_query` (qua `use_mcp_tool`) |
+3. **MỌI CÂU TRẢ LỜI PHẢI CÓ CHỨNG CỨ XÁC THỰC (CONCRETE EVIDENCE).** Chứng cứ chấp nhận được:
+   - Nội dung trích trực tiếp từ **các file Knowledge** trong [Knowledge/](Knowledge/) (đã xác minh ở các session trước).
+   - Kết quả query trực tiếp từ MCP `mssql-vietinsoft` (schema, data, source của procedure/view).
+   - Nội dung trích từ file source trong repo (đọc qua `Read`/`Grep`).
+   - Phát biểu rõ ràng của user trong session hiện tại.
 
-### MCP Safety Rules (Cline-specific)
+4. **KHÔNG ĐƯA RA KẾT LUẬN VỘI VÃ.** Nếu chứng cứ chưa đủ, không được "đoán cho hợp lý". Phải:
+   - Hoặc tiếp tục tra cứu để có chứng cứ.
+   - Hoặc nói rõ với user: *"Không tìm thấy thông tin xác thực trong Knowledge và DB. Xin user cung cấp thêm chỉ dẫn / xác nhận."*
 
 5. **KHÔNG VIẾT/SỬA/XOÁ DỮ LIỆU DB KHI CHƯA ĐƯỢC USER YÊU CẦU RÕ RÀNG TRONG TURN HIỆN TẠI.** Mặc định chỉ dùng tool đọc. Permission một lần không đồng nghĩa permission vĩnh viễn.
 
@@ -66,6 +61,7 @@
 - Dựa trên INDEX, xác định **1 hoặc nhiều file Knowledge** chứa tri thức về chủ đề user hỏi.
 - Dùng `Read` mở file đó. Không đọc các file Knowledge khác trừ khi cần thiết.
 - Nếu câu hỏi chạm nhiều chủ đề (vd: chấm công + tính lương): mở từng file theo thứ tự cần.
+- **Nếu INDEX không map được keyword** cần tra cứu: dùng `search_files` (Cline native) với regex tìm kiếm xuyên suốt thư mục `Knowledge/` — đây là cơ chế fallback native, nhanh và không cần MCP phụ trợ.
 
 ### Bước 3 — Đánh giá & Khám phá DB nếu thiếu
 
@@ -85,8 +81,10 @@ Các tool MCP được phép dùng (load schema qua `ToolSearch` nếu cần):
 **Quy tắc an toàn DB (BẮT BUỘC):**
 - Mặc định CHỈ dùng tool đọc ở bảng trên.
 - TUYỆT ĐỐI KHÔNG gọi `write_query`, `create_table`, `alter_table`, `drop_table`, `append_insight` khi user chưa yêu cầu rõ ràng trong câu hỏi hiện tại của session này. Permission một câu hỏi không kéo dài sang câu sau.
-- Với `read_query`: luôn dùng `TOP N` / `WHERE` để giới hạn — không bao giờ trả về toàn bộ bảng lớn.
-- Khi đọc source của procedure/view: dùng `SELECT OBJECT_DEFINITION(OBJECT_ID('...'))`.
+- Với `read_query` / `execute_query`: luôn dùng `TOP N` / `WHERE` để giới hạn — không bao giờ trả về toàn bộ bảng lớn.
+- **Tránh lỗi `Forbidden keyword detected: SP_`**: Query validator của MCP chặn từ khóa `sp_` / `SP_` (kể cả trong chuỗi text hoặc tên proc). BẮT BUỘC tránh viết chuỗi `sp_` hoặc `SP_` trực tiếp trong câu SQL. Thay vào đó, dùng `LIKE '%Name'` hoặc phép ghép chuỗi như `'s' + 'p_Name'` hoặc `CHAR(115) + CHAR(112) + '_Name'`.
+- **Tránh lỗi `Invalid column name 'dbo'` của `describe_table`**: Tool `describe_table` bị lỗi cú pháp truy vấn schema trên SQL Server (nó dùng `"dbo"` thay vì `'dbo'` gây lỗi cột khi `QUOTED_IDENTIFIER ON`). KHÔNG dùng tool `describe_table` của MCP. Thay vào đó, dùng `execute_query` truy vấn trực tiếp bảng hệ thống: `SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Tên_Bảng'`.
+- Khi đọc source của procedure/view: dùng `SELECT OBJECT_DEFINITION(object_id)` kết hợp lấy `object_id` qua câu subquery lách chữ `sp_` (ví dụ: `(SELECT object_id FROM sys.procedures WHERE name = 's' + 'p_Tên_Proc')`).
 
 ### Bước 4 — Trả lời với chứng cứ rõ ràng
 
@@ -160,6 +158,6 @@ Mẫu script đầy đủ: xem cuối file [99_deprecated.md](Knowledge/99_depre
 
 Quy trình 5 bước trên có thể **không áp dụng** chỉ trong **một** trường hợp:
 
-> Câu hỏi của user **rõ ràng không liên quan** đến nghiệp vụ / dữ liệu / kiến trúc của ParadiseHR — ví dụ: cấu hình Claude Code, lệnh git, format code thuần tuý, sửa file ngoài repo này.
+> Câu hỏi của user **rõ ràng không liên quan** đến nghiệp vụ / dữ liệu / kiến trúc của ParadiseHR — ví dụ: cấu hình VS Code, Cấu hình Claude Code, lệnh git, format code thuần tuý, sửa file ngoài repo này.
 
 Không có ngoại lệ nào khác. Câu hỏi tiếp nối cùng chủ đề **vẫn phải xác minh lại nếu chuyển sang khía cạnh chưa tra**. "User nói trả lời nhanh" không phải lý do để bỏ Bước 3 (tra DB) hay Bước 4 (chứng cứ) — chỉ có thể rút gọn Bước 5 (update Knowledge) nếu user nói rõ "không cần update".

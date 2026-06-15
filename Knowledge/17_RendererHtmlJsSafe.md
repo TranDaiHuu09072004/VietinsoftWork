@@ -279,6 +279,81 @@ SET @html = @html + N'reject(new Error(''Native timeout''));'
 
 > Quy tắc tổng kết: KHÔNG có `'` nào trong `N'...'` được "vô hại" — kể cả comment, chuỗi lỗi, template literal. Tất cả đều phải escape `''`.
 
+### §3.7 Phân biệt hai ngữ cảnh quote: trong `N'...'` và ngoài `N'...'`
+
+> ⚠️ **Đây là nguyên nhân gốc của hầu hết lỗi Msg 102 + JS runtime error khi migrate renderer.** Agent phải xác định rõ code đang ở **trong** hay **ngoài** chuỗi `N'...'` trước khi quyết định cách escape.
+
+Renderers ParadiseHR dùng pattern nối chuỗi để chèn kết quả SQL vào HTML:
+
+```sql
+SET @html = N'
+    <div>HTML content</div>
+    <script>
+        // JS code here — đang TRONG N'...'
+        let x = "double quotes are safe";
+        let y = ''single quotes must be escaped'';
+    </script>
+    '                           -- ← ĐÓNG chuỗi N'...' ở đây
+    + ISNULL((SELECT loadUI FROM tblCommonControlType_Signed WHERE UID = 'P000...'), '')  -- ← T-SQL THƯỜNG
+    + N'                        -- ← MỞ lại chuỗi N'...'
+    <script>
+        // more JS — lại TRONG N'...'
+    </script>
+';
+```
+
+**Bảng quy tắc theo ngữ cảnh:**
+
+| Ngữ cảnh | Dấu hiệu | Cách viết string literal | Ví dụ |
+|---|---|---|---|
+| **Trong `N'...'`** | Code nằm giữa `N'` mở và `'` đóng (trước `+ ISNULL` hoặc trước `SELECT @html`) | `''` cho mỗi `'` trong JS; `"` giữ nguyên | JS `'hello'` → T-SQL `''hello''` |
+| **Ngoài `N'...'`** (T-SQL thường) | Code nằm sau `' +` và trước `+ N'` (pattern nối chuỗi) | `'...'` như SQL bình thường | `TableName = 'sp_X_html'` |
+| **Empty string default trong ISNULL** | `ISNULL(..., '')` ở ngoài N'...' | `''` (2 single quote = empty string) | `ISNULL((SELECT ...), '')` |
+| **Empty string default trong ISNULL nếu viết sai** | `ISNULL(..., '''')` ở ngoài N'...' | ❌ SAI: `''''` (4 quote) → parse thành empty+empty | Đúng: `''` (2 quote) |
+
+**Ví dụ thực tế — sai và đúng:**
+
+```sql
+-- ❌ SAI: ISNULL nằm NGOÀI N'...' nhưng dùng ''...'' (double escape)
+' + ISNULL((SELECT html FROM tblCommonControlType_Signed
+            WHERE TableName = ''sp_X_html''       -- SAI! ''T'' parse thành empty + T + empty
+            AND ColumnName = ''EmployeeID''),      -- SAI!
+            '''') + N'                             -- SAI! '''' là 4 quote
+
+-- ✅ ĐÚNG: ISNULL nằm NGOÀI N'...' nên dùng SQL quote bình thường
+' + ISNULL((SELECT html FROM tblCommonControlType_Signed
+            WHERE TableName = 'sp_X_html'          -- ĐÚNG: 'T' là SQL string literal
+            AND ColumnName = 'EmployeeID'),        -- ĐÚNG
+            '') + N'                               -- ĐÚNG: '' là empty string
+```
+
+**Ví dụ JS string chứa quote — escape đúng trong N'...':**
+
+```sql
+-- JS mong muốn: let x = '"' + value + '"';   (nối value với dấu " hai bên)
+-- JS mong muốn: let y = "'" + value + "'";   (nối value với dấu ' hai bên)
+
+-- ✅ ĐÚNG trong T-SQL N'...':
+SET @html = N'
+    let x = ''"'' + value + ''"'';    // T-SQL: ''"'' → JS: ''"'' → chuỗi "
+    let y = "''" + value + "''";      // T-SQL: "''" → JS: "''" → chuỗi '
+';
+
+-- ❌ SAI: thừa quote ở cuối
+SET @html = N'
+    let x = ''"'' + value + ''"''";   // T-SQL: ''"''" → JS: ''"'" → string " rồi " mở mới!
+';
+-- Sửa: bỏ '' thừa trước dấu ;
+-- Đúng: ''"'' + value + ''"'';   (KHÔNG có '' thừa sau cùng)
+```
+
+> **Checklist trước khi export renderer:**
+> - [ ] Xác định ranh giới N'...': tìm tất cả vị trí `' + ` và `+ N'` → code giữa chúng là T-SQL thường.
+> - [ ] Trong T-SQL thường: string literal dùng `'...'`, empty string dùng `''`.
+> - [ ] Trong N'...': mọi `'` trong JS phải viết `''`; `"` giữ nguyên.
+> - [ ] Sau Write file: Read lại để xác minh `''` không bị tool convert thành `'`.
+> - [ ] JS string chứa quote: vẽ ra JS mong muốn trước, rồi escape ngược về T-SQL.
+
 ---
 
 ## 4. Pattern config-driven (`tblCommonControlType_Signed`)
@@ -605,6 +680,11 @@ Msg 257, Implicit conversion from nvarchar to varbinary(max) is not allowed.
 | `dataSource` không update khi `ReloadData` | Trỏ sai `Instance<GridName><UID>` — UID đổi giữa các lần chạy | UID deterministic, không random |
 | `Msg 512 Subquery returned more than 1 value` (tại dòng `+(SELECT loadUI FROM tblCommonControlType_Signed WHERE UID=...)` trong renderer) | UID trong `tblCommonControlType_Signed` bị **trùng giữa 2 menu khác nhau** (UID chỉ unique trong 1 `TableName`, nhưng subquery `WHERE UID='...'` scan toàn bộ bảng) | Dùng UID có prefix riêng theo menu (vd `PUMG...` cho UserMgmt, `PCRM...` cho CRM), không dùng pattern generic như `P000...G01`. Verify: `SELECT UID, COUNT(*) FROM tblCommonControlType_Signed WHERE UID='<your_uid>' GROUP BY UID` → phải trả về 1 row duy nhất |
 | `Incorrect syntax near 't'` / `Incorrect syntax near 'String'` khi build cache | Comment JavaScript `// can't` hoặc `// don't` làm đóng N-string T-SQL sớm | Viết `cannot`, `do not`, `will not` thay cho `can't`, `don't`, `won't` — xem §3.6 |
+| Tiếng Việt bị mangled (`?` hoặc `?` thay cho ký tự có dấu) trong cache mặc dù đã có `N'` ở đầu câu lệnh | Thiếu tiền tố `N'` ở **một phân đoạn nhỏ** trong phép nối chuỗi (ví dụ: `+ '", "Sex", ...'`). Chỉ cần 1 phân đoạn không có `N`, SQL Server sẽ ngầm định cast toàn bộ biểu thức cộng chuỗi về kiểu `VARCHAR` không Unicode, làm mất font có dấu trước khi gán vào biến `NVARCHAR` | Rà soát và thêm tiền tố `N` vào **tất cả** các chuỗi literal trong biểu thức cộng chuỗi (kể cả những chuỗi cực ngắn như `+ N';'`) |
+| `Uncaught SyntaxError: Unexpected end of input` hoặc mất đoạn đóng thẻ script ở cuối file cache | Do độ dài của một chuỗi Unicode literal (`N'...'`) đơn lẻ vượt quá 4.000 ký tự. T-SQL sẽ tự động cắt ngắn chuỗi literal đó về 4.000 ký tự trước khi nối chuỗi. | Chia nhỏ các khối JavaScript literal dài thành nhiều chuỗi nhỏ (ví dụ dưới 2.000 ký tự mỗi chuỗi) và nối lại bằng `+ N'...'` |
+| `Msg 102, Incorrect syntax near 'TableName'` khi CREATE PROCEDURE, lỗi trỏ đến dòng `' + ISNULL((SELECT ... FROM tblCommonControlType_Signed WHERE TableName = ''...''...), '''') + N'` | **Nhầm lẫn giữa 2 ngữ cảnh quote**: pattern `' + ISNULL(...) + N'` đã **đóng** chuỗi `N'...'` ở dấu `'` đầu tiên → code bên trong ISNULL() là T-SQL thường, **KHÔNG** còn nằm trong `N'...'`. Dùng `''TableName''` (double single quote) là SAI vì T-SQL parse thành empty string + identifier + empty string. | Dùng `'TableName'` (single quote) như SQL string literal bình thường; dùng `''` (2 single quote) cho empty string default, KHÔNG dùng `''''` (4 single quote). **Quy tắc**: code trong `' + ... + N'` là T-SQL thường, dùng quote chuẩn SQL. Chỉ code trong `N'...'` mới cần escape `''`. Xem [§3.7](#37-phân-biệt-hai-ngữ-cảnh-quote-trong-n-và-ngoài-n). |
+| `Uncaught SyntaxError: Unexpected string` / `Failed to execute 'appendChild' on 'Node': Unexpected string` ở browser khi mở menu | JS string bị sinh sai do T-SQL escape nhầm: `''"''` (trong N'...') → JS nhận được `'"'` (string `"` rồi thừa ký tự `"` gây SyntaxError). Sai khác: `''"''"` ở cuối dòng → JS nhận `'"'"` (string `"`, rồi `"` mở string mới không đóng). | Cần phân biệt rõ JS mong muốn rồi escape ngược về T-SQL. VD: JS cần `'"` (single-quoted string chứa double-quote) → T-SQL viết `''"`. JS cần `"'"` (double-quoted string chứa single-quote) → T-SQL viết `"''"`. **KHÔNG** viết thừa `''` ở cuối. Xem [§3.7](#37-phân-biệt-hai-ngữ-cảnh-quote-trong-n-và-ngoài-n). |
+| **Write tool / file thao tác có thể âm thầm convert `''` → `'`** khi viết file .sql chứa renderer T-SQL. Sau khi viết file, BẮT BUỘC đọc lại để verify. Triệu chứng: file nguồn có `''` nhưng file đích chỉ còn `'` → N-string bị đóng sớm. | Cơ chế xử lý text của tool Write có thể diễn giải `''` thành escape sequence và ghi ra `'`. Đặc biệt nguy hiểm với renderer dài có nhiều tầng quote. | Sau khi Write file renderer, BẮT BUỘC `Read` lại các dòng quan trọng (dòng có JS string chứa single quote, dòng ISNULL ngoài N'...') để xác minh quote không bị biến đổi. Nếu file đã sai: dùng `Edit` sửa từng pattern cụ thể. |
 
 ---
 
