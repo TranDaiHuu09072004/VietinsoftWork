@@ -1,26 +1,35 @@
--- promt 1 thủ tục responsive
+Bạn hãy đọc kỹ thủ tục [procedure] hiện tại trước khi sửa.
 
-Bạn hãy đọc kỹ code hiện tại trước khi sửa.
-
-Mục tiêu duy nhất: sửa UI Responsive cho màn hình thủ tục [procedure] này để hiển thị tốt trên desktop, tablet và mobile. 
+Mục tiêu duy nhất: sửa UI Responsive cho màn hình thủ tục [procedure] để hiển thị tốt trên desktop, tablet và mobile.
 
 Yêu cầu bắt buộc:
 1. Không thay đổi cấu trúc thủ tục, flow xử lý, logic nghiệp vụ, API, query, store procedure, tên biến, tên hàm hoặc cách dữ liệu được lấy lên.
 2. Không refactor lớn, không đổi kiến trúc, không tách component nếu không thật sự cần thiết.
-3. Chỉ chỉnh phần giao diện: layout, spacing, width, height, overflow, breakpoint, grid/flex, font-size phù hợp, table responsive, modal/form/button responsive.
+3. Chỉ chỉnh phần giao diện: CSS, layout, spacing, width, height, overflow, breakpoint, grid/flex, font-size, table responsive, modal/form/button responsive.
 4. Giữ nguyên dữ liệu đầu vào/đầu ra và hành vi hiện tại.
-5. Nếu có table hoặc danh sách dài, hãy xử lý responsive bằng scroll ngang, wrap hợp lý, hoặc layout mobile phù hợp nhưng không đổi dữ liệu.
+5. Nếu có table hoặc danh sách dài, xử lý responsive bằng scroll ngang, wrap hợp lý hoặc layout mobile phù hợp nhưng không đổi dữ liệu.
 6. Nếu có form, đảm bảo input/select/button không bị tràn, không bị chồng lên nhau trên màn hình nhỏ.
 7. Nếu có modal/popup, đảm bảo vừa màn hình mobile, có scroll nội dung nếu cần.
 8. Không sửa backend trừ khi bắt buộc để UI không lỗi; nếu bắt buộc thì phải giải thích trước và chỉ sửa tối thiểu.
-9. Sau khi sửa, kiểm tra lại các kích thước màn hình: mobile khoảng 375px, tablet khoảng 768px, desktop từ 1024px trở lên.
+9. Kiểm tra lại các kích thước màn hình: mobile khoảng 375px, tablet khoảng 768px, desktop từ 1024px trở lên.
 10. Trước khi chỉnh sửa, hãy liệt kê ngắn gọn các file/component liên quan. Sau khi chỉnh sửa, báo rõ đã sửa file nào và sửa phần responsive nào.
+
+Trọng tâm cần chú ý:
+- Cụm nút Search đang dùng DevExtreme/DevExpress hiện bị fix cứng ở bên phải menu/filter.
+- Khi mở F12 hoặc co giãn màn hình, nút Search không tự rớt xuống hàng mà vẫn nằm cứng bên phải, gây tràn hoặc vỡ layout.
+- Hãy ưu tiên sửa CSS responsive cho vùng chứa menu/filter/Search để các phần tử có thể wrap tự nhiên.
+- Nút Search phải xuống dòng khi không đủ chiều ngang, không đè lên menu/filter, không bị mất hoặc tràn khỏi màn hình.
+- Không fix cứng width/position nếu làm layout kém responsive.
+- Ưu tiên dùng flex-wrap, min-width: 0, max-width: 100%, width: auto/100% theo breakpoint, overflow-x hợp lý.
+- Nếu DevExtreme tạo wrapper class riêng, chỉ override CSS tối thiểu đúng vùng màn hình này, tránh ảnh hưởng global.
 
 Quan trọng:
 - Không thay đổi cấu trúc thủ tục hiện tại.
 - Không thay đổi logic nghiệp vụ.
 - Không làm mới UI toàn bộ.
 - Chỉ sửa responsive để giao diện hiện tại hoạt động tốt hơn trên nhiều màn hình.
+- Chỉ fix CSS Responsive, không tự tạo script phụ, không tạo logic mới.
+- Đọc file tri thức `Knowledge/agent_sql_proc_responsive_css_only.md` trước khi sửa và làm đúng theo hướng dẫn trong đó.
 
 Hãy thực hiện trực tiếp trong code hiện tại, ưu tiên sửa ít nhất có thể nhưng đúng vấn đề.
-Bạn có truy cập vào thủ tục được không không vào được thì hỏi tôi tôi cung cấp thông tin nhé? [agent_sql_proc_responsive_css_only.md](Knowledge/agent_sql_proc_responsive_css_only.md) đọc tri thức này và fix responsive cho đúng chỉ fix CSS Responsive không tự tạo các script bậy
+Nếu không truy cập được thủ tục hoặc không tìm thấy file/component liên quan thì hãy hỏi lại để tôi cung cấp thông tin.
