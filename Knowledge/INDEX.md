@@ -63,6 +63,7 @@
 | **hợp đồng / contract / in hợp đồng** | [03_db_contract.md](03_db_contract.md) |
 | **vân tay / khuôn mặt / sinh trắc / biometric / face / fingerprint** | [04_db_biometric.md](04_db_biometric.md) |
 | **chấm công / attendance / GPS / Wifi / IO card / `tblTmpAttend` / `tblHasTA`** | [05_db_attendance.md](05_db_attendance.md) |
+| **phân ca đào tạo / `tblWSchedule` / PIC chấm công theo ngày / lịch tự động 6 ngày làm 1 ngày OFF** | [05_db_attendance.md](05_db_attendance.md) |
 | **tạo user / đăng nhập / mật khẩu / login / `tblSC_Login`** | [06_db_login_account.md](06_db_login_account.md) |
 | **menu / `MEN_Menu` / tạo menu / `sp_s_CreateMenu` / DataSetting / HTML cache / `tblHtmlScriptCache` / ParadiseWebView2** | [07_menu_system.md](07_menu_system.md) |
 | **tạo menu mới end-to-end / skill tạo menu / AjaxHPAParadise / gọi API hiển thị data / Hello world Vietinsoft / đa ngôn ngữ / i18n / %placeholder% / tblMD_Message / Rule 7** | [12_CreateMenu.md](12_CreateMenu.md) |

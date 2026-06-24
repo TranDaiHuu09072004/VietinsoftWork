@@ -1,0 +1,163 @@
+<!-- FILE: bang_phan_ca_theo_nhom.html
+     Component bảng phân ca theo nhóm - dùng được trong web đã có darkmode.
+     Darkmode tự ăn theo: body.dark, body.dark-mode, body[data-theme="dark"], html[data-theme="dark"].
+     Responsive: mobile / tablet / desktop. -->
+
+<section class="group-shift" data-component="bang-phan-ca-theo-nhom">
+  <div class="group-toolbar">
+    <div class="group-field">
+      <label>Tháng</label>
+      <select><option selected>5</option><option>6</option><option>9</option></select>
+    </div>
+    <div class="group-field">
+      <label>Năm</label>
+      <input value="2026" />
+    </div>
+    <button class="group-btn group-refresh" type="button">⟳ Làm Mới</button>
+    <div class="group-search">
+      <label>Tìm kiếm</label>
+      <input placeholder="" />
+    </div>
+    <button class="group-btn group-template" type="button">▣ Mẫu import ca theo nhóm</button>
+    <button class="group-btn group-import" type="button">⇩ Nhập vào</button>
+  </div>
+
+  <div class="group-table-wrap">
+    <table class="group-table" id="groupShiftTable">
+      <thead>
+        <tr>
+          <th class="sticky-col col-stt">STT</th>
+          <th class="sticky-col col-group">Tổ nhóm</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div class="group-empty-note">Khu vực trống giống form gốc để dễ review layout</div>
+  </div>
+
+  <div class="group-footer">
+    <button class="group-export" type="button">↗ Xuất excel</button>
+    <div class="group-spacer"></div>
+    <div class="group-total">36</div>
+    <div class="group-total">-</div>
+    <div class="group-total">-</div>
+    <div class="group-total">-</div>
+  </div>
+</section>
+
+<style>
+.group-shift{
+  --gs-bg:#ffffff;
+  --gs-panel:#ffffff;
+  --gs-head:#f7f9fa;
+  --gs-line:#cbd5dc;
+  --gs-text:#102a32;
+  --gs-muted:#466879;
+  --gs-input:#ffffff;
+  --gs-selected:#dceef8;
+  --gs-off:#c7ffc8;
+  --gs-work:#ffd5ad;
+  --gs-refresh:#5147f5;
+  --gs-action:#ffffff;
+  --gs-export:#078ba1;
+  --gs-tooltip-bg:#10231f;
+  --gs-tooltip-text:#f7fffb;
+
+  height:100%;
+  min-height:520px;
+  display:flex;
+  flex-direction:column;
+  background:var(--gs-bg);
+  color:var(--gs-text);
+  font:14px "Segoe UI", Arial, sans-serif;
+  border:1px solid var(--gs-line);
+  overflow:hidden;
+}
+
+body.dark .group-shift,
+body.dark-mode .group-shift,
+body[data-theme="dark"] .group-shift,
+html[data-theme="dark"] .group-shift,
+.dark .group-shift,
+.dark-mode .group-shift{
+  --gs-bg:#101917;
+  --gs-panel:#121d1a;
+  --gs-head:#172520;
+  --gs-line:#2b403b;
+  --gs-text:#e7f1ee;
+  --gs-muted:#aac0ba;
+  --gs-input:#0f1a17;
+  --gs-selected:#173d49;
+  --gs-off:#1f633c;
+  --gs-work:#765238;
+  --gs-refresh:#514cf6;
+  --gs-action:#121d1a;
+  --gs-export:#07889b;
+  --gs-tooltip-bg:#eaf7f3;
+  --gs-tooltip-text:#10231f;
+}
+
+.group-shift *{box-sizing:border-box}
+.group-toolbar{
+  display:grid;
+  grid-template-columns:minmax(140px,.85fr) minmax(150px,.9fr) minmax(150px,.75fr) minmax(260px,1.2fr) minmax(240px,1.1fr) minmax(150px,.75fr);
+  align-items:center;
+  min-height:38px;
+  background:var(--gs-panel);
+  border-bottom:1px solid var(--gs-line);
+}
+.group-field,.group-search{display:flex;align-items:center;gap:7px;padding:3px 8px;min-width:0}
+.group-field label,.group-search label{white-space:nowrap;color:var(--gs-text)}
+.group-field input,.group-field select,.group-search input{min-width:0;width:100%;height:27px;border:1px solid var(--gs-line);background:var(--gs-input);color:var(--gs-text);padding:0 8px;outline:none}
+.group-btn{height:38px;border:0;border-left:1px solid var(--gs-line);font-weight:700;color:var(--gs-text);background:var(--gs-action);cursor:pointer;white-space:nowrap;padding:0 10px}
+.group-refresh{background:var(--gs-refresh);color:#fff;border-left:0}.group-template,.group-import{background:var(--gs-action)}
+.group-table-wrap{flex:1;position:relative;overflow:auto;background:var(--gs-panel)}
+.group-table{border-collapse:separate;border-spacing:0;min-width:1780px;width:max-content}
+.group-table th,.group-table td{height:28px;border-right:1px solid var(--gs-line);border-bottom:1px solid var(--gs-line);white-space:nowrap;text-align:center;background:var(--gs-panel)}
+.group-table th{position:sticky;top:0;z-index:5;background:var(--gs-head);color:var(--gs-muted);font-weight:600}
+.group-table .sticky-col{position:sticky;z-index:6;background:var(--gs-panel)}
+.group-table th.sticky-col{z-index:7;background:var(--gs-head)}
+.col-stt{left:0;width:58px}.col-group{left:58px;width:90px;text-align:left!important;padding-left:10px}.col-day{width:40px}.col-total{width:135px}.col-total-wide{width:155px}
+.group-table tbody tr.is-active td{background:var(--gs-selected)}
+.group-table td.is-off{background:var(--gs-off)!important}.group-table td.is-work{background:var(--gs-work)!important}
+.group-table td.is-off,.group-table td.is-work{position:relative;cursor:default}
+.group-table td.is-off:hover::after,.group-table td.is-work:hover::after{
+  content:attr(data-tip);position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);z-index:20;
+  background:var(--gs-tooltip-bg);color:var(--gs-tooltip-text);border-radius:6px;padding:6px 9px;font-size:12px;box-shadow:0 8px 22px rgba(0,0,0,.18);white-space:nowrap;pointer-events:none;
+}
+.group-empty-note{position:absolute;left:50%;top:43%;transform:translate(-50%,-50%);color:var(--gs-muted);opacity:.45;font-size:18px;pointer-events:none;white-space:nowrap}
+.group-footer{height:40px;display:flex;align-items:center;gap:5px;padding:0 28px 0 8px;background:var(--gs-panel);border-top:1px solid var(--gs-line)}
+.group-export{height:34px;background:var(--gs-export);color:#fff;border:0;padding:0 18px;font-weight:700}.group-spacer{flex:1}.group-total{width:120px;height:27px;border:1px solid var(--gs-line);background:var(--gs-head);display:flex;align-items:center;justify-content:flex-end;padding-right:12px}
+
+@media(max-width:1024px){
+  .group-shift{min-height:500px}.group-toolbar{grid-template-columns:1fr 1fr 150px;gap:0}.group-search{grid-column:1/3}.group-template{grid-column:1/3}.group-import{grid-column:3/4}.group-table{min-width:1560px}.col-day{width:36px}.col-total{width:118px}.col-total-wide{width:136px}
+}
+@media(max-width:640px){
+  .group-shift{min-height:100vh;font-size:12px}.group-toolbar{grid-template-columns:1fr 1fr}.group-refresh,.group-search,.group-template,.group-import{grid-column:1/-1}.group-btn{height:34px}.group-field input,.group-field select,.group-search input{height:26px}.group-table{min-width:1300px}.col-stt{width:46px}.col-group{left:46px;width:72px}.col-day{width:32px}.col-total{width:96px}.col-total-wide{width:118px}.group-empty-note{font-size:13px;white-space:normal;text-align:center;width:80%}.group-footer{padding:0 8px;overflow-x:auto}.group-total{min-width:82px;width:82px}.group-export{height:32px}
+}
+</style>
+
+<script>
+(function(){
+  const groups=['A1','A2','B1','B2','C1','C2','D1','D2'];
+  const summaryCols=['Tổng ca ngày','Tổng ca hành chính','Tổng ca giữa','Tổng ca đêm','Số ngày nghỉ(Ba...)','Ngày công ...'];
+  const table=document.getElementById('groupShiftTable');
+  if(!table) return;
+  const head=table.querySelector('thead tr');
+  const body=table.querySelector('tbody');
+
+  for(let d=1; d<=31; d++) head.insertAdjacentHTML('beforeend', `<th class="col-day">${d}</th>`);
+  summaryCols.forEach((col,index)=>head.insertAdjacentHTML('beforeend', `<th class="${index>=4?'col-total-wide':'col-total'}">${col}</th>`));
+
+  groups.forEach((group,index)=>{
+    let html=`<tr class="${index===0?'is-active':''}"><td class="sticky-col col-stt">${index+1}</td><td class="sticky-col col-group">${group}</td>`;
+    for(let d=1; d<=31; d++){
+      const type=d%7===2?'is-off':d%7===3?'is-work':'';
+      const tip=type==='is-off'?'Ngày nghỉ':type==='is-work'?'Ngày đi ca':'';
+      html+=`<td class="col-day ${type}" ${tip?`data-tip="${tip}"`:''}></td>`;
+    }
+    summaryCols.forEach(()=>html+='<td></td>');
+    body.insertAdjacentHTML('beforeend', html+'</tr>');
+  });
+})();
+</script>

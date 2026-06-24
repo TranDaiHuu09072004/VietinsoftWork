@@ -1,0 +1,168 @@
+<!-- FILE: bang_theo_doi_di_ca.html
+     Component bảng theo dõi đi ca - dùng được trong web đã có darkmode.
+     Darkmode tự ăn theo: body.dark, body.dark-mode, body[data-theme="dark"], html[data-theme="dark"].
+     Responsive: mobile / tablet / desktop. -->
+
+<section class="shift-monitor" data-component="bang-theo-doi-di-ca">
+  <div class="shift-toolbar">
+    <div class="shift-field">
+      <label>Tháng</label>
+      <select>
+        <option selected>9</option>
+        <option>5</option>
+        <option>6</option>
+      </select>
+    </div>
+
+    <div class="shift-field">
+      <label>Năm</label>
+      <input value="2023" />
+    </div>
+
+    <button class="shift-btn shift-refresh" type="button">⟳ Làm Mới</button>
+
+    <div class="shift-search">
+      <label>Tìm kiếm</label>
+      <input placeholder="Nhập mã, tên, phòng ban..." />
+    </div>
+
+    <button class="shift-btn shift-save" type="button">▣ Lưu</button>
+  </div>
+
+  <div class="shift-table-wrap">
+    <table class="shift-table" id="shiftMonitorTable">
+      <thead>
+        <tr>
+          <th class="sticky-col col-code">Mã nhân viên</th>
+          <th class="sticky-col col-name">Tên nhân viên</th>
+          <th class="col-dept">Phòng ban</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="shift-footer">
+    <button class="shift-export" type="button">↗ Xuất excel</button>
+    <div class="shift-spacer"></div>
+    <div class="shift-total">228</div>
+    <div class="shift-total">228</div>
+  </div>
+</section>
+
+<style>
+.shift-monitor{
+  --sm-bg:#ffffff;
+  --sm-panel:#ffffff;
+  --sm-head:#f7f9fa;
+  --sm-line:#cbd5dc;
+  --sm-text:#102a32;
+  --sm-muted:#466879;
+  --sm-input:#ffffff;
+  --sm-selected:#dceef8;
+  --sm-off:#c7ffc8;
+  --sm-work:#ffd5ad;
+  --sm-refresh:#5147f5;
+  --sm-save:#006149;
+  --sm-export:#078ba1;
+  --sm-tooltip-bg:#10231f;
+  --sm-tooltip-text:#f7fffb;
+
+  height:100%;
+  min-height:520px;
+  display:flex;
+  flex-direction:column;
+  background:var(--sm-bg);
+  color:var(--sm-text);
+  font:14px "Segoe UI", Arial, sans-serif;
+  border:1px solid var(--sm-line);
+  overflow:hidden;
+}
+
+body.dark .shift-monitor,
+body.dark-mode .shift-monitor,
+body[data-theme="dark"] .shift-monitor,
+html[data-theme="dark"] .shift-monitor,
+.dark .shift-monitor,
+.dark-mode .shift-monitor{
+  --sm-bg:#101917;
+  --sm-panel:#121d1a;
+  --sm-head:#172520;
+  --sm-line:#2b403b;
+  --sm-text:#e7f1ee;
+  --sm-muted:#aac0ba;
+  --sm-input:#0f1a17;
+  --sm-selected:#173d49;
+  --sm-off:#1f633c;
+  --sm-work:#765238;
+  --sm-refresh:#514cf6;
+  --sm-save:#087553;
+  --sm-export:#07889b;
+  --sm-tooltip-bg:#eaf7f3;
+  --sm-tooltip-text:#10231f;
+}
+
+.shift-monitor *{box-sizing:border-box}
+.shift-toolbar{
+  display:grid;
+  grid-template-columns:minmax(170px,1fr) minmax(170px,1fr) minmax(170px,.85fr) minmax(260px,1.25fr) minmax(150px,.8fr);
+  align-items:center;
+  min-height:38px;
+  background:var(--sm-panel);
+  border-bottom:1px solid var(--sm-line);
+}
+.shift-field,.shift-search{display:flex;align-items:center;gap:7px;padding:3px 8px;min-width:0}
+.shift-field label,.shift-search label{white-space:nowrap;color:var(--sm-text)}
+.shift-field input,.shift-field select,.shift-search input{
+  min-width:0;width:100%;height:27px;border:1px solid var(--sm-line);background:var(--sm-input);color:var(--sm-text);padding:0 8px;outline:none;
+}
+.shift-btn{height:38px;border:0;font-weight:700;color:#fff;cursor:pointer;white-space:nowrap}
+.shift-refresh{background:var(--sm-refresh)}
+.shift-save{background:var(--sm-save)}
+.shift-table-wrap{flex:1;overflow:auto;background:var(--sm-panel)}
+.shift-table{border-collapse:separate;border-spacing:0;min-width:1880px;width:max-content}
+.shift-table th,.shift-table td{height:28px;border-right:1px solid var(--sm-line);border-bottom:1px solid var(--sm-line);white-space:nowrap;text-align:center;background:var(--sm-panel)}
+.shift-table th{position:sticky;top:0;z-index:5;background:var(--sm-head);color:var(--sm-muted);font-weight:600}
+.shift-table .sticky-col{position:sticky;z-index:6;background:var(--sm-panel)}
+.shift-table th.sticky-col{z-index:7;background:var(--sm-head)}
+.col-code{left:0;width:125px}.col-name{left:125px;width:260px}.col-dept{width:170px}.col-day{width:42px}
+.shift-table td.col-code,.shift-table td.col-name{text-align:left;padding-left:26px}
+.shift-table tbody tr.is-active td{background:var(--sm-selected)}
+.shift-table td.is-off{background:var(--sm-off)!important}.shift-table td.is-work{background:var(--sm-work)!important}
+.shift-table td.is-off,.shift-table td.is-work{position:relative;cursor:default}
+.shift-table td.is-off:hover::after,.shift-table td.is-work:hover::after{
+  content:attr(data-tip);position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);z-index:20;
+  background:var(--sm-tooltip-bg);color:var(--sm-tooltip-text);border-radius:6px;padding:6px 9px;font-size:12px;box-shadow:0 8px 22px rgba(0,0,0,.18);white-space:nowrap;pointer-events:none;
+}
+.shift-footer{height:40px;display:flex;align-items:center;gap:5px;padding:0 28px 0 8px;background:var(--sm-panel);border-top:1px solid var(--sm-line)}
+.shift-export{height:34px;background:var(--sm-export);color:#fff;border:0;padding:0 18px;font-weight:700}.shift-spacer{flex:1}.shift-total{width:120px;height:27px;border:1px solid var(--sm-line);background:var(--sm-head);display:flex;align-items:center;justify-content:flex-end;padding-right:12px}
+
+@media(max-width:1024px){
+  .shift-monitor{min-height:500px}.shift-toolbar{grid-template-columns:1fr 1fr 150px;gap:0}.shift-search{grid-column:1/3}.shift-save{grid-column:3/4;grid-row:2}.shift-table{min-width:1600px}.col-code{width:110px}.col-name{left:110px;width:220px}.col-day{width:38px}
+}
+@media(max-width:640px){
+  .shift-monitor{min-height:100vh;font-size:12px}.shift-toolbar{grid-template-columns:1fr 1fr}.shift-refresh,.shift-search,.shift-save{grid-column:1/-1}.shift-btn{height:34px}.shift-field input,.shift-field select,.shift-search input{height:26px}.shift-table{min-width:1320px}.col-code{width:92px}.col-name{left:92px;width:178px}.col-dept{width:140px}.col-day{width:34px}.shift-table td.col-code,.shift-table td.col-name{padding-left:10px}.shift-footer{padding:0 8px;overflow-x:auto}.shift-total{min-width:82px;width:82px}.shift-export{height:32px}
+}
+</style>
+
+<script>
+(function(){
+  const employees=[
+    ['003','LÊ MINH TRÍ','Dev & implement'],['004','NGUYỄN MINH TRÍ','Dev & implement'],['005','PHẠM VĂN PHÁT','Dev & implement'],['006','HÀ PHI HÙNG','Dev & implement'],['007','PHÙNG TRUNG TÍN','Dev & implement'],['008','BÙI TRẦN THẮNG DUY','Dev & implement'],['011','NGUYỄN THANH LONG','R&D'],['012','NGUYỄN TRƯỜNG LONG','Dev & implement'],['013','NGUYỄN TẤN CHIẾN','Kinh doanh'],['014','VŨ ĐÌNH CƯỜNG','Nhân sự'],['029','TRẦN TRUNG HIẾU','Dev & implement'],['034','TRẦN KHÁNH LY','Kinh doanh'],['038','PHẠM THỊ THUÝ HƯỜNG','Marketing'],['040','NGUYỄN QUỐC LƯƠNG','Dev & implement'],['041','HỨA VĨNH ĐỨC','Dev & implement'],['045','NGUYỄN THẮNG','Dev & implement'],['046','ĐẶNG MINH TÀI','R&D'],['047','NGUYỄN VĂN THỐNG','Dev & implement'],['052','LÊ TRẦN HOÀNG NAM','Kinh doanh'],['054','NGUYỄN THỊ THANH TÂM','Kinh doanh'],['060','LÊ VĂN TỨ','R&D'],['061','THẠCH HOÀNG THÀNH','R&D'],['062','PHẠM MINH TRÍ','Dev & implement'],['063','NGUYỄN TỬ ÁNH TUYẾT','Kinh doanh'],['065','NGUYỄN NGỌC MINH','Thực tập'],['066','HUỲNH NGỌC PHÚC','Thực tập']
+  ];
+  const table=document.getElementById('shiftMonitorTable');
+  if(!table) return;
+  const head=table.querySelector('thead tr');
+  const body=table.querySelector('tbody');
+  for(let d=1; d<=30; d++) head.insertAdjacentHTML('beforeend', `<th class="col-day">${d}</th>`);
+  employees.forEach((emp,rowIndex)=>{
+    let html=`<tr class="${rowIndex===0?'is-active':''}"><td class="sticky-col col-code">${emp[0]}</td><td class="sticky-col col-name">${emp[1]}</td><td class="col-dept">${emp[2]}</td>`;
+    for(let d=1; d<=30; d++){
+      const type=d%7===2?'is-off':d%7===3?'is-work':'';
+      const tip=type==='is-off'?'Ngày nghỉ':type==='is-work'?'Ngày đi ca':'';
+      html+=`<td class="col-day ${type}" ${tip?`data-tip="${tip}"`:''}></td>`;
+    }
+    body.insertAdjacentHTML('beforeend', html+'</tr>');
+  });
+})();
+</script>

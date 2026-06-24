@@ -1,0 +1,38 @@
+# Mục tiêu
+Thêm tính năng "Tạo lịch tự động" (Auto-Schedule) để xếp Ca Hành Chính cho giai đoạn đào tạo FBT và SHTB. Tự động điền lịch vào các ngày trống, **không ghi đè** lên các ngày đã được xếp lịch trước đó. Đặc biệt, **bỏ toàn bộ các ràng buộc cứng (hard errors)**, thay vào đó chỉ dùng cơ chế cảnh báo mềm (hiện popup Confirm) trên giao diện để hỏi ý kiến người quản lý nếu họ cố tình xếp ca khác.
+
+## Đề xuất thay đổi
+
+### 1. Giao diện (HTML & Javascript)
+- **Nút "Tạo lịch tự động":**
+  - Thêm một nút `<button id="btnAutoSchedule" class="tad-btn primary"><i class="fa fa-magic"></i> Tạo lịch tự động</button>` cạnh cụm "Tuần này", "Tháng này".
+  - Khi click: Hiện confirm "Bạn có muốn tự động tạo lịch Hành Chính cho giai đoạn đào tạo hiện tại không?". Bấm OK -> Gọi API tạo lịch.
+
+- **Cảnh báo mềm khi xếp ca thủ công:**
+  - Xóa bỏ việc bị chặn khi bấm "Lưu ca".
+  - Bổ sung logic kiểm tra khi bấm nút "Lưu ca" trên form chọn ca: Nếu ngày đang chọn thuộc về giai đoạn FBT hoặc SHTB, nhưng người dùng lại chọn ca **không phải Ca Hành Chính**, hệ thống sẽ hiện popup nhỏ hỏi: *"Ngày này đang thuộc chuỗi đào tạo FBT/SHTB. Bạn có chắc chắn muốn xếp ca này không?"*
+  - Nếu chọn Có -> Lưu bình thường. Chọn Không -> Hủy thao tác lưu.
+
+### 2. Dữ liệu (SQL Server)
+
+#### [NEW] `sp_TAD_EmployeeScheduleDetail_AutoSchedule`
+Thủ tục mới tính toán và tự động insert lịch:
+1. Nhận `@EmployeeID`.
+2. Lấy ngày bắt đầu trạng thái **FBT** gần nhất từ `tblTrainingStatusHistory` (`@FBTStartDate`).
+3. Dùng vòng lặp quét qua từng ngày kể từ `@FBTStartDate`, tìm đủ **4 ngày làm việc** (bỏ qua Chủ Nhật) làm mốc FBT.
+4. Với mỗi ngày trong 4 ngày FBT này, **kiểm tra xem đã có ca nào trong `tblWSchedule` chưa**. Nếu chưa có (ngày trống) -> Thêm Ca Hành Chính vào. Nếu đã có -> Bỏ qua (Không ghi đè).
+5. Ghi nhận mốc ngày làm việc thứ 4 là `@FBTEndDate`.
+6. Lấy trạng thái hiện tại. Nếu có trạng thái **SHTP**, lấy `Level` (1 hoặc 2) để tính ra cần 1 hay 2 ngày.
+7. Ngày bắt đầu SHTP sẽ nối tiếp ngay sau `@FBTEndDate` (bỏ qua Chủ Nhật).
+8. Vẫn áp dụng nguyên tắc: Chỉ Insert Ca Hành Chính nếu ngày đó đang **trống**, không ghi đè lịch đã có.
+
+#### [MODIFY] `sp_TAD_EmployeeScheduleDetail_SaveSchedule`
+- **Xóa bỏ hoàn toàn** đoạn code báo lỗi đỏ `"Ngày này đang trong chuỗi đào tạo FBT/SHTP. Bắt buộc phải là Ca Hành Chính!"` trước đó. Giúp thủ tục này thoáng hơn, cho phép lưu bất kỳ ca nào theo lệnh từ UI.
+
+#### [MODIFY] API `GetSchedule`
+- Để phục vụ cho việc UI có thể hiển thị popup cảnh báo, API `GetSchedule` sẽ trả về thêm một cờ `IsTrainingDay = 1` cho các ngày thuộc giai đoạn 4 ngày FBT hoặc 1-2 ngày SHTB. Dựa vào cờ này, Javascript sẽ biết khi nào cần bật popup Confirm.
+
+## Kế hoạch kiểm thử (Verification Plan)
+1. Bấm "Tạo lịch tự động" cho 1 nhân viên đang ở trạng thái FBT. Kỳ vọng: Hệ thống lấp đầy 4 ngày trống bằng Ca Hành Chính.
+2. Thử tạo sẵn một lịch Ca Đêm xen vào giữa 4 ngày. Sau đó bấm "Tạo lịch tự động" lại. Kỳ vọng: Hệ thống bỏ qua ngày Ca Đêm đó, không ghi đè mất lịch.
+3. Click tay vào 1 ngày đang nằm trong chuỗi FBT, chọn đổi thành Ca Đêm. Kỳ vọng: Hệ thống không báo lỗi cứng, mà hiện popup hỏi "Bạn có muốn tiếp tục?". Bấm Có -> Đổi thành công.

@@ -1,0 +1,17 @@
+ANALYZE BUG ONLY
+
+Issue:
+[Mô tả lỗi]
+
+Rules:
+- Không sửa code.
+- Không generate patch.
+- Không refactor.
+- Chỉ xác định nguyên nhân.
+
+Output:
+- Root Cause
+- Affected Files
+- Recommended Fix
+
+Tối đa 15 dòng.

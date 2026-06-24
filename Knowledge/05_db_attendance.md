@@ -237,3 +237,23 @@ GROUP BY
     ELSE 'Other (Web/Import)'
   END;
 ```
+
+## Phân ca đào tạo và PIC chấm công theo ngày
+
+Menu Chi tiết nhân sự & phân ca sử dụng:
+
+- `tblTrainingStatus.AttendancePIC`: `EmployeeID` của PIC mặc định theo từng trạng thái đào tạo.
+- `tblWSchedule.TrainingStatusID`: trạng thái đào tạo của lịch từng ngày.
+- `tblWSchedule.AttendancePICEmployeeID`: PIC override cho riêng ngày đó; nếu `NULL` thì UI dùng PIC mặc định từ trạng thái.
+
+Quy tắc tạo lịch tự động full khoảng:
+
+- `RequestedDays` là tổng số bản ghi lịch mong muốn trong `FromDate`–`ToDate`, không phải số bản ghi luôn chèn thêm.
+- Bản ghi đã tồn tại được tính vào tổng và không chèn trùng.
+- Tạo lịch tự động reset bộ đếm tại `FromDate` của khoảng quản lý được chọn. Trong chính khoảng đó, khi một ca dự kiến tạo thành ngày làm liên tục thứ 7, hệ thống không xếp tại ngày vi phạm và dời chính ca này sang ngày kế tiếp còn hợp lệ; không tạo bản ghi `OFF`.
+- `FromDate` và `ToDate` phải cùng tháng, cùng năm. AutoSchedule không được tạo dữ liệu ngoài `ToDate` hoặc tràn sang tháng kế tiếp. Nếu khoảng lọc vượt tháng/năm thì trả lỗi `Khoảng thời gian phân ca phải nằm trong cùng một tháng.` trước khi ghi dữ liệu.
+- Procedure phải lập đủ kế hoạch trong khoảng đã chọn rồi mới INSERT; nếu không đủ ngày hợp lệ thì không lưu một phần.
+- Tạo/sửa lịch thủ công: nếu ngày đang lưu tạo thành chuỗi 7 ngày làm liên tục thì trả lỗi cứng và không ghi dữ liệu.
+- Kết quả API tách `InsertedWorkingRows`, `InsertedOffRows`, `InsertedRows`, `FromDate`, `ToDate` để UI chỉ báo thành công khi DB thực sự chèn dữ liệu.
+
+Ví dụ: chọn tháng 07/2026 và yêu cầu 7 ngày làm thì tạo ngày 01–06/07, không tạo ngày 07/07 và dời ca làm thứ 7 sang ngày 08/07. Lịch trước ngày 01/07 không làm thay đổi vị trí nghỉ của đợt tạo tự động này.

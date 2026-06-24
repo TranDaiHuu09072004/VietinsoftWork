@@ -1,0 +1,27 @@
+IMPLEMENT FEATURE ONLY
+
+Target:
+[Procedure/File]
+
+Feature:
+[Mô tả nghiệp vụ]
+
+Business Rules:
+- Rule 1
+- Rule 2
+- Rule 3
+
+Constraints:
+- Giữ nguyên logic hiện tại.
+- Không sửa chức năng cũ.
+- Không refactor project.
+- Không tạo framework mới.
+- Chỉ cập nhật file liên quan.
+
+Output:
+1. Impacted Functions
+2. Implementation Plan (max 5 lines)
+3. Patch Only
+
+Không trả về toàn bộ file.
+Chỉ trả về code mới hoặc code cần sửa.

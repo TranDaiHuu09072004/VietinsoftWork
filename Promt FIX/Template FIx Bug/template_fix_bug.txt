@@ -1,0 +1,29 @@
+FIX BUG ONLY
+
+Target:
+[Procedure/File cụ thể]
+
+Issue:
+[Mô tả bug ngắn gọn]
+
+Expected:
+[Kết quả mong muốn]
+
+Rules:
+- Chỉ sửa bug được mô tả.
+- Không phân tích toàn bộ project.
+- Không đọc file không liên quan.
+- Không refactor.
+- Không đổi tên biến, function, procedure.
+- Không thay đổi UI nếu không được yêu cầu.
+- Không tạo file mới.
+- Không sửa logic khác.
+
+Output:
+1. Root Cause (tối đa 3 dòng)
+2. Affected Location
+3. Patch Only
+
+Chỉ trả về đoạn code cần thay đổi.
+Không trả về toàn bộ file.
+Không quote code cũ không liên quan.
